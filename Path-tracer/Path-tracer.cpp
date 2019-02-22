@@ -199,7 +199,7 @@ void PathTracer::initDXR(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 uint32_t PathTracer::beginFrame()
 {
     // Bind the descriptor heaps
-    ID3D12DescriptorHeap* heaps[] = { mpSrvUavHeap };
+    ID3D12DescriptorHeap* heaps[] = { mpCbvSrvUavHeap };
     mpCmdList->SetDescriptorHeaps(arraysize(heaps), heaps);
     return mpSwapChain->GetCurrentBackBufferIndex();
 }
@@ -539,24 +539,31 @@ RootSignatureDesc createRayGenRootDesc()
 {
     // Create the root-signature
     RootSignatureDesc desc;
-    desc.range.resize(2);
+    desc.range.resize(3);
     // gOutput
-    desc.range[0].BaseShaderRegister = 0;
+    desc.range[0].BaseShaderRegister = 0;// u0
     desc.range[0].NumDescriptors = 1;
     desc.range[0].RegisterSpace = 0;
     desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
     desc.range[0].OffsetInDescriptorsFromTableStart = 0;
 
     // gRtScene
-    desc.range[1].BaseShaderRegister = 0;
+    desc.range[1].BaseShaderRegister = 0; //t0
     desc.range[1].NumDescriptors = 1;
     desc.range[1].RegisterSpace = 0;
     desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     desc.range[1].OffsetInDescriptorsFromTableStart = 1;
 
+	// Camera
+	desc.range[2].BaseShaderRegister = 1; //b1
+	desc.range[2].NumDescriptors = 1;
+	desc.range[2].RegisterSpace = 0;
+	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+	desc.range[2].OffsetInDescriptorsFromTableStart = 2;
+
     desc.rootParams.resize(1);
     desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 2;
+    desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 3;
     desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
 
     // Create the desc
@@ -631,7 +638,7 @@ struct DxilLibrary
         }
     };
 
-    DxilLibrary() : DxilLibrary(nullptr, nullptr, 0) {}
+    DxilLibrary() : DxilLibrary(0, nullptr, 0) {} //nullptr instead of 0??
 
     D3D12_DXIL_LIBRARY_DESC dxilLibDesc = {};
     D3D12_STATE_SUBOBJECT stateSubobject{};
@@ -879,7 +886,7 @@ void PathTracer::createShaderTable()
 
     // Entry 0 - ray-gen program ID and descriptor data
     memcpy(pData, pRtsoProps->GetShaderIdentifier(kRayGenShader), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-    uint64_t heapStart = mpSrvUavHeap->GetGPUDescriptorHandleForHeapStart().ptr;
+    uint64_t heapStart = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart().ptr;
     *(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = heapStart;
 
     // Entry 1 - primary ray miss
@@ -949,22 +956,42 @@ void PathTracer::createShaderResources()
     resDesc.Width = mSwapChainSize.x;
     d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&mpOutputResource))); // Starting as copy-source to simplify onFrameRender()
 
-    // Create an SRV/UAV descriptor heap. Need 2 entries - 1 SRV for the scene and 1 UAV for the output
-    mpSrvUavHeap = createDescriptorHeap(mpDevice, 2, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+	
+    // Create an SRV/UAV/CBV descriptor heap. Need 3 entries - 1 SRV for the scene, 1 UAV for the output and 1 for the camera
+    mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 3, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+
 
     // Create the UAV. Based on the root signature we created it should be the first entry
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    mpDevice->CreateUnorderedAccessView(mpOutputResource, nullptr, &uavDesc, mpSrvUavHeap->GetCPUDescriptorHandleForHeapStart());
+    mpDevice->CreateUnorderedAccessView(mpOutputResource, nullptr, &uavDesc, mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart());
 
     // Create the TLAS SRV right after the UAV. Note that we are using a different SRV desc here
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
     srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     srvDesc.RaytracingAccelerationStructure.Location = mTopLevelBuffers.pResult->GetGPUVirtualAddress();
-    D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = mpSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
+    D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
     srvHandle.ptr += mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     mpDevice->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
+
+
+	// Create camera buffer
+	uint32_t nbVec = 2; // Position and Direction
+	mCameraBufferSize = nbVec * sizeof(vec4);
+	mpCameraBuffer = createBuffer(mpDevice, mCameraBufferSize, D3D12_RESOURCE_FLAG_NONE,
+		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+
+	// Create the CBV
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+	cbvDesc.BufferLocation = mpCameraBuffer->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = mCameraBufferSize;
+	
+	srvHandle.ptr +=
+		mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	mpDevice->CreateConstantBufferView(&cbvDesc, srvHandle);
+
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1024,14 +1051,31 @@ void PathTracer::readKeyboardInput(bool *gKeys)
 
 }
 
-void PathTracer::CreateCameraBuffer()
+void PathTracer::createCameraBuffer()
 {
+	// We dont use this function!
 	uint32_t nbVec = 2; // Position and Direction
 	mCameraBufferSize = nbVec * sizeof(vec4);
 
-	mCameraBuffer = createBuffer(mpDevice, mCameraBufferSize, D3D12_RESOURCE_FLAG_NONE,
+	mpCameraBuffer = createBuffer(mpDevice, mCameraBufferSize, D3D12_RESOURCE_FLAG_NONE,
 		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
 
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+	cbvDesc.BufferLocation = mpCameraBuffer->GetGPUVirtualAddress();
+	cbvDesc.SizeInBytes = mCameraBufferSize;
+
+}
+
+void PathTracer::updateCameraBuffer()
+{
+	std::vector<vec4> vectors(2);
+	vectors[0] = mCamera.cameraPosition;
+	vectors[1] = mCamera.cameraDirection;
+
+	uint8_t* pData;
+	d3d_call(mpCameraBuffer->Map(0, nullptr, (void**)&pData));
+	memcpy(pData, vectors.data(), mCameraBufferSize);
+	mpCameraBuffer->Unmap(0, nullptr);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -1042,9 +1086,10 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
     initDXR(winHandle, winWidth, winHeight);        // Tutorial 02
     createAccelerationStructures();                 // Tutorial 03
     createRtPipelineState();                        // Tutorial 04
+	//createCameraBuffer();							// My own
     createShaderResources();                        // Tutorial 06
     createConstantBuffers();                        // Tutorial 10. Yes, we need to do it before creating the shader-table
-    createShaderTable();                            // Tutorial 05
+	createShaderTable();                            // Tutorial 05
 }
 
 void PathTracer::onFrameRender(bool *gKeys)
@@ -1053,7 +1098,8 @@ void PathTracer::onFrameRender(bool *gKeys)
 
     uint32_t rtvIndex = beginFrame();
 
-	
+	// Update camera
+	updateCameraBuffer();
 
     // Refit the top-level acceleration structure
     buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, mRotation, true, mTopLevelBuffers);
@@ -1108,5 +1154,5 @@ void PathTracer::onShutdown()
 
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
 {
-    Framework::run(PathTracer(), "Path-tracer");
+	Framework::run(PathTracer(), "Path-tracer");
 }

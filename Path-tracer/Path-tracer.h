@@ -105,7 +105,7 @@ private:
     //////////////////////////////////////////////////////////////////////////
     void createShaderResources();
     ID3D12ResourcePtr mpOutputResource;
-    ID3D12DescriptorHeapPtr mpSrvUavHeap;
+    ID3D12DescriptorHeapPtr mpCbvSrvUavHeap;
     static const uint32_t kSrvUavHeapSize = 2;
 
     //////////////////////////////////////////////////////////////////////////
@@ -125,10 +125,14 @@ private:
 	void readKeyboardInput(bool *gKeys);
 
 	struct {
-		vec3 cameraPosition = vec3(0, 0, -2);
-		vec3 cameraDirection = vec3(0, 0, 1);
+		vec4 cameraPosition = vec4(0, 0, -2, 1);
+		vec4 cameraDirection = vec4(0, 0, 1, 1);
 	}mCamera;
-
+	
+	void createCameraBuffer();
+	void updateCameraBuffer();
+	ID3D12ResourcePtr mpCameraBuffer;
+	uint32_t mCameraBufferSize = 0;
 	
 	
 };
