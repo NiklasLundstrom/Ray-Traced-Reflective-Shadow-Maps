@@ -126,7 +126,7 @@ private:
 
 	struct {
 		vec4 cameraPosition = vec4(0, 0, -2, 1);
-		vec4 cameraDirection = vec4(0, 0, 1, 1);
+		vec4 cameraDirection = vec4(0, 0, 1, 0);
 	}mCamera;
 	
 	void createCameraBuffer();

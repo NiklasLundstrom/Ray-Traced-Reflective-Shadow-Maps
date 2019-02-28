@@ -14,6 +14,7 @@
     <ClCompile Include="Path-tracer.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Data\occcity.h" />
     <ClInclude Include="Path-tracer.h" />
   </ItemGroup>
   <ItemGroup>
@@ -30,6 +31,9 @@
   <ItemGroup>
     <Reference Include="PresentationCore" />
     <Reference Include="WindowsBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Data\occcity.bin" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{3BA75BE4-F314-4885-A4C2-A054758553FD}</ProjectGuid>

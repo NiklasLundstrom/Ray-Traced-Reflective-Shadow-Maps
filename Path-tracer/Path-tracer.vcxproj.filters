@@ -10,10 +10,18 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Path-tracer.h" />
+    <ClInclude Include="Data\occcity.h">
+      <Filter>Data</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Data\Shaders.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Data\occcity.bin">
+      <Filter>Data</Filter>
+    </None>
   </ItemGroup>
 </Project>

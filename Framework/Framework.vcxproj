@@ -14,6 +14,7 @@
     <ClCompile Include="Framework.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="DXSampleHelper.h" />
     <ClInclude Include="Framework.h" />
   </ItemGroup>
   <ItemGroup>

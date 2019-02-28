@@ -38,7 +38,7 @@ cbuffer PerFrame : register(b0)
 cbuffer Camera : register(b1)
 {
 	float3 cameraPosition;
-	float3 cameraDirection;
+	float4 cameraDirection;
 }
 
 float3 linearToSrgb(float3 c)
@@ -68,9 +68,12 @@ void rayGen()
     float2 d = ((crd/dims) * 2.f - 1.f);
     float aspectRatio = dims.x / dims.y;
 
+    float yRotAngle = cameraDirection.w;
+    float3x3 yRotMat = float3x3(cos(yRotAngle), 0, sin(yRotAngle), 0, 1, 0, -sin(yRotAngle), 0, cos(yRotAngle));
+    
     RayDesc ray;
-	ray.Origin = float3(0, 0, -2);//cameraPosition;
-    ray.Direction = normalize(float3(d.x * aspectRatio, -d.y, 1));
+	ray.Origin = cameraPosition;// float3(0, 0, -2);//;
+    ray.Direction = normalize(mul(float3(d.x * aspectRatio, -d.y, 1), yRotMat));
 
     ray.TMin = 0;
     ray.TMax = 100000;

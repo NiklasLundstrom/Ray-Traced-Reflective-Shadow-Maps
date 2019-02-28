@@ -555,6 +555,7 @@ RootSignatureDesc createRayGenRootDesc()
     desc.range[1].OffsetInDescriptorsFromTableStart = 1;
 
 	// Camera
+	//TODO: Is this the right number???
 	desc.range[2].BaseShaderRegister = 1; //b1
 	desc.range[2].NumDescriptors = 1;
 	desc.range[2].RegisterSpace = 0;
@@ -975,22 +976,16 @@ void PathTracer::createShaderResources()
     srvHandle.ptr += mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     mpDevice->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
 
-
-	// Create camera buffer
-	uint32_t nbVec = 2; // Position and Direction
-	mCameraBufferSize = nbVec * sizeof(vec4);
-	mpCameraBuffer = createBuffer(mpDevice, mCameraBufferSize, D3D12_RESOURCE_FLAG_NONE,
-		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-
 	// Create the CBV
 	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 	cbvDesc.BufferLocation = mpCameraBuffer->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = mCameraBufferSize;
+	uint32_t allignmentConst = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - mCameraBufferSize % D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+	cbvDesc.SizeInBytes = mCameraBufferSize + allignmentConst;
 	
-	srvHandle.ptr +=
-		mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	D3D12_CPU_DESCRIPTOR_HANDLE cbvHandle = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
+	cbvHandle.ptr += 2 * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	mpDevice->CreateConstantBufferView(&cbvDesc, srvHandle);
+	mpDevice->CreateConstantBufferView(&cbvDesc, cbvHandle);
 
 }
 
@@ -1032,42 +1027,52 @@ void PathTracer::createConstantBuffers()
 //////////////////////////////////////////////////////////////////////////
 void PathTracer::readKeyboardInput(bool *gKeys)
 {
+	if (gKeys['A'])
+	{
+		float angle = mCamera.cameraDirection.w + 0.005f;
+		mCamera.cameraDirection = eulerAngleY(-angle) * vec4(0,0,1,1); //TODO: Pan. Add additional controls to rotate
+		mCamera.cameraDirection.w = angle;
+	}
+	else if (gKeys['D'])
+	{
+		float angle = mCamera.cameraDirection.w - 0.005f;
+		mCamera.cameraDirection = eulerAngleY(-angle) * vec4(0, 0, 1, 1);
+		mCamera.cameraDirection.w = angle;
+	}
+	if (gKeys[VK_UP])
+	{
+		mCamera.cameraPosition += 0.01f * mCamera.cameraDirection;
+	}
+	else if (gKeys[VK_DOWN])
+	{
+		mCamera.cameraPosition -= 0.01f * mCamera.cameraDirection;
+	}
 	if (gKeys[VK_LEFT])
 	{
-		int bp = 0;
-		mCamera.cameraPosition.x -= 0.01f;
-		wchar_t outStr[256];
-		swprintf(outStr, sizeof(outStr), L"x: %g\n", mCamera.cameraPosition.x);
-		OutputDebugString(outStr);
+		mCamera.cameraPosition += 0.01f * vec4(-mCamera.cameraDirection.z, 0, mCamera.cameraDirection.x, 0);
 	}
 	else if (gKeys[VK_RIGHT])
 	{
-		mCamera.cameraPosition.x += 0.01f;
-		wchar_t outStr[256];
-		swprintf(outStr, sizeof(outStr), L"x: %g\n", mCamera.cameraPosition.x);
-		OutputDebugString(outStr);
+		mCamera.cameraPosition -= 0.01f * vec4(-mCamera.cameraDirection.z, 0, mCamera.cameraDirection.x, 0);
 	}
+	
 
 
 }
 
 void PathTracer::createCameraBuffer()
 {
-	// We dont use this function!
+	// Create camera buffer
 	uint32_t nbVec = 2; // Position and Direction
 	mCameraBufferSize = nbVec * sizeof(vec4);
-
 	mpCameraBuffer = createBuffer(mpDevice, mCameraBufferSize, D3D12_RESOURCE_FLAG_NONE,
 		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = mpCameraBuffer->GetGPUVirtualAddress();
-	cbvDesc.SizeInBytes = mCameraBufferSize;
 
 }
 
 void PathTracer::updateCameraBuffer()
 {
+	// TODO: add barrier???
 	std::vector<vec4> vectors(2);
 	vectors[0] = mCamera.cameraPosition;
 	vectors[1] = mCamera.cameraDirection;
@@ -1086,7 +1091,7 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
     initDXR(winHandle, winWidth, winHeight);        // Tutorial 02
     createAccelerationStructures();                 // Tutorial 03
     createRtPipelineState();                        // Tutorial 04
-	//createCameraBuffer();							// My own
+	createCameraBuffer();							// My own
     createShaderResources();                        // Tutorial 06
     createConstantBuffers();                        // Tutorial 10. Yes, we need to do it before creating the shader-table
 	createShaderTable();                            // Tutorial 05

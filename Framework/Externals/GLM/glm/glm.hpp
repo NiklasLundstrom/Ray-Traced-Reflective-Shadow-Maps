@@ -106,6 +106,8 @@
 
 #pragma once
 
+#define GLM_SWIZZLE
+
 #include <cmath>
 #include <climits>
 #include <cfloat>
