@@ -302,17 +302,41 @@ ID3D12ResourcePtr createPlaneVB(ID3D12Device5Ptr pDevice)
     return pBuffer;
 }
 
-//ID3D12ResourcePtr createCityVB(ID3D12Device5Ptr pDevice, UINT8* pCityMeshData)
-//{
-	//ID3D12ResourcePtr pBuffer = createBuffer(pDevice, SampleAssets::VertexDataSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST, kDefaultHeapProps); //different settings in kDefaultHeapProps
-	//uint8_t* pData;
-	//pBuffer->Map(0, nullptr, (void**)&pData);
-	//memcpy(pData, pCityMeshData + SampleAssets::VertexDataOffset, SampleAssets::VertexDataSize);
-	//pBuffer->Unmap(0, nullptr);
-	//return pBuffer;
-//}
+ID3D12ResourcePtr createTeapotVB(ID3D12Device5Ptr pDevice, aiVector3D* aiVertecies)
+{
+	vec3 vertices[2492];
+	for (uint i = 0; i < 2492; i++)
+	{
+		vertices[i] = vec3(aiVertecies[i].x, aiVertecies[i].y, aiVertecies[i].z);
+	}
 
-PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], uint32_t geometryCount)
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(vertices), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, vertices, sizeof(vertices));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
+ID3D12ResourcePtr createTeapotIB(ID3D12Device5Ptr pDevice, aiFace* aiIndices)
+{
+	uint indices[4032 * 3];
+	for (uint i = 0; i < 4032; i++)
+	{
+		indices[3*i] = aiIndices[i].mIndices[0];
+		indices[3*i + 1] = aiIndices[i].mIndices[1];
+		indices[3*i + 2] = aiIndices[i].mIndices[2];
+	}
+
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(indices), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, indices, sizeof(indices));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
+PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], uint32_t geometryCount, bool useIndex)
 {
     std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geomDesc;
     geomDesc.resize(geometryCount);
@@ -320,10 +344,15 @@ PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pD
     for (uint32_t i = 0; i < geometryCount; i++)
     {
         geomDesc[i].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-        geomDesc[i].Triangles.VertexBuffer.StartAddress = pVB[i]->GetGPUVirtualAddress();
+        geomDesc[i].Triangles.VertexBuffer.StartAddress = pVB[useIndex ? 2 * i : i]->GetGPUVirtualAddress();
         geomDesc[i].Triangles.VertexBuffer.StrideInBytes = sizeof(vec3);
-        geomDesc[i].Triangles.VertexCount = vertexCount[i];
+        geomDesc[i].Triangles.VertexCount = vertexCount[useIndex ? 2 * i : i];
         geomDesc[i].Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+		if (useIndex) {
+			geomDesc[i].Triangles.IndexBuffer = pVB[1 + 2*i]->GetGPUVirtualAddress();
+			geomDesc[i].Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
+			geomDesc[i].Triangles.IndexCount = vertexCount[1 + 2*i];
+		}
         geomDesc[i].Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
     }
 
@@ -452,7 +481,8 @@ void PathTracer::createAccelerationStructures()
     mpVertexBuffer[0] = createTriangleVB(mpDevice);
     mpVertexBuffer[1] = createPlaneVB(mpDevice);
 
-	/*const aiScene* teapotScene = importer.ReadFile("Data/teapot/utah-teapot.obj",
+	// Load teapot
+	const aiScene* teapotScene = importer.ReadFile("Data/teapot/utah-teapot.obj",
 		aiProcess_CalcTangentSpace		|
 		aiProcess_JoinIdenticalVertices	|
 		aiProcess_Triangulate			|
@@ -461,22 +491,29 @@ void PathTracer::createAccelerationStructures()
 		aiProcess_GenUVCoords			|
 		aiProcess_TransformUVCoords		|
 		aiProcess_MakeLeftHanded);
+	aiMesh* teapot = teapotScene->mMeshes[0];
 
-	bool b = false;
-	b= teapotScene->HasMeshes();
-	aiMesh* teapot = teapotScene->mMeshes[0];*/
+	mpVertexBuffer[2] = createTeapotVB(mpDevice, teapot->mVertices);
+	mpIndexBuffer = createTeapotIB(mpDevice, teapot->mFaces);
 
-	//mpVertexBuffer[2] = createCityVB(mpDevice, pCityMeshData);
-    AccelerationStructureBuffers bottomLevelBuffers[2];
+
+
+    AccelerationStructureBuffers bottomLevelBuffers[3];
 
     // The first bottom-level buffer is for the plane and the triangle
     const uint32_t vertexCount[] = { 3, 6 };// Triangle has 3 vertices, plane has 6
-    bottomLevelBuffers[0] = createBottomLevelAS(mpDevice, mpCmdList, mpVertexBuffer, vertexCount, 2);
+    bottomLevelBuffers[0] = createBottomLevelAS(mpDevice, mpCmdList, mpVertexBuffer, vertexCount, 2, false);
     mpBottomLevelAS[0] = bottomLevelBuffers[0].pResult;
 
     // The second bottom-level buffer is for the triangle only
-    bottomLevelBuffers[1] = createBottomLevelAS(mpDevice, mpCmdList, mpVertexBuffer, vertexCount, 1);
+    bottomLevelBuffers[1] = createBottomLevelAS(mpDevice, mpCmdList, mpVertexBuffer, vertexCount, 1, false);
     mpBottomLevelAS[1] = bottomLevelBuffers[1].pResult;
+
+	// The third bottom-level buffer is for the teapot
+	ID3D12ResourcePtr buffersTeapot[] = { mpVertexBuffer[2], mpIndexBuffer };
+	const uint32_t vertexCountTeapot[] = { teapot->mNumVertices, teapot->mNumFaces };
+	bottomLevelBuffers[2] = createBottomLevelAS(mpDevice, mpCmdList, buffersTeapot, vertexCountTeapot, 1, true);
+	
 
     // Create the TLAS
     buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, false, 0, mTopLevelBuffers);
@@ -1097,7 +1134,6 @@ void PathTracer::createCameraBuffer()
 
 void PathTracer::updateCameraBuffer()
 {
-	// TODO: add barrier???
 	std::vector<vec4> vectors(2);
 	vectors[0] = mCamera.cameraPosition;
 	vectors[1] = mCamera.cameraDirection;

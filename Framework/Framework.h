@@ -47,10 +47,10 @@
 #include <array>
 #include <stdio.h>
 #include <iostream>
-//#include <assimp/Importer.hpp>
-//#include <assimp/postprocess.h>
-//#include <assimp/types.h>
-//#include <assimp/scene.h>
+#include <assimp/Importer.hpp>
+#include <assimp/postprocess.h>
+#include <assimp/types.h>
+#include <assimp/scene.h>
 //#include <stdlib.h>
 
 using namespace glm;
