@@ -29,6 +29,7 @@
 #include <locale>
 #include <codecvt>
 
+
 namespace
 {
     HWND gWinHandle = nullptr;
@@ -166,3 +167,4 @@ void Framework::run(Tutorial& tutorial, const std::string& winTitle, uint32_t wi
     tutorial.onShutdown();
     DestroyWindow(gWinHandle);
 }
+

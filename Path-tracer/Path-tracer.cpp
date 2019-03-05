@@ -302,6 +302,16 @@ ID3D12ResourcePtr createPlaneVB(ID3D12Device5Ptr pDevice)
     return pBuffer;
 }
 
+//ID3D12ResourcePtr createCityVB(ID3D12Device5Ptr pDevice, UINT8* pCityMeshData)
+//{
+	//ID3D12ResourcePtr pBuffer = createBuffer(pDevice, SampleAssets::VertexDataSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_COPY_DEST, kDefaultHeapProps); //different settings in kDefaultHeapProps
+	//uint8_t* pData;
+	//pBuffer->Map(0, nullptr, (void**)&pData);
+	//memcpy(pData, pCityMeshData + SampleAssets::VertexDataOffset, SampleAssets::VertexDataSize);
+	//pBuffer->Unmap(0, nullptr);
+	//return pBuffer;
+//}
+
 PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], uint32_t geometryCount)
 {
     std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geomDesc;
@@ -441,6 +451,22 @@ void PathTracer::createAccelerationStructures()
 {
     mpVertexBuffer[0] = createTriangleVB(mpDevice);
     mpVertexBuffer[1] = createPlaneVB(mpDevice);
+
+	/*const aiScene* teapotScene = importer.ReadFile("Data/teapot/utah-teapot.obj",
+		aiProcess_CalcTangentSpace		|
+		aiProcess_JoinIdenticalVertices	|
+		aiProcess_Triangulate			|
+		aiProcess_GenNormals			|
+		aiProcess_FixInfacingNormals	|
+		aiProcess_GenUVCoords			|
+		aiProcess_TransformUVCoords		|
+		aiProcess_MakeLeftHanded);
+
+	bool b = false;
+	b= teapotScene->HasMeshes();
+	aiMesh* teapot = teapotScene->mMeshes[0];*/
+
+	//mpVertexBuffer[2] = createCityVB(mpDevice, pCityMeshData);
     AccelerationStructureBuffers bottomLevelBuffers[2];
 
     // The first bottom-level buffer is for the plane and the triangle
@@ -555,7 +581,6 @@ RootSignatureDesc createRayGenRootDesc()
     desc.range[1].OffsetInDescriptorsFromTableStart = 1;
 
 	// Camera
-	//TODO: Is this the right number???
 	desc.range[2].BaseShaderRegister = 1; //b1
 	desc.range[2].NumDescriptors = 1;
 	desc.range[2].RegisterSpace = 0;

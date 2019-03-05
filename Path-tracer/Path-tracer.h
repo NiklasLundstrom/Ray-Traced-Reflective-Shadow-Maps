@@ -82,6 +82,7 @@ private:
     //////////////////////////////////////////////////////////////////////////
     void createAccelerationStructures();
     ID3D12ResourcePtr mpVertexBuffer[2];
+	//ID3D12ResourcePtr mpIndexBuffer;
     ID3D12ResourcePtr mpBottomLevelAS[2];
     AccelerationStructureBuffers mTopLevelBuffers;
     uint64_t mTlasSize = 0;
@@ -133,6 +134,8 @@ private:
 	void updateCameraBuffer();
 	ID3D12ResourcePtr mpCameraBuffer;
 	uint32_t mCameraBufferSize = 0;
-	
+
+	//Assimp::Importer importer;
+
 	
 };
