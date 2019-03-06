@@ -280,6 +280,24 @@ ID3D12ResourcePtr createTriangleVB(ID3D12Device5Ptr pDevice)
     return pBuffer;
 }
 
+ID3D12ResourcePtr createTriangleIB(ID3D12Device5Ptr pDevice)
+{
+	const uint indices[] =
+	{
+		0,
+		1,
+		2
+	};
+
+	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(indices), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, indices, sizeof(indices));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
 ID3D12ResourcePtr createPlaneVB(ID3D12Device5Ptr pDevice)
 {
     const vec3 vertices[] =
@@ -287,10 +305,7 @@ ID3D12ResourcePtr createPlaneVB(ID3D12Device5Ptr pDevice)
         vec3(-100, -1,  -2),
         vec3( 100, -1,  100),
         vec3(-100, -1,  100),
-              
-        vec3(-100, -1,  -2),
         vec3( 100, -1,  -2),
-        vec3( 100, -1,  100),
     };
 
     // For simplicity, we create the vertex buffer on the upload heap, but that's not required
@@ -300,6 +315,27 @@ ID3D12ResourcePtr createPlaneVB(ID3D12Device5Ptr pDevice)
     memcpy(pData, vertices, sizeof(vertices));
     pBuffer->Unmap(0, nullptr);
     return pBuffer;
+}
+
+ID3D12ResourcePtr createPlaneIB(ID3D12Device5Ptr pDevice)
+{
+	const uint indices[] =
+	{
+		0,
+		1,
+		2,
+		0,
+		3,
+		1
+	};
+
+	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(indices), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, indices, sizeof(indices));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
 }
 
 ID3D12ResourcePtr createTeapotVB(ID3D12Device5Ptr pDevice, aiVector3D* aiVertecies)
@@ -336,7 +372,7 @@ ID3D12ResourcePtr createTeapotIB(ID3D12Device5Ptr pDevice, aiFace* aiIndices)
 	return pBuffer;
 }
 
-PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], uint32_t geometryCount, bool useIndex)
+PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], ID3D12ResourcePtr pIB[], const uint32_t indexCount[], uint32_t geometryCount)
 {
     std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geomDesc;
     geomDesc.resize(geometryCount);
@@ -344,15 +380,13 @@ PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pD
     for (uint32_t i = 0; i < geometryCount; i++)
     {
         geomDesc[i].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-        geomDesc[i].Triangles.VertexBuffer.StartAddress = pVB[useIndex ? 2 * i : i]->GetGPUVirtualAddress();
+        geomDesc[i].Triangles.VertexBuffer.StartAddress = pVB[i]->GetGPUVirtualAddress();
         geomDesc[i].Triangles.VertexBuffer.StrideInBytes = sizeof(vec3);
-        geomDesc[i].Triangles.VertexCount = vertexCount[useIndex ? 2 * i : i];
+        geomDesc[i].Triangles.VertexCount = vertexCount[i];
         geomDesc[i].Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-		if (useIndex) {
-			geomDesc[i].Triangles.IndexBuffer = pVB[1 + 2*i]->GetGPUVirtualAddress();
-			geomDesc[i].Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
-			geomDesc[i].Triangles.IndexCount = vertexCount[1 + 2*i];
-		}
+		geomDesc[i].Triangles.IndexBuffer = pIB[i]->GetGPUVirtualAddress();
+		geomDesc[i].Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
+		geomDesc[i].Triangles.IndexCount = indexCount[i];
         geomDesc[i].Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
     }
 
@@ -479,7 +513,9 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 void PathTracer::createAccelerationStructures()
 {
     mpVertexBuffer[0] = createTriangleVB(mpDevice);
+	mpIndexBuffer[0] = createTriangleIB(mpDevice);
     mpVertexBuffer[1] = createPlaneVB(mpDevice);
+	mpIndexBuffer[1] = createPlaneIB(mpDevice);
 
 	// Load teapot
 	const aiScene* teapotScene = importer.ReadFile("Data/teapot/utah-teapot.obj",
@@ -494,31 +530,59 @@ void PathTracer::createAccelerationStructures()
 	aiMesh* teapot = teapotScene->mMeshes[0];
 
 	mpVertexBuffer[2] = createTeapotVB(mpDevice, teapot->mVertices);
-	mpIndexBuffer = createTeapotIB(mpDevice, teapot->mFaces);
+	mpIndexBuffer[2] = createTeapotIB(mpDevice, teapot->mFaces);
 
 
 
     AccelerationStructureBuffers bottomLevelBuffers[3];
 
     // The first bottom-level buffer is for the plane and the triangle
-    const uint32_t vertexCount[] = { 3, 6 };// Triangle has 3 vertices, plane has 6
-    bottomLevelBuffers[0] = createBottomLevelAS(mpDevice, mpCmdList, mpVertexBuffer, vertexCount, 2, false);
-    mpBottomLevelAS[0] = bottomLevelBuffers[0].pResult;
+		const uint32_t vertexCountTriPlane[] = { 3, 4 };// Triangle has 3 vertices, plane has 6
+		const uint32_t indexCountTriPlane[] = { 3, 6 };
+		bottomLevelBuffers[0] = createBottomLevelAS(
+													mpDevice, 
+													mpCmdList, 
+													mpVertexBuffer, 
+													vertexCountTriPlane, 
+													mpIndexBuffer, 
+													indexCountTriPlane, 
+													2
+												   );
+		mpBottomLevelAS[0] = bottomLevelBuffers[0].pResult;
 
     // The second bottom-level buffer is for the triangle only
-    bottomLevelBuffers[1] = createBottomLevelAS(mpDevice, mpCmdList, mpVertexBuffer, vertexCount, 1, false);
-    mpBottomLevelAS[1] = bottomLevelBuffers[1].pResult;
+		bottomLevelBuffers[1] = createBottomLevelAS(
+													mpDevice, 
+													mpCmdList, 
+													mpVertexBuffer, 
+													vertexCountTriPlane, 
+													mpIndexBuffer, 
+													indexCountTriPlane, 
+													1
+												   );
+		mpBottomLevelAS[1] = bottomLevelBuffers[1].pResult;
 
 	// The third bottom-level buffer is for the teapot
-	ID3D12ResourcePtr buffersTeapot[] = { mpVertexBuffer[2], mpIndexBuffer };
-	const uint32_t vertexCountTeapot[] = { teapot->mNumVertices, teapot->mNumFaces };
-	bottomLevelBuffers[2] = createBottomLevelAS(mpDevice, mpCmdList, buffersTeapot, vertexCountTeapot, 1, true);
-	
+		ID3D12ResourcePtr vertexBufferTeapot[] = { mpVertexBuffer[2] };
+		const uint32_t vertexCountTeapot[] = { teapot->mNumVertices };
+		ID3D12ResourcePtr indexBufferTeapot[] = { mpIndexBuffer[2] };
+		const uint32_t indexCountTeapot[] = { teapot->mNumFaces * 3};
+		bottomLevelBuffers[2] = createBottomLevelAS(
+													mpDevice, 
+													mpCmdList, 
+													vertexBufferTeapot, 
+													vertexCountTeapot, 
+													indexBufferTeapot, 
+													indexCountTeapot, 
+													1
+												   );
+		mpBottomLevelAS[2] = bottomLevelBuffers[2].pResult;
 
     // Create the TLAS
     buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, false, 0, mTopLevelBuffers);
 
-    // The tutorial doesn't have any resource lifetime management, so we flush and sync here. This is not required by the DXR spec - you can submit the list whenever you like as long as you take care of the resources lifetime.
+    // The tutorial doesn't have any resource lifetime management, so we flush and sync here. 
+	//This is not required by the DXR spec - you can submit the list whenever you like as long as you take care of the resources lifetime.
     mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
     mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
     WaitForSingleObject(mFenceEvent, INFINITE);
@@ -641,9 +705,11 @@ RootSignatureDesc createTriangleHitRootDesc()
 {
     RootSignatureDesc desc;
     desc.rootParams.resize(1);
+
+	// constant buffer (colours)
     desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     desc.rootParams[0].Descriptor.RegisterSpace = 0;
-    desc.rootParams[0].Descriptor.ShaderRegister = 0;
+    desc.rootParams[0].Descriptor.ShaderRegister = 0;//b0
 
     desc.desc.NumParameters = 1;
     desc.desc.pParameters = desc.rootParams.data();
@@ -656,7 +722,9 @@ RootSignatureDesc createPlaneHitRootDesc()
 {
     RootSignatureDesc desc;
     desc.range.resize(1);
-    desc.range[0].BaseShaderRegister = 0;
+
+	// gRtScene
+    desc.range[0].BaseShaderRegister = 0; //t0
     desc.range[0].NumDescriptors = 1;
     desc.range[0].RegisterSpace = 0;
     desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
@@ -714,8 +782,10 @@ static const WCHAR* kRayGenShader = L"rayGen";
 static const WCHAR* kMissShader = L"miss";
 static const WCHAR* kTriangleChs = L"triangleChs";
 static const WCHAR* kPlaneChs = L"planeChs";
+static const WCHAR* kTeapotChs = L"teapotChs";
 static const WCHAR* kTriHitGroup = L"TriHitGroup";
 static const WCHAR* kPlaneHitGroup = L"PlaneHitGroup";
+static const WCHAR* kTeapotHitGroup = L"TeapotHitGroup";
 static const WCHAR* kShadowChs = L"shadowChs";
 static const WCHAR* kShadowMiss = L"shadowMiss";
 static const WCHAR* kShadowHitGroup = L"ShadowHitGroup";

@@ -97,6 +97,12 @@ void triangleChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttribu
     payload.color = A * barycentrics.x + B * barycentrics.y + C * barycentrics.z;
 }
 
+[shader("closesthit")]
+void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
+{
+    payload.color = float3(1.0f, 0.0f, 0.0f);
+}
+
 struct ShadowPayload
 {
     bool hit;
@@ -122,7 +128,7 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
     TraceRay(gRtScene, 0  /*rayFlags*/, 0xFF, 1 /* ray index*/, 0, 1, ray, shadowPayload);
 
     float factor = shadowPayload.hit ? 0.1 : 1.0;
-    payload.color = float4(0.9f, 0.9f, 0.9f, 1.0f) * factor;
+    payload.color = float3(0.9f, 0.9f, 0.9f) * factor;
 }
 
 [shader("closesthit")]
