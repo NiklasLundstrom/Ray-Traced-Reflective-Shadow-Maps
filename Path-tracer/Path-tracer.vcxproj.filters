@@ -12,7 +12,19 @@
     <ClInclude Include="Path-tracer.h" />
   </ItemGroup>
   <ItemGroup>
-    <FxCompile Include="Data\Shaders.hlsl">
+    <FxCompile Include="Data\Miss.hlsl">
+      <Filter>Data</Filter>
+    </FxCompile>
+    <FxCompile Include="Data\Hit.hlsl">
+      <Filter>Data</Filter>
+    </FxCompile>
+    <FxCompile Include="Data\RayGeneration.hlsl">
+      <Filter>Data</Filter>
+    </FxCompile>
+    <FxCompile Include="Data\ShadowRay.hlsl">
+      <Filter>Data</Filter>
+    </FxCompile>
+    <FxCompile Include="Data\Common - not included.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
   </ItemGroup>

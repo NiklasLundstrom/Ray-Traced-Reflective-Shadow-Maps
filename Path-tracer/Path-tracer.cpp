@@ -542,7 +542,7 @@ void PathTracer::createAccelerationStructures()
 
 	mpVertexBuffer[2] = createTeapotVB(mpDevice, teapot->mVertices);
 	mpIndexBuffer[2] = createTeapotIB(mpDevice, teapot->mFaces);
-
+	
 
 
     AccelerationStructureBuffers bottomLevelBuffers[3];
@@ -912,79 +912,93 @@ void PathTracer::createRtPipelineState()
     //  2 for shader config (shared between all programs. 1 for the config, 1 for association)
     //  1 for pipeline config
     //  1 for the global root signature
-    std::array<D3D12_STATE_SUBOBJECT,18> subobjects;
+    std::array<D3D12_STATE_SUBOBJECT,22> subobjects;
     uint32_t index = 0;
 
-    // Create the DXIL library
-	
-		DxilLibrary dxilLib = createDxilLibrary();
-		subobjects[index++] = dxilLib.stateSubobject; // 0 Library
+    // Create the DXIL libraries
+
+		const WCHAR* entryPointsRayGen[] = { kRayGenShader };
+		DxilLibrary rayGenLib = DxilLibrary(compileLibrary(L"Data/RayGeneration.hlsl", L"lib_6_3"), entryPointsRayGen, arraysize(entryPointsRayGen));
+		subobjects[index++] = rayGenLib.stateSubobject; // 0 RayGen Library
+
+		const WCHAR* entryPointsMiss[] = { kMissShader };
+		DxilLibrary missLib = DxilLibrary(compileLibrary(L"Data/Miss.hlsl", L"lib_6_3"), entryPointsMiss, arraysize(entryPointsMiss));
+		subobjects[index++] = missLib.stateSubobject; // 1 Miss Library
+
+		const WCHAR* entryPointsHit[] = { kTriangleChs, kTeapotChs, kPlaneChs };
+		DxilLibrary hitLib = DxilLibrary(compileLibrary(L"Data/Hit.hlsl", L"lib_6_3"), entryPointsHit, arraysize(entryPointsHit));
+		subobjects[index++] = hitLib.stateSubobject; // 2 Hit Library
+
+		const WCHAR* entryPointsShadowRay[] = { kShadowChs, kShadowMiss };
+		DxilLibrary shadowRayLib = DxilLibrary(compileLibrary(L"Data/ShadowRay.hlsl", L"lib_6_3"), entryPointsShadowRay, arraysize(entryPointsShadowRay));
+		subobjects[index++] = shadowRayLib.stateSubobject; // 3 Shadow Ray Library
+
 	
 	//----- Create Hit Programs -----//
 	#pragma region
 		// Create the triangle HitProgram
 			HitProgram triHitProgram(nullptr, kTriangleChs, kTriHitGroup);
-			subobjects[index++] = triHitProgram.subObject; // 1 Triangle Hit Group
+			subobjects[index++] = triHitProgram.subObject; // 4 Triangle Hit Group
 
 		// Create the plane HitProgram
 			HitProgram planeHitProgram(nullptr, kPlaneChs, kPlaneHitGroup);
-			subobjects[index++] = planeHitProgram.subObject; // 2 Plant Hit Group
+			subobjects[index++] = planeHitProgram.subObject; // 5 Plant Hit Group
 
 		// Create the teapot HitProgram
 			HitProgram teapotHitProgram(nullptr, kTeapotChs, kTeapotHitGroup);
-			subobjects[index++] = teapotHitProgram.subObject; // 3 Teapot Hit Group
+			subobjects[index++] = teapotHitProgram.subObject; // 6 Teapot Hit Group
 
 		// Create the shadow-ray hit group
 			HitProgram shadowHitProgram(nullptr, kShadowChs, kShadowHitGroup);
-			subobjects[index++] = shadowHitProgram.subObject; // 4 Shadow Hit Group
+			subobjects[index++] = shadowHitProgram.subObject; // 7 Shadow Hit Group
 	#pragma endregion
 
 	//---- Create root-signatures and associations ----//
 	#pragma region
 		// Create the ray-gen root-signature and association
 			LocalRootSignature rgsRootSignature(mpDevice, createRayGenRootDesc().desc);
-			subobjects[index] = rgsRootSignature.subobject; // 4 Ray Gen Root Sig
+			subobjects[index] = rgsRootSignature.subobject; // 8 Ray Gen Root Sig
 
 			uint32_t rgsRootIndex = index++;
 			ExportAssociation rgsRootAssociation(&kRayGenShader, 1, &(subobjects[rgsRootIndex]));
-			subobjects[index++] = rgsRootAssociation.subobject; // 5 Associate Root Sig to RGS
+			subobjects[index++] = rgsRootAssociation.subobject; // 9 Associate Root Sig to RGS
 
 		// Create the tri hit root-signature and association
 			LocalRootSignature triHitRootSignature(mpDevice, createTriangleHitRootDesc().desc);
-			subobjects[index] = triHitRootSignature.subobject; // 6 Triangle Hit Root Sig
+			subobjects[index] = triHitRootSignature.subobject; // 10 Triangle Hit Root Sig
 
 			uint32_t triHitRootIndex = index++;
 			ExportAssociation triHitRootAssociation(&kTriangleChs, 1, &(subobjects[triHitRootIndex]));
-			subobjects[index++] = triHitRootAssociation.subobject; // 7 Associate Triangle Root Sig to Triangle Hit Group
+			subobjects[index++] = triHitRootAssociation.subobject; // 11 Associate Triangle Root Sig to Triangle Hit Group
 
 		// Create the plane hit root-signature and association
 			LocalRootSignature planeHitRootSignature(mpDevice, createPlaneHitRootDesc().desc);
-			subobjects[index] = planeHitRootSignature.subobject; // 8 Plane Hit Root Sig
+			subobjects[index] = planeHitRootSignature.subobject; // 12 Plane Hit Root Sig
 
 			uint32_t planeHitRootIndex = index++;
 			ExportAssociation planeHitRootAssociation(&kPlaneHitGroup, 1, &(subobjects[planeHitRootIndex]));
-			subobjects[index++] = planeHitRootAssociation.subobject; // 9 Associate Plane Hit Root Sig to Plane Hit Group
+			subobjects[index++] = planeHitRootAssociation.subobject; // 13 Associate Plane Hit Root Sig to Plane Hit Group
 
 		// Create the teapot hit root-signature and association
 			D3D12_ROOT_SIGNATURE_DESC emptyTeapotDesc = {};
 			emptyTeapotDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 			LocalRootSignature teapotHitRootSignature(mpDevice, emptyTeapotDesc);
-			subobjects[index] = teapotHitRootSignature.subobject; // 10 Teapot Hit Root Sig
+			subobjects[index] = teapotHitRootSignature.subobject; // 14 Teapot Hit Root Sig
 
 			uint32_t teapotHitRootIndex = index++;
 			ExportAssociation teapotHitRootAssociation(&kTeapotHitGroup, 1, &(subobjects[teapotHitRootIndex]));
-			subobjects[index++] = teapotHitRootAssociation.subobject; // 11 Associate Teapot Hit Root Sig to Teapot Hit Group
+			subobjects[index++] = teapotHitRootAssociation.subobject; // 15 Associate Teapot Hit Root Sig to Teapot Hit Group
 
 		// Create the empty root-signature and associate it with the primary miss-shader and the shadow programs
 			D3D12_ROOT_SIGNATURE_DESC emptyDesc = {};
 			emptyDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 			LocalRootSignature emptyRootSignature(mpDevice, emptyDesc);
-			subobjects[index] = emptyRootSignature.subobject; // 12 Empty Root Sig for Plane Hit Group and Miss
+			subobjects[index] = emptyRootSignature.subobject; // 16 Empty Root Sig for Plane Hit Group and Miss
 
 			uint32_t emptyRootIndex = index++;
 			const WCHAR* emptyRootExport[] = { kMissShader, kShadowChs, kShadowMiss };
 			ExportAssociation emptyRootAssociation(emptyRootExport, arraysize(emptyRootExport), &(subobjects[emptyRootIndex]));
-			subobjects[index++] = emptyRootAssociation.subobject; // 13 Associate empty root sig to Plane Hit Group and Miss shader
+			subobjects[index++] = emptyRootAssociation.subobject; // 17 Associate empty root sig to Plane Hit Group and Miss shader
 	#pragma endregion
 
 	//---- Create Shader config, Pipeline config and Global Root-Signature----//
@@ -992,28 +1006,28 @@ void PathTracer::createRtPipelineState()
     // Bind the payload size to all programs
     
 		ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 3);
-		subobjects[index] = primaryShaderConfig.subobject; // 14
+		subobjects[index] = primaryShaderConfig.subobject; // 18
 
 		uint32_t primaryShaderConfigIndex = index++;
 		const WCHAR* primaryShaderExports[] = { kRayGenShader, kMissShader, kTriangleChs, kPlaneChs, kTeapotChs, kShadowMiss, kShadowChs };
 		ExportAssociation primaryConfigAssociation(primaryShaderExports, arraysize(primaryShaderExports), &(subobjects[primaryShaderConfigIndex]));
-		subobjects[index++] = primaryConfigAssociation.subobject; // 15 Associate shader config to all programs
+		subobjects[index++] = primaryConfigAssociation.subobject; // 19 Associate shader config to all programs
 
     // Create the pipeline config
     
 		PipelineConfig config(2); // maxRecursionDepth - 1 TraceRay() from the ray-gen, 1 TraceRay() from the primary hit-shader
-		subobjects[index++] = config.subobject; // 16
+		subobjects[index++] = config.subobject; // 20
 
     // Create the global root signature and store the empty signature
 	
 		GlobalRootSignature root(mpDevice, {});
 		mpEmptyRootSig = root.pRootSig;
-		subobjects[index++] = root.subobject; // 17
+		subobjects[index++] = root.subobject; // 21
 	#pragma endregion
 
     // Create the state
     D3D12_STATE_OBJECT_DESC desc;
-    desc.NumSubobjects = index; // 18
+    desc.NumSubobjects = index; // 22
     desc.pSubobjects = subobjects.data();
     desc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
 
@@ -1076,12 +1090,12 @@ void PathTracer::createShaderTable()
 		uint8_t* pEntry4 = pData + mShaderTableEntrySize * 4;
 		memcpy(pEntry4, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
-    // Entry 5 - Plane, primary ray. ProgramID only and the TLAS SRV
+    // Entry 5 - Plane, primary ray. ProgramID and the TLAS SRV
 		uint8_t* pEntry5 = pData + mShaderTableEntrySize * 5;
 		memcpy(pEntry5, pRtsoProps->GetShaderIdentifier(kPlaneHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 		*(uint64_t*)(pEntry5 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = heapStart + mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV); // The SRV comes directly after the program id
-
-    // Entry 6 - Plane, shadow ray
+		
+    // Entry 6 - Plane, shadow ray. ProgramID only
 		uint8_t* pEntry6 = pData + mShaderTableEntrySize * 6;
 		memcpy(pEntry6, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
