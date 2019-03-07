@@ -19,6 +19,9 @@ cbuffer PerFrame : register(b0)
     float3 C;
 }
 
+StructuredBuffer<uint> indices : register(t1);
+StructuredBuffer<float3> normals : register(t2);
+
 [shader("closesthit")]
 void triangleChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
@@ -29,7 +32,19 @@ void triangleChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttribu
 [shader("closesthit")]
 void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
-    payload.color = float3(1.0f, 0.0f, 0.0f);
+    uint vertIndex = 3 * PrimitiveIndex();
+    float3 n0 = normals[indices[vertIndex + 0]];
+    float3 n1 = normals[indices[vertIndex + 1]];
+    float3 n2 = normals[indices[vertIndex + 2]];
+    float3 normal = n0 * (1 - attribs.barycentrics.x - attribs.barycentrics.y)
+					+ n1 * attribs.barycentrics.x
+					+ n2 * attribs.barycentrics.y;
+    normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
+
+    float3 lightDir = normalize(float3(0.5, 0.5, -0.5));// Hard coded!
+    float nDotL = max(0.f, dot(normal, lightDir));
+
+    payload.color = float3(1.0f, 1.0f, 1.0f) * nDotL;
 }
 
 

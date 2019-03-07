@@ -83,6 +83,7 @@ private:
     void createAccelerationStructures();
     ID3D12ResourcePtr mpVertexBuffer[3];
 	ID3D12ResourcePtr mpIndexBuffer[3];
+	ID3D12ResourcePtr mpNormalBuffer[3];
     ID3D12ResourcePtr mpBottomLevelAS[3];
     AccelerationStructureBuffers mTopLevelBuffers;
     uint64_t mTlasSize = 0;

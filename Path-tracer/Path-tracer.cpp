@@ -356,6 +356,7 @@ ID3D12ResourcePtr createTeapotVB(ID3D12Device5Ptr pDevice, aiVector3D* aiVerteci
 
 ID3D12ResourcePtr createTeapotIB(ID3D12Device5Ptr pDevice, aiFace* aiIndices)
 {
+
 	uint indices[4032 * 3];
 	for (uint i = 0; i < 4032; i++)
 	{
@@ -368,6 +369,22 @@ ID3D12ResourcePtr createTeapotIB(ID3D12Device5Ptr pDevice, aiFace* aiIndices)
 	uint8_t* pData;
 	pBuffer->Map(0, nullptr, (void**)&pData);
 	memcpy(pData, indices, sizeof(indices));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
+ID3D12ResourcePtr createTeapotNB(ID3D12Device5Ptr pDevice, aiVector3D* aiVertecies)
+{
+	vec3 normals[2492];
+	for (uint i = 0; i < 2492; i++)
+	{
+		normals[i] = vec3(aiVertecies[i].x, aiVertecies[i].y, aiVertecies[i].z);
+	}
+
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(normals), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, normals, sizeof(normals));
 	pBuffer->Unmap(0, nullptr);
 	return pBuffer;
 }
@@ -463,6 +480,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
     transformation[0] = mat4();
     transformation[1] = translate(mat4(), vec3(-2, 0, 0)) * rotationMat;
     transformation[2] = translate(mat4(), vec3(2, 0, 0)) * rotationMat;
+	//mat4 rotationMat2 = eulerAngleY(rotation*0.5f);
 	transformation[3] = mat4() * 0.1f;
 
     // The InstanceContributionToHitGroupIndex is set based on the shader-table layout specified in createShaderTable()
@@ -542,6 +560,7 @@ void PathTracer::createAccelerationStructures()
 
 	mpVertexBuffer[2] = createTeapotVB(mpDevice, teapot->mVertices);
 	mpIndexBuffer[2] = createTeapotIB(mpDevice, teapot->mFaces);
+	mpNormalBuffer[2] = createTeapotNB(mpDevice, teapot->mNormals);
 	
 
 
@@ -693,7 +712,7 @@ RootSignatureDesc createRayGenRootDesc()
     desc.range[1].OffsetInDescriptorsFromTableStart = 1;
 
 	// Camera
-	desc.range[2].BaseShaderRegister = 1; //b1
+	desc.range[2].BaseShaderRegister = 0; //b0
 	desc.range[2].NumDescriptors = 1;
 	desc.range[2].RegisterSpace = 0;
 	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
@@ -753,6 +772,28 @@ RootSignatureDesc createPlaneHitRootDesc()
     return desc;
 }
 
+RootSignatureDesc createTeapotHitRootDesc()
+{
+	RootSignatureDesc desc;
+	desc.rootParams.resize(2);
+
+	// indices
+	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	desc.rootParams[0].Descriptor.RegisterSpace = 0;
+	desc.rootParams[0].Descriptor.ShaderRegister = 1;//t1
+
+	// normals
+	desc.rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	desc.rootParams[1].Descriptor.RegisterSpace = 0;
+	desc.rootParams[1].Descriptor.ShaderRegister = 2;//t2
+
+	desc.desc.NumParameters = 2;
+	desc.desc.pParameters = desc.rootParams.data();
+	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+
+	return desc;
+}
+
 struct DxilLibrary
 {
     DxilLibrary(ID3DBlobPtr pBlob, const WCHAR* entryPoint[], uint32_t entryPointCount) : pShaderBlob(pBlob)
@@ -800,14 +841,6 @@ static const WCHAR* kTeapotHitGroup = L"TeapotHitGroup";
 static const WCHAR* kShadowChs = L"shadowChs";
 static const WCHAR* kShadowMiss = L"shadowMiss";
 static const WCHAR* kShadowHitGroup = L"ShadowHitGroup";
-
-DxilLibrary createDxilLibrary()
-{
-    // Compile the shader
-    ID3DBlobPtr pRayGenShader = compileLibrary(L"Data/Shaders.hlsl", L"lib_6_3");
-    const WCHAR* entryPoints[] = { kRayGenShader, kMissShader, kPlaneChs, kTriangleChs, kTeapotChs, kShadowMiss, kShadowChs };
-    return DxilLibrary(pRayGenShader, entryPoints, arraysize(entryPoints));
-}
 
 struct HitProgram
 {
@@ -916,7 +949,7 @@ void PathTracer::createRtPipelineState()
     uint32_t index = 0;
 
     // Create the DXIL libraries
-
+	#pragma region
 		const WCHAR* entryPointsRayGen[] = { kRayGenShader };
 		DxilLibrary rayGenLib = DxilLibrary(compileLibrary(L"Data/RayGeneration.hlsl", L"lib_6_3"), entryPointsRayGen, arraysize(entryPointsRayGen));
 		subobjects[index++] = rayGenLib.stateSubobject; // 0 RayGen Library
@@ -932,7 +965,7 @@ void PathTracer::createRtPipelineState()
 		const WCHAR* entryPointsShadowRay[] = { kShadowChs, kShadowMiss };
 		DxilLibrary shadowRayLib = DxilLibrary(compileLibrary(L"Data/ShadowRay.hlsl", L"lib_6_3"), entryPointsShadowRay, arraysize(entryPointsShadowRay));
 		subobjects[index++] = shadowRayLib.stateSubobject; // 3 Shadow Ray Library
-
+	#pragma endregion
 	
 	//----- Create Hit Programs -----//
 	#pragma region
@@ -980,9 +1013,7 @@ void PathTracer::createRtPipelineState()
 			subobjects[index++] = planeHitRootAssociation.subobject; // 13 Associate Plane Hit Root Sig to Plane Hit Group
 
 		// Create the teapot hit root-signature and association
-			D3D12_ROOT_SIGNATURE_DESC emptyTeapotDesc = {};
-			emptyTeapotDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
-			LocalRootSignature teapotHitRootSignature(mpDevice, emptyTeapotDesc);
+			LocalRootSignature teapotHitRootSignature(mpDevice, createTeapotHitRootDesc().desc);
 			subobjects[index] = teapotHitRootSignature.subobject; // 14 Teapot Hit Root Sig
 
 			uint32_t teapotHitRootIndex = index++;
@@ -1119,9 +1150,15 @@ void PathTracer::createShaderTable()
 		uint8_t* pEntry10 = pData + mShaderTableEntrySize * 10;
 		memcpy(pEntry10, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
-	// Entry 11 - Teapot, primary ray. ProgramID only
+	// Entry 11 - Teapot, primary ray. ProgramID and index-buffer
 		uint8_t* pEntry11 = pData + mShaderTableEntrySize * 11;
 		memcpy(pEntry11, pRtsoProps->GetShaderIdentifier(kTeapotHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		assert(((uint64_t)(pEntry11 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) % 8) == 0);
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry11 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = mpIndexBuffer[2]->GetGPUVirtualAddress();
+		
+		// TODO: is this the right size we added? (uint64)
+		assert(((uint64_t)(pEntry11 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry11 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[2]->GetGPUVirtualAddress();
 
 	// Entry 12 - Teapot 2, shadow ray. ProgramID only
 		uint8_t* pEntry12 = pData + mShaderTableEntrySize * 12;
