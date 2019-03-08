@@ -266,9 +266,9 @@ ID3D12ResourcePtr createTriangleVB(ID3D12Device5Ptr pDevice)
 {
     const vec3 vertices[] =
     {
-        vec3(0,          1,  0),
-        vec3(0.866f,  -0.5f, 0),
-        vec3(-0.866f, -0.5f, 0),
+        vec3(0,          2,  0),
+        vec3(0.866f,  0.5f, 0),
+        vec3(-0.866f, 0.5f, 0),
     };
 
     // For simplicity, we create the vertex buffer on the upload heap, but that's not required
@@ -298,15 +298,31 @@ ID3D12ResourcePtr createTriangleIB(ID3D12Device5Ptr pDevice)
 	return pBuffer;
 }
 
+ID3D12ResourcePtr createTriangleNB(ID3D12Device5Ptr pDevice)
+{
+	const vec3 normals[] =
+	{
+		vec3(0, 0, -1)
+	};
+
+	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(normals), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, normals, sizeof(normals));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
 ID3D12ResourcePtr createPlaneVB(ID3D12Device5Ptr pDevice)
 {
     const vec3 vertices[] =
     {
-        vec3(-100, -1,  -2),
-        vec3( 100, -1,  100),
-        vec3(-100, -1,  100),
-        vec3( 100, -1,  -2),
-    };
+        vec3(-5, 0,  -5),
+        vec3( 5, 0,  5),
+        vec3(-5, 0,  5),
+        vec3( 5, 0,  -5),
+    };			   
 
     // For simplicity, we create the vertex buffer on the upload heap, but that's not required
     ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(vertices), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
@@ -338,10 +354,26 @@ ID3D12ResourcePtr createPlaneIB(ID3D12Device5Ptr pDevice)
 	return pBuffer;
 }
 
+ID3D12ResourcePtr createPlaneNB(ID3D12Device5Ptr pDevice)
+{
+	const vec3 normals[] =
+	{
+		vec3(0, 1, 0)
+	};
+
+	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(normals), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, normals, sizeof(normals));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
 ID3D12ResourcePtr createTeapotVB(ID3D12Device5Ptr pDevice, aiVector3D* aiVertecies)
 {
-	vec3 vertices[2492];
-	for (uint i = 0; i < 2492; i++)
+	vec3 vertices[2522];
+	for (uint i = 0; i < 2522; i++)
 	{
 		vertices[i] = vec3(aiVertecies[i].x, aiVertecies[i].y, aiVertecies[i].z);
 	}
@@ -375,8 +407,8 @@ ID3D12ResourcePtr createTeapotIB(ID3D12Device5Ptr pDevice, aiFace* aiIndices)
 
 ID3D12ResourcePtr createTeapotNB(ID3D12Device5Ptr pDevice, aiVector3D* aiVertecies)
 {
-	vec3 normals[2492];
-	for (uint i = 0; i < 2492; i++)
+	vec3 normals[2522];
+	for (uint i = 0; i < 2522; i++)
 	{
 		normals[i] = vec3(aiVertecies[i].x, aiVertecies[i].y, aiVertecies[i].z);
 	}
@@ -476,12 +508,12 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 
     // The transformation matrices for the instances
     mat4 transformation[4];
-    mat4 rotationMat = eulerAngleY(rotation);
+    mat4 rotationMat = eulerAngleY(rotation*0.5f);
+	mat4 rotationMat2 = eulerAngleY(rotation*0.25f);
     transformation[0] = mat4();
-    transformation[1] = translate(mat4(), vec3(-2, 0, 0)) * rotationMat;
-    transformation[2] = translate(mat4(), vec3(2, 0, 0)) * rotationMat;
-	//mat4 rotationMat2 = eulerAngleY(rotation*0.5f);
-	transformation[3] = mat4() * 0.1f;
+	transformation[1] = rotationMat2 * translate(mat4(), vec3(0, 0, 0));// *rotationMat;
+	transformation[2] = rotationMat2 * translate(mat4(), vec3(0, 0, 0)) * rotationMat;
+	transformation[3] = translate(mat4(), vec3(0, 9.3, 0)) * mat4() * 0.1f;
 
     // The InstanceContributionToHitGroupIndex is set based on the shader-table layout specified in createShaderTable()
     // Create the desc for the triangle/plane instance
@@ -543,8 +575,11 @@ void PathTracer::createAccelerationStructures()
 {
     mpVertexBuffer[0] = createTriangleVB(mpDevice);
 	mpIndexBuffer[0] = createTriangleIB(mpDevice);
+	mpNormalBuffer[0] = createTriangleNB(mpDevice);
+
     mpVertexBuffer[1] = createPlaneVB(mpDevice);
 	mpIndexBuffer[1] = createPlaneIB(mpDevice);
+	mpNormalBuffer[1] = createPlaneNB(mpDevice);
 
 	// Load teapot
 	const aiScene* teapotScene = importer.ReadFile("Data/teapot/utah-teapot.obj",
@@ -555,9 +590,10 @@ void PathTracer::createAccelerationStructures()
 		aiProcess_FixInfacingNormals	|
 		aiProcess_GenUVCoords			|
 		aiProcess_TransformUVCoords		|
-		aiProcess_MakeLeftHanded);
+		aiProcess_MakeLeftHanded		|
+		aiProcess_FindInvalidData);
 	aiMesh* teapot = teapotScene->mMeshes[0];
-
+	
 	mpVertexBuffer[2] = createTeapotVB(mpDevice, teapot->mVertices);
 	mpIndexBuffer[2] = createTeapotIB(mpDevice, teapot->mFaces);
 	mpNormalBuffer[2] = createTeapotNB(mpDevice, teapot->mNormals);
@@ -734,14 +770,19 @@ RootSignatureDesc createRayGenRootDesc()
 RootSignatureDesc createTriangleHitRootDesc()
 {
     RootSignatureDesc desc;
-    desc.rootParams.resize(1);
+    desc.rootParams.resize(2);
 
 	// constant buffer (colours)
     desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     desc.rootParams[0].Descriptor.RegisterSpace = 0;
     desc.rootParams[0].Descriptor.ShaderRegister = 0;//b0
 
-    desc.desc.NumParameters = 1;
+	// normals
+	desc.rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	desc.rootParams[1].Descriptor.RegisterSpace = 0;
+	desc.rootParams[1].Descriptor.ShaderRegister = 2;//t2
+
+    desc.desc.NumParameters = 2;
     desc.desc.pParameters = desc.rootParams.data();
     desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 
@@ -760,12 +801,17 @@ RootSignatureDesc createPlaneHitRootDesc()
     desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     desc.range[0].OffsetInDescriptorsFromTableStart = 0;
 
-    desc.rootParams.resize(1);
+    desc.rootParams.resize(2);
     desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
     desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
+	
+	// normals
+	desc.rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	desc.rootParams[1].Descriptor.RegisterSpace = 0;
+	desc.rootParams[1].Descriptor.ShaderRegister = 2;//t2
 
-    desc.desc.NumParameters = 1;
+    desc.desc.NumParameters = 2;
     desc.desc.pParameters = desc.rootParams.data();
     desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 
@@ -1036,7 +1082,7 @@ void PathTracer::createRtPipelineState()
 	#pragma region
     // Bind the payload size to all programs
     
-		ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 3);
+		ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 4);
 		subobjects[index] = primaryShaderConfig.subobject; // 18
 
 		uint32_t primaryShaderConfigIndex = index++;
@@ -1116,8 +1162,12 @@ void PathTracer::createShaderTable()
 		memcpy(pEntry3, pRtsoProps->GetShaderIdentifier(kTriHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 		assert(((uint64_t)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) % 8) == 0); // Root descriptor must be stored at an 8-byte aligned address
 		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = mpConstantBuffer[0]->GetGPUVirtualAddress();
-
-    // Entry 4 - Triangle 0, shadow ray. ProgramID only
+		
+		// TODO: is this the right size we added? (uint64)
+		assert(((uint64_t)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[0]->GetGPUVirtualAddress();
+    
+	// Entry 4 - Triangle 0, shadow ray. ProgramID only
 		uint8_t* pEntry4 = pData + mShaderTableEntrySize * 4;
 		memcpy(pEntry4, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
@@ -1126,6 +1176,10 @@ void PathTracer::createShaderTable()
 		memcpy(pEntry5, pRtsoProps->GetShaderIdentifier(kPlaneHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 		*(uint64_t*)(pEntry5 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = heapStart + mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV); // The SRV comes directly after the program id
 		
+		// TODO: is this the right size we added? (uint64)
+		assert(((uint64_t)(pEntry5 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry5 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[1]->GetGPUVirtualAddress();
+
     // Entry 6 - Plane, shadow ray. ProgramID only
 		uint8_t* pEntry6 = pData + mShaderTableEntrySize * 6;
 		memcpy(pEntry6, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
@@ -1136,6 +1190,10 @@ void PathTracer::createShaderTable()
 		assert(((uint64_t)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) % 8) == 0); // Root descriptor must be stored at an 8-byte aligned address
 		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = mpConstantBuffer[1]->GetGPUVirtualAddress();
 
+		// TODO: is this the right size we added? (uint64)
+		assert(((uint64_t)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[0]->GetGPUVirtualAddress();
+
     // Entry 8 - Triangle 1, shadow ray. ProgramID only
 		uint8_t* pEntry8 = pData + mShaderTableEntrySize * 8;
 		memcpy(pEntry8, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
@@ -1145,6 +1203,10 @@ void PathTracer::createShaderTable()
 		memcpy(pEntry9, pRtsoProps->GetShaderIdentifier(kTriHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 		assert(((uint64_t)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) % 8) == 0); // Root descriptor must be stored at an 8-byte aligned address
 		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = mpConstantBuffer[2]->GetGPUVirtualAddress();
+
+		// TODO: is this the right size we added? (uint64)
+		assert(((uint64_t)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[0]->GetGPUVirtualAddress();
 
     // Entry 10 - Triangle 2, shadow ray. ProgramID only
 		uint8_t* pEntry10 = pData + mShaderTableEntrySize * 10;

@@ -1,13 +1,15 @@
 ///// Common /////////////////
-	struct RayPayload
-	{
-		float3 color;
-	};
+struct RayPayload
+{
+	// rgb is color
+	// w is distance. -1 means stop bouncing, i.e. miss or light source.
+    float4 colorAndDistance;
+};
 	
-	struct ShadowPayload
-	{
-		bool hit;
-	};
+struct ShadowPayload
+{
+    bool hit;
+};
 ////////////////////////////////
 
 RaytracingAccelerationStructure gRtScene : register(t0);
@@ -53,7 +55,26 @@ void rayGen()
 
     RayPayload payload;
     TraceRay(gRtScene, 0 /*rayFlags*/, 0xFF, 0 /* ray index*/, 2, 0, ray, payload);
-    float3 col = linearToSrgb(payload.color);
-    gOutput[launchIndex.xy] = float4(col, 1);
-}
+    float3 col = linearToSrgb(payload.colorAndDistance.rgb);
+
+    if (payload.colorAndDistance.w > 0) // it's a hit!
+    {
+	// Fire a shadow ray. The direction is hard-coded here, but can be fetched from a constant-buffer
+        float3 lightDir = normalize(float3(0.5, 0.5, -0.5)); // Take from Common!
+	
+        RayDesc shadowRay;
+        shadowRay.Origin = ray.Origin + ray.Direction * payload.colorAndDistance.w;
+        shadowRay.Direction = lightDir;
+        shadowRay.TMin = 0.2;
+        shadowRay.TMax = 100000;
+        ShadowPayload shadowPayload;
+        TraceRay(gRtScene, 0 /*rayFlags*/, 0xFF, 1 /* ray index*/, 0, 1, shadowRay, shadowPayload);
+
+		float factor = shadowPayload.hit ? 0.1 : 1.0;
+        col = col * factor;
+    }
+
+
+        gOutput[launchIndex.xy] = float4(col, 1);
+    }
 
