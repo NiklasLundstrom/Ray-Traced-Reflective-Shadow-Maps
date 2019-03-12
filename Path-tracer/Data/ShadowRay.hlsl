@@ -1,16 +1,4 @@
-///// Common /////////////////
-struct RayPayload
-{
-	// rgb is color
-	// w is distance. -1 means stop bouncing, i.e. miss or light source.
-    float4 colorAndDistance;
-};
-	
-struct ShadowPayload
-{
-    bool hit;
-};
-////////////////////////////////
+#include "Common.hlsli"
 
 [shader("closesthit")]
 void shadowChs(inout ShadowPayload payload, in BuiltInTriangleIntersectionAttributes attribs)

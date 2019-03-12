@@ -51,6 +51,7 @@
 #include <assimp/postprocess.h>
 #include <assimp/types.h>
 #include <assimp/scene.h>
+#include <chrono>
 //#include <stdlib.h>
 
 using namespace glm;
@@ -116,3 +117,4 @@ std::string convertBlobToString(BlotType* pBlob)
     return std::string(infoLog.data());
 }
 
+extern float mDeltaTime;

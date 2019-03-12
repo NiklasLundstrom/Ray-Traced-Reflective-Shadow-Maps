@@ -1,20 +1,8 @@
-///// Common /////////////////
-struct RayPayload
-{
-	// rgb is color
-	// w is distance. -1 means stop bouncing, i.e. miss or light source.
-    float4 colorAndDistance;
-};
-	
-struct ShadowPayload
-{
-    bool hit;
-};
-////////////////////////////////
+#include "Common.hlsli"
 
 RaytracingAccelerationStructure gRtScene : register(t0);
 
-cbuffer PerFrame : register(b0)
+cbuffer Colors : register(b0)
 {
     float3 A;
     float3 B;
@@ -35,11 +23,9 @@ void triangleChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttribu
 
     normal = faceforward(normal, WorldRayDirection(), normal);
 
-    float3 lightDir = normalize(float3(0.5, 0.5, -0.5)); // Take the value from Common!
-    float nDotL = max(0.0f, dot(normal, lightDir));
-
-	payload.colorAndDistance.rgb = color * nDotL;
+	payload.colorAndDistance.rgb = color;
     payload.colorAndDistance.w = RayTCurrent();
+    payload.normal = normal;
 
 }
 
@@ -55,15 +41,11 @@ void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttribute
 					+ n2 * attribs.barycentrics.y;
     normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
 
-    float3 lightDir = normalize(float3(0.5, 0.5, -0.5));// Take the value from Common!
-    float nDotL = max(0.f, dot(normal, lightDir));
-
-    payload.colorAndDistance.rgb = float3(1.0f, 1.0f, 1.0f) * nDotL;
+    payload.colorAndDistance.rgb = float3(0.8f,0.8f, 0.8f);
     payload.colorAndDistance.w = RayTCurrent();
+    payload.normal = normal;
 
 }
-
-
 
 [shader("closesthit")]
 void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
@@ -74,11 +56,9 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 
     float3 normal = normals[0];
     normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
-   
-    float3 lightDir = normalize(float3(0.5, 0.5, -0.5)); // Take the value from Common!
-    float nDotL = max(0.0f, dot(normal, lightDir));
 
-    payload.colorAndDistance.rgb = float3(0.9f, 0.9f, 0.9f) * nDotL;
+    payload.colorAndDistance.rgb = float3(0.9f, 0.9f, 0.9f);
     payload.colorAndDistance.w = RayTCurrent();
+    payload.normal = normal;
 
 }

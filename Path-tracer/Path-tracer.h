@@ -137,6 +137,7 @@ private:
 	uint32_t mCameraBufferSize = 0;
 
 	Assimp::Importer importer;
+	float mCameraSpeed = 1.0f;
 
 	
 };

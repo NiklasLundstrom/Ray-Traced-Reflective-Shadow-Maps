@@ -29,6 +29,8 @@
 #include <locale>
 #include <codecvt>
 
+float mDeltaTime = 0;
+
 
 namespace
 {
@@ -97,11 +99,36 @@ namespace
         return hWnd;
     }
 
-    void msgLoop(Tutorial& tutorial)
+	double GetTimeMilliseconds()
+	{
+		auto time = std::chrono::high_resolution_clock::now();
+		return static_cast<double>(std::chrono::duration_cast<std::chrono::microseconds>(time.time_since_epoch()).count()) * 0.001;
+	}
+
+    void msgLoop(Tutorial& tutorial, HWND winHandle)
     {
+		double nowTime, lastTime = GetTimeMilliseconds();
+		double fpsNextTick = lastTime + 1000.0;
+		//f64 mDeltaTime = 0;
+		int currFPS = 0;
+		int fpsSamples = 0;
+
         MSG msg;
         while (1)
         {
+			nowTime = GetTimeMilliseconds();
+			mDeltaTime = (float) (nowTime - lastTime);
+			if (nowTime > fpsNextTick)
+			{
+				fpsNextTick += 1000.0;
+				currFPS = fpsSamples;
+				fpsSamples = 0;
+				char title[100];
+				snprintf(title, sizeof(title), "Path-tracer, FPS: %d, Render time: %f", currFPS, mDeltaTime);
+				SetWindowTextA(winHandle, title);
+			}
+			fpsSamples++;
+
             if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
             {
                 if (msg.message == WM_QUIT) break;
@@ -112,6 +139,8 @@ namespace
             {
                 tutorial.onFrameRender(gKeys);
             }
+
+			lastTime = nowTime;
         }
     }
 };
@@ -161,8 +190,8 @@ void Framework::run(Tutorial& tutorial, const std::string& winTitle, uint32_t wi
     ShowWindow(gWinHandle, SW_SHOWNORMAL);
 
     // Start the msgLoop()
-    msgLoop(tutorial);
-
+    msgLoop(tutorial, gWinHandle);
+	
     // Cleanup
     tutorial.onShutdown();
     DestroyWindow(gWinHandle);

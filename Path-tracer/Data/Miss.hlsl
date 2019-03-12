@@ -1,21 +1,9 @@
-///// Common /////////////////
-struct RayPayload
-{
-	// rgb is color
-	// w is distance. -1 means stop bouncing, i.e. miss or light source.
-    float4 colorAndDistance;
-};
-	
-struct ShadowPayload
-{
-    bool hit;
-};
-////////////////////////////////
-
+#include "Common.hlsli"
 
 [shader("miss")]
 void miss(inout RayPayload payload)
 {
-    payload.colorAndDistance.rgb = float3(0.4, 0.6, 0.2);
+    float3 dir = WorldRayDirection();
+    payload.colorAndDistance.rgb = float3(1.0, dir.x>0?1.0:0.0, 1.0) * (dir.z < -0.5 ? 1.0 : 0.0);
     payload.colorAndDistance.w = -1; // stop bouncing
 }

@@ -511,12 +511,12 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
     mat4 rotationMat = eulerAngleY(rotation*0.5f);
 	mat4 rotationMat2 = eulerAngleY(rotation*0.25f);
     transformation[0] = mat4();
-	transformation[1] = rotationMat2 * translate(mat4(), vec3(0, 0, 0));// *rotationMat;
-	transformation[2] = rotationMat2 * translate(mat4(), vec3(0, 0, 0)) * rotationMat;
+	transformation[1] = rotationMat2 * translate(mat4(), vec3(-2, 0, 0));// *rotationMat;
+	transformation[2] = rotationMat2 * translate(mat4(), vec3(2, 0, 0)) * rotationMat;
 	transformation[3] = translate(mat4(), vec3(0, 9.3, 0)) * mat4() * 0.1f;
 
     // The InstanceContributionToHitGroupIndex is set based on the shader-table layout specified in createShaderTable()
-    // Create the desc for the triangle/plane instance
+    // Create the desc for the plane
 		instanceDescs[0].InstanceID = 0;
 		instanceDescs[0].InstanceContributionToHitGroupIndex = 0;
 		instanceDescs[0].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
@@ -528,7 +528,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
     for (uint32_t i = 1; i <= 2; i++)
     {
         instanceDescs[i].InstanceID = i; // This value will be exposed to the shader via InstanceID()
-        instanceDescs[i].InstanceContributionToHitGroupIndex = (i * 2) + 2;  // The indices are relative to to the start of the hit-table entries specified in Raytrace(), so we need 4 and 6
+        instanceDescs[i].InstanceContributionToHitGroupIndex = 2 * i;  // The indices are relative to to the start of the hit-table entries specified in Raytrace(), so we need 4 and 6
         instanceDescs[i].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
         mat4 m = transpose(transformation[i]); // GLM is column major, the INSTANCE_DESC is row major
         memcpy(instanceDescs[i].Transform, &m, sizeof(instanceDescs[i].Transform));
@@ -538,7 +538,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 
 	// Create the desc for the teapot
 		instanceDescs[3].InstanceID = 3; // This value will be exposed to the shader via InstanceID()
-		instanceDescs[3].InstanceContributionToHitGroupIndex = 8;  // hard coded
+		instanceDescs[3].InstanceContributionToHitGroupIndex = 6;  // hard coded
 		instanceDescs[3].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 		mat4 m = transpose(transformation[3]); // GLM is column major, the INSTANCE_DESC is row major
 		memcpy(instanceDescs[3].Transform, &m, sizeof(instanceDescs[3].Transform));
@@ -573,13 +573,14 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 
 void PathTracer::createAccelerationStructures()
 {
-    mpVertexBuffer[0] = createTriangleVB(mpDevice);
-	mpIndexBuffer[0] = createTriangleIB(mpDevice);
-	mpNormalBuffer[0] = createTriangleNB(mpDevice);
+    mpVertexBuffer[0] = createPlaneVB(mpDevice);
+	mpIndexBuffer[0] = createPlaneIB(mpDevice);
+	mpNormalBuffer[0] = createPlaneNB(mpDevice);
+   
+	mpVertexBuffer[1] = createTriangleVB(mpDevice);
+	mpIndexBuffer[1] = createTriangleIB(mpDevice);
+	mpNormalBuffer[1] = createTriangleNB(mpDevice);
 
-    mpVertexBuffer[1] = createPlaneVB(mpDevice);
-	mpIndexBuffer[1] = createPlaneIB(mpDevice);
-	mpNormalBuffer[1] = createPlaneNB(mpDevice);
 
 	// Load teapot
 	const aiScene* teapotScene = importer.ReadFile("Data/teapot/utah-teapot.obj",
@@ -602,31 +603,34 @@ void PathTracer::createAccelerationStructures()
 
     AccelerationStructureBuffers bottomLevelBuffers[3];
 
-    // The first bottom-level buffer is for the plane and the triangle
-		const uint32_t vertexCountTriPlane[] = { 3, 4 };// Triangle has 3 vertices, plane has 6
-		const uint32_t indexCountTriPlane[] = { 3, 6 };
+    // The first bottom-level buffer is for the plane
+		ID3D12ResourcePtr vertexBufferPlane[] = { mpVertexBuffer[1] };
+		const uint32_t vertexCountPlane[] = { 4 };// Plane has 4
+		ID3D12ResourcePtr indexBufferPlane[] = { mpIndexBuffer[1] };
+		const uint32_t indexCountPlane[] = { 6 };
 		bottomLevelBuffers[0] = createBottomLevelAS(
 													mpDevice, 
 													mpCmdList, 
 													mpVertexBuffer, 
-													vertexCountTriPlane, 
+													vertexCountPlane, 
 													mpIndexBuffer, 
-													indexCountTriPlane, 
-													2
+													indexCountPlane, 
+													1
 												   );
 		mpBottomLevelAS[0] = bottomLevelBuffers[0].pResult;
-
-    // The second bottom-level buffer is for the triangle only
+  
+		// The second bottom-level buffer is for the triangle
 		bottomLevelBuffers[1] = createBottomLevelAS(
 													mpDevice, 
 													mpCmdList, 
-													mpVertexBuffer, 
-													vertexCountTriPlane, 
-													mpIndexBuffer, 
-													indexCountTriPlane, 
+													vertexBufferPlane, 
+													vertexCountPlane, 
+													indexBufferPlane, 
+													indexCountPlane, 
 													1
 												   );
 		mpBottomLevelAS[1] = bottomLevelBuffers[1].pResult;
+
 
 	// The third bottom-level buffer is for the teapot
 		ID3D12ResourcePtr vertexBufferTeapot[] = { mpVertexBuffer[2] };
@@ -665,8 +669,10 @@ ID3DBlobPtr compileLibrary(const WCHAR* filename, const WCHAR* targetString)
     d3d_call(gDxcDllHelper.Initialize());
     IDxcCompilerPtr pCompiler;
     IDxcLibraryPtr pLibrary;
+	IDxcIncludeHandler* dxcIncludeHandler;//-----
     d3d_call(gDxcDllHelper.CreateInstance(CLSID_DxcCompiler, &pCompiler));
     d3d_call(gDxcDllHelper.CreateInstance(CLSID_DxcLibrary, &pLibrary));
+	pLibrary->CreateIncludeHandler(&dxcIncludeHandler);//-----
 
     // Open and read the file
     std::ifstream shaderFile(filename);
@@ -685,7 +691,7 @@ ID3DBlobPtr compileLibrary(const WCHAR* filename, const WCHAR* targetString)
 
     // Compile
     IDxcOperationResultPtr pResult;
-    d3d_call(pCompiler->Compile(pTextBlob, filename, L"", targetString, nullptr, 0, nullptr, 0, nullptr, &pResult));
+    d3d_call(pCompiler->Compile(pTextBlob, filename, L"", targetString, nullptr, 0, nullptr, 0, dxcIncludeHandler, &pResult));
 
     // Verify the result
     HRESULT resultCode;
@@ -999,7 +1005,7 @@ void PathTracer::createRtPipelineState()
 		const WCHAR* entryPointsRayGen[] = { kRayGenShader };
 		DxilLibrary rayGenLib = DxilLibrary(compileLibrary(L"Data/RayGeneration.hlsl", L"lib_6_3"), entryPointsRayGen, arraysize(entryPointsRayGen));
 		subobjects[index++] = rayGenLib.stateSubobject; // 0 RayGen Library
-
+		
 		const WCHAR* entryPointsMiss[] = { kMissShader };
 		DxilLibrary missLib = DxilLibrary(compileLibrary(L"Data/Miss.hlsl", L"lib_6_3"), entryPointsMiss, arraysize(entryPointsMiss));
 		subobjects[index++] = missLib.stateSubobject; // 1 Miss Library
@@ -1021,7 +1027,7 @@ void PathTracer::createRtPipelineState()
 
 		// Create the plane HitProgram
 			HitProgram planeHitProgram(nullptr, kPlaneChs, kPlaneHitGroup);
-			subobjects[index++] = planeHitProgram.subObject; // 5 Plant Hit Group
+			subobjects[index++] = planeHitProgram.subObject; // 5 Plane Hit Group
 
 		// Create the teapot HitProgram
 			HitProgram teapotHitProgram(nullptr, kTeapotChs, kTeapotHitGroup);
@@ -1047,7 +1053,7 @@ void PathTracer::createRtPipelineState()
 			subobjects[index] = triHitRootSignature.subobject; // 10 Triangle Hit Root Sig
 
 			uint32_t triHitRootIndex = index++;
-			ExportAssociation triHitRootAssociation(&kTriangleChs, 1, &(subobjects[triHitRootIndex]));
+			ExportAssociation triHitRootAssociation(&kTriHitGroup, 1, &(subobjects[triHitRootIndex]));
 			subobjects[index++] = triHitRootAssociation.subobject; // 11 Associate Triangle Root Sig to Triangle Hit Group
 
 		// Create the plane hit root-signature and association
@@ -1082,7 +1088,7 @@ void PathTracer::createRtPipelineState()
 	#pragma region
     // Bind the payload size to all programs
     
-		ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 4);
+		ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 7);
 		subobjects[index] = primaryShaderConfig.subobject; // 18
 
 		uint32_t primaryShaderConfigIndex = index++;
@@ -1120,10 +1126,10 @@ void PathTracer::createShaderTable()
         Entry 0 - Ray-gen program
         Entry 1 - Miss program for the primary ray
         Entry 2 - Miss program for the shadow ray
-        Entries 3,4 - Hit programs for triangle 0 (primary followed by shadow)
-        Entries 5,6 - Hit programs for the plane (primary followed by shadow)
-        Entries 7,8 - Hit programs for triangle 1 (primary followed by shadow)
-        Entries 9,10 - Hit programs for triangle 2 (primary followed by shadow)
+        Entries 3,4 - Hit programs for the plane (primary followed by shadow)
+        Entries 5,6 - Hit programs for triangle 1 (primary followed by shadow)
+        Entries 7,8 - Hit programs for triangle 2 (primary followed by shadow)
+		Entries 9,10 - Hit programs for teapot (primary followed by shadow)
         All entries in the shader-table must have the same size, so we will choose it base on the largest required entry.
         The triangle primary-ray hit program requires the largest entry - sizeof(program identifier) + 8 bytes for the constant-buffer root descriptor.
         The entry size must be aligned up to D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT
@@ -1133,7 +1139,7 @@ void PathTracer::createShaderTable()
     mShaderTableEntrySize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
     mShaderTableEntrySize += 8; // The hit shader constant-buffer descriptor
     mShaderTableEntrySize = align_to(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT, mShaderTableEntrySize);
-    uint32_t shaderTableSize = mShaderTableEntrySize * 13;
+    uint32_t shaderTableSize = mShaderTableEntrySize * 11;
 
     // For simplicity, we create the shader-table on the upload heap. You can also create it on the default heap
     mpShaderTable = createBuffer(mpDevice, shaderTableSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
@@ -1157,34 +1163,34 @@ void PathTracer::createShaderTable()
     // Entry 2 - shadow-ray miss
 		memcpy(pData + mShaderTableEntrySize * 2, pRtsoProps->GetShaderIdentifier(kShadowMiss), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
-    // Entry 3 - Triangle 0, primary ray. ProgramID and constant-buffer data
+    // Entry 3 - Plane, primary ray. ProgramID and the TLAS SRV
 		uint8_t* pEntry3 = pData + mShaderTableEntrySize * 3;
-		memcpy(pEntry3, pRtsoProps->GetShaderIdentifier(kTriHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		assert(((uint64_t)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) % 8) == 0); // Root descriptor must be stored at an 8-byte aligned address
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = mpConstantBuffer[0]->GetGPUVirtualAddress();
+		memcpy(pEntry3, pRtsoProps->GetShaderIdentifier(kPlaneHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		*(uint64_t*)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = heapStart + mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV); // The SRV comes directly after the program id
 		
 		// TODO: is this the right size we added? (uint64)
 		assert(((uint64_t)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
 		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[0]->GetGPUVirtualAddress();
-    
-	// Entry 4 - Triangle 0, shadow ray. ProgramID only
+
+    // Entry 4 - Plane, shadow ray. ProgramID only
 		uint8_t* pEntry4 = pData + mShaderTableEntrySize * 4;
 		memcpy(pEntry4, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
-    // Entry 5 - Plane, primary ray. ProgramID and the TLAS SRV
+    // Entry 5 - Triangle 1, primary ray. ProgramID and constant-buffer data
 		uint8_t* pEntry5 = pData + mShaderTableEntrySize * 5;
-		memcpy(pEntry5, pRtsoProps->GetShaderIdentifier(kPlaneHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		*(uint64_t*)(pEntry5 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = heapStart + mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV); // The SRV comes directly after the program id
-		
+		memcpy(pEntry5, pRtsoProps->GetShaderIdentifier(kTriHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		assert(((uint64_t)(pEntry5 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) % 8) == 0); // Root descriptor must be stored at an 8-byte aligned address
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry5 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = mpConstantBuffer[0]->GetGPUVirtualAddress();
+
 		// TODO: is this the right size we added? (uint64)
 		assert(((uint64_t)(pEntry5 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
 		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry5 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[1]->GetGPUVirtualAddress();
 
-    // Entry 6 - Plane, shadow ray. ProgramID only
+    // Entry 6 - Triangle 1, shadow ray. ProgramID only
 		uint8_t* pEntry6 = pData + mShaderTableEntrySize * 6;
 		memcpy(pEntry6, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
-    // Entry 7 - Triangle 1, primary ray. ProgramID and constant-buffer data
+    // Entry 7 - Triangle 2, primary ray. ProgramID and constant-buffer data
 		uint8_t* pEntry7 = pData + mShaderTableEntrySize * 7;
 		memcpy(pEntry7, pRtsoProps->GetShaderIdentifier(kTriHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 		assert(((uint64_t)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) % 8) == 0); // Root descriptor must be stored at an 8-byte aligned address
@@ -1192,39 +1198,25 @@ void PathTracer::createShaderTable()
 
 		// TODO: is this the right size we added? (uint64)
 		assert(((uint64_t)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[0]->GetGPUVirtualAddress();
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[1]->GetGPUVirtualAddress();
 
-    // Entry 8 - Triangle 1, shadow ray. ProgramID only
+    // Entry 8 - Triangle 2, shadow ray. ProgramID only
 		uint8_t* pEntry8 = pData + mShaderTableEntrySize * 8;
 		memcpy(pEntry8, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
-    // Entry 9 - Triangle 2, primary ray. ProgramID and constant-buffer data
+	// Entry 9 - Teapot, primary ray. ProgramID and index-buffer
 		uint8_t* pEntry9 = pData + mShaderTableEntrySize * 9;
-		memcpy(pEntry9, pRtsoProps->GetShaderIdentifier(kTriHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		assert(((uint64_t)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) % 8) == 0); // Root descriptor must be stored at an 8-byte aligned address
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = mpConstantBuffer[2]->GetGPUVirtualAddress();
-
-		// TODO: is this the right size we added? (uint64)
-		assert(((uint64_t)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[0]->GetGPUVirtualAddress();
-
-    // Entry 10 - Triangle 2, shadow ray. ProgramID only
-		uint8_t* pEntry10 = pData + mShaderTableEntrySize * 10;
-		memcpy(pEntry10, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-
-	// Entry 11 - Teapot, primary ray. ProgramID and index-buffer
-		uint8_t* pEntry11 = pData + mShaderTableEntrySize * 11;
-		memcpy(pEntry11, pRtsoProps->GetShaderIdentifier(kTeapotHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		assert(((uint64_t)(pEntry11 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) % 8) == 0);
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry11 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = mpIndexBuffer[2]->GetGPUVirtualAddress();
+		memcpy(pEntry9, pRtsoProps->GetShaderIdentifier(kTeapotHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		assert(((uint64_t)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) % 8) == 0);
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = mpIndexBuffer[2]->GetGPUVirtualAddress();
 		
 		// TODO: is this the right size we added? (uint64)
-		assert(((uint64_t)(pEntry11 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry11 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[2]->GetGPUVirtualAddress();
+		assert(((uint64_t)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry9 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[2]->GetGPUVirtualAddress();
 
-	// Entry 12 - Teapot 2, shadow ray. ProgramID only
-		uint8_t* pEntry12 = pData + mShaderTableEntrySize * 12;
-		memcpy(pEntry12, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+	// Entry 10 - Teapot 2, shadow ray. ProgramID only
+		uint8_t* pEntry10 = pData + mShaderTableEntrySize * 10;
+		memcpy(pEntry10, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 
     // Unmap
     mpShaderTable->Unmap(0, nullptr);
@@ -1287,10 +1279,10 @@ void PathTracer::createConstantBuffers()
 {
     // The shader declares each CB with 3 float3. However, due to HLSL packing rules, we create the CB with vec4 (each float3 needs to start on a 16-byte boundary)
     vec4 bufferData[] = {
-        // Instance 0
-        vec4(1.0f, 0.0f, 0.0f, 1.0f),
-        vec4(1.0f, 1.0f, 0.0f, 1.0f),
-        vec4(1.0f, 0.0f, 1.0f, 1.0f),
+        //// Instance 0
+        //vec4(1.0f, 0.0f, 0.0f, 1.0f),
+        //vec4(1.0f, 1.0f, 0.0f, 1.0f),
+        //vec4(1.0f, 0.0f, 1.0f, 1.0f),
 
         // Instance 1
         vec4(0.0f, 1.0f, 0.0f, 1.0f),
@@ -1303,9 +1295,9 @@ void PathTracer::createConstantBuffers()
         vec4(0.0f, 1.0f, 1.0f, 1.0f),
     };
 
-    for(uint32_t i = 0 ; i < 3 ; i++)
+    for(uint32_t i = 0 ; i < 2 ; i++)
     {
-        const uint32_t bufferSize = sizeof(vec4) * 3;
+        const uint32_t bufferSize = sizeof(vec4) * 2;
         mpConstantBuffer[i] = createBuffer(mpDevice, bufferSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
         uint8_t* pData;
         d3d_call(mpConstantBuffer[i]->Map(0, nullptr, (void**)&pData));
@@ -1319,41 +1311,43 @@ void PathTracer::createConstantBuffers()
 //////////////////////////////////////////////////////////////////////////
 void PathTracer::readKeyboardInput(bool *gKeys)
 {
+	mCameraSpeed = 0.05f * 60.0f*mDeltaTime*0.001f;
+
 	if (gKeys[VK_LEFT])
 	{
-		float angle = mCamera.cameraDirection.w + 0.005f;
-		mCamera.cameraDirection = eulerAngleY(-angle) * vec4(0,0,1,1); //TODO: Pan. Add additional controls to rotate
+		float angle = mCamera.cameraDirection.w + 0.5f * mCameraSpeed;
+		mCamera.cameraDirection = eulerAngleY(-angle) * vec4(0,0,1,1); 
 		mCamera.cameraDirection.w = angle;
 	}
 	else if (gKeys[VK_RIGHT])
 	{
-		float angle = mCamera.cameraDirection.w - 0.005f;
+		float angle = mCamera.cameraDirection.w - 0.5f * mCameraSpeed;
 		mCamera.cameraDirection = eulerAngleY(-angle) * vec4(0, 0, 1, 1);
 		mCamera.cameraDirection.w = angle;
 	}
 	if (gKeys['W'])
 	{
-		mCamera.cameraPosition += 0.01f * mCamera.cameraDirection;
+		mCamera.cameraPosition += mCamera.cameraDirection * mCameraSpeed;
 	}
 	else if (gKeys['S'])
 	{
-		mCamera.cameraPosition -= 0.01f * mCamera.cameraDirection;
+		mCamera.cameraPosition -= mCamera.cameraDirection * mCameraSpeed;
 	}
 	if (gKeys['A'])
 	{
-		mCamera.cameraPosition += 0.01f * vec4(-mCamera.cameraDirection.z, 0, mCamera.cameraDirection.x, 0);
+		mCamera.cameraPosition += mCameraSpeed * vec4(-mCamera.cameraDirection.z, 0, mCamera.cameraDirection.x, 0);
 	}
 	else if (gKeys['D'])
 	{
-		mCamera.cameraPosition -= 0.01f * vec4(-mCamera.cameraDirection.z, 0, mCamera.cameraDirection.x, 0);
+		mCamera.cameraPosition -= mCameraSpeed * vec4(-mCamera.cameraDirection.z, 0, mCamera.cameraDirection.x, 0);
 	}
 	if (gKeys['E'])
 	{
-		mCamera.cameraPosition.y += 0.01f;
+		mCamera.cameraPosition.y += mCameraSpeed;
 	}
 	else if (gKeys['Q'])
 	{
-		mCamera.cameraPosition.y -= 0.01f;
+		mCamera.cameraPosition.y -= mCameraSpeed;
 	}
 
 
@@ -1406,7 +1400,7 @@ void PathTracer::onFrameRender(bool *gKeys)
 
     // Refit the top-level acceleration structure
     buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, mRotation, true, mTopLevelBuffers);
-    mRotation += 0.005f;
+    mRotation += 0.5f*mCameraSpeed;
 
     // Let's raytrace
     resourceBarrier(mpCmdList, mpOutputResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
