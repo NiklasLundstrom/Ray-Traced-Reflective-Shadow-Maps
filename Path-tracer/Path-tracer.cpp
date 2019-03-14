@@ -460,12 +460,12 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
     mat4 rotationMat = eulerAngleY(rotation*0.5f);
 	mat4 rotationMat2 = eulerAngleY(rotation*0.25f);
     transformation[0] = mat4();
-	transformation[1] = translate(mat4(), vec3(0.0, 5.0, 5.0)) * eulerAngleX(0.5f*pi<float>());
+	transformation[1] = translate(mat4(), vec3(0.0, 5.0, 5.0)) * eulerAngleX(-0.5f*pi<float>());
 	transformation[2] = translate(mat4(), vec3(0.0, 10.0, 0.0)) * eulerAngleX(pi<float>());
-	transformation[3] = translate(mat4(), vec3(-5.0, 5.0, 0.0)) * eulerAngleZ(0.5f*pi<float>());
-	transformation[4] = translate(mat4(), vec3(5.0, 5.0, 0.0)) * eulerAngleZ(-0.5f*pi<float>());
+	transformation[3] = translate(mat4(), vec3(-5.0, 5.0, 0.0)) * eulerAngleZ(-0.5f*pi<float>());
+	transformation[4] = translate(mat4(), vec3(5.0, 5.0, 0.0)) * eulerAngleZ(0.5f*pi<float>());
 	transformation[5] = translate(mat4(), vec3(0.0, 9.9999, 0.0)) * eulerAngleX(pi<float>()) * scale(vec3(0.5f, 0.5f, 0.5f));
-	transformation[6] = translate(mat4(), vec3(0, 9.3, 0)) * mat4() * 0.1f;
+	transformation[6] = translate(mat4(), vec3(0, 0.93*1.9, 0)) * mat4() * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
 
     // The InstanceContributionToHitGroupIndex is set based on the shader-table layout specified in createShaderTable()
     // Create the desc for the planes
@@ -742,19 +742,31 @@ RootSignatureDesc createPlaneHitRootDesc()
 RootSignatureDesc createTeapotHitRootDesc()
 {
 	RootSignatureDesc desc;
-	desc.rootParams.resize(2);
+	desc.range.resize(1);
+
+	// gRtScene
+	desc.range[0].BaseShaderRegister = 0; //t0
+	desc.range[0].NumDescriptors = 1;
+	desc.range[0].RegisterSpace = 0;
+	desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[0].OffsetInDescriptorsFromTableStart = 0;
+
+	desc.rootParams.resize(3);
+	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
+	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
 
 	// indices
-	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-	desc.rootParams[0].Descriptor.RegisterSpace = 0;
-	desc.rootParams[0].Descriptor.ShaderRegister = 1;//t1
-
-	// normals
 	desc.rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
 	desc.rootParams[1].Descriptor.RegisterSpace = 0;
-	desc.rootParams[1].Descriptor.ShaderRegister = 2;//t2
+	desc.rootParams[1].Descriptor.ShaderRegister = 1;//t1
 
-	desc.desc.NumParameters = 2;
+	// normals
+	desc.rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	desc.rootParams[2].Descriptor.RegisterSpace = 0;
+	desc.rootParams[2].Descriptor.ShaderRegister = 2;//t2
+
+	desc.desc.NumParameters = 3;
 	desc.desc.pParameters = desc.rootParams.data();
 	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 
@@ -1005,7 +1017,7 @@ void PathTracer::createRtPipelineState()
 
     // Create the pipeline config
     
-		PipelineConfig config(2); // maxRecursionDepth - 1 TraceRay() from the ray-gen, 1 TraceRay() from the primary hit-shader
+		PipelineConfig config(4); // maxRecursionDepth - 1 TraceRay() from the ray-gen, 1 TraceRay() from the primary hit-shader
 		subobjects[index++] = config.subobject; // 18
 
     // Create the global root signature and store the empty signature
@@ -1044,9 +1056,9 @@ void PathTracer::createShaderTable()
 
     // Calculate the size and create the buffer
     mShaderTableEntrySize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-    mShaderTableEntrySize += 8; // The hit shader constant-buffer descriptor
+    mShaderTableEntrySize += 3 * sizeof(UINT64); // The hit shader constant-buffer descriptor
     mShaderTableEntrySize = align_to(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT, mShaderTableEntrySize);
-    uint32_t shaderTableSize = mShaderTableEntrySize * 7;
+    uint32_t shaderTableSize = mShaderTableEntrySize * 9;
 
     // For simplicity, we create the shader-table on the upload heap. You can also create it on the default heap
     mpShaderTable = createBuffer(mpDevice, shaderTableSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
@@ -1073,9 +1085,9 @@ void PathTracer::createShaderTable()
     // Entry 3 - Planes, primary ray. ProgramID, TLAS SRV and Normal buffer
 		uint8_t* pEntry3 = pData + mShaderTableEntrySize * 3;
 		memcpy(pEntry3, pRtsoProps->GetShaderIdentifier(kPlaneHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		// TLAS
 		*(uint64_t*)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = heapStart + mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV); // The SRV comes directly after the program id
-		
-		// TODO: is this the right size we added? (uint64)
+		// Normal buffer
 		assert(((uint64_t)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
 		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry3 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[0]->GetGPUVirtualAddress();
 
@@ -1094,12 +1106,15 @@ void PathTracer::createShaderTable()
 	// Entry 7 - Teapot, primary ray. ProgramID and index-buffer
 		uint8_t* pEntry7 = pData + mShaderTableEntrySize * 7;
 		memcpy(pEntry7, pRtsoProps->GetShaderIdentifier(kTeapotHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		// TLAS
 		assert(((uint64_t)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) % 8) == 0);
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = mpIndexBuffer[1]->GetGPUVirtualAddress();
-		
-		// TODO: is this the right size we added? (uint64)
+		*(uint64_t*)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = heapStart + mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		// Index buffer
 		assert(((uint64_t)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) % 8) == 0);
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpNormalBuffer[1]->GetGPUVirtualAddress();
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + sizeof(UINT64)) = mpIndexBuffer[1]->GetGPUVirtualAddress();
+		// Normal buffer
+		assert(((uint64_t)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 2*sizeof(UINT64)) % 8) == 0);
+		*(D3D12_GPU_VIRTUAL_ADDRESS*)(pEntry7 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES + 2*sizeof(UINT64)) = mpNormalBuffer[1]->GetGPUVirtualAddress();
 
 	// Entry 8 - Teapot, shadow ray. ProgramID only
 		uint8_t* pEntry8 = pData + mShaderTableEntrySize * 8;
