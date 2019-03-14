@@ -57,7 +57,7 @@ void rayGen()
         RayDesc rayDiffuse;
         float3 colorsum = float3(0.0, 0.0, 0.0);
         
-        for (int i = 0; i < 256; i++)
+        for (int i = 0; i < 64; i++)
         {
             rayDiffuse.Origin = rayOG.Origin + rayOG.Direction * payloadOG.colorAndDistance.w;
             rayDiffuse.Direction = getCosHemisphereSample(randSeed, payloadOG.normal);
@@ -76,7 +76,7 @@ void rayGen()
             }
 
         }
-        color *= colorsum/256;
+        color *= colorsum/64;
 
   //      RayDesc shadowRay;
   //      shadowRay.Origin = ray.Origin + ray.Direction * payload.colorAndDistance.w;

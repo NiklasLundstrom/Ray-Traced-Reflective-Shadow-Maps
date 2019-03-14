@@ -81,10 +81,10 @@ private:
     // Tutorial 03, Tutorial 11
     //////////////////////////////////////////////////////////////////////////
     void createAccelerationStructures();
-    ID3D12ResourcePtr mpVertexBuffer[3];
-	ID3D12ResourcePtr mpIndexBuffer[3];
-	ID3D12ResourcePtr mpNormalBuffer[3];
-    ID3D12ResourcePtr mpBottomLevelAS[3];
+    ID3D12ResourcePtr mpVertexBuffer[2];
+	ID3D12ResourcePtr mpIndexBuffer[2];
+	ID3D12ResourcePtr mpNormalBuffer[2];
+    ID3D12ResourcePtr mpBottomLevelAS[2];
     AccelerationStructureBuffers mTopLevelBuffers;
     uint64_t mTlasSize = 0;
 
@@ -110,12 +110,6 @@ private:
     ID3D12DescriptorHeapPtr mpCbvSrvUavHeap;
     static const uint32_t kSrvUavHeapSize = 2;
 
-    //////////////////////////////////////////////////////////////////////////
-    // Tutorial 10
-    //////////////////////////////////////////////////////////////////////////
-    void createConstantBuffers();
-    ID3D12ResourcePtr mpConstantBuffer[3];
-    
     //////////////////////////////////////////////////////////////////////////
     // Tutorial 14
     //////////////////////////////////////////////////////////////////////////

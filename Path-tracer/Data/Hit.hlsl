@@ -2,32 +2,9 @@
 
 RaytracingAccelerationStructure gRtScene : register(t0);
 
-cbuffer Colors : register(b0)
-{
-    float3 A;
-    float3 B;
-    float3 C;
-}
-
 StructuredBuffer<uint> indices : register(t1);
 StructuredBuffer<float3> normals : register(t2);
 
-[shader("closesthit")]
-void triangleChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
-{
-    float3 barycentrics = float3(1.0 - attribs.barycentrics.x - attribs.barycentrics.y, attribs.barycentrics.x, attribs.barycentrics.y);
-    float3 color = A * barycentrics.x + B * barycentrics.y + C * barycentrics.z;
-
-    float3 normal = normals[0];
-	normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
-
-    normal = faceforward(normal, WorldRayDirection(), normal);
-
-	payload.colorAndDistance.rgb = color;
-    payload.colorAndDistance.w = RayTCurrent();
-    payload.normal = normal;
-
-}
 
 [shader("closesthit")]
 void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
@@ -56,9 +33,30 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 
     float3 normal = normals[0];
     normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
-
-    payload.colorAndDistance.rgb = float3(0.9f, 0.9f, 0.9f);
-    payload.colorAndDistance.w = RayTCurrent();
     payload.normal = normal;
+
+    int id = InstanceID();
+    if (id < 3)
+    {
+        payload.colorAndDistance.rgb = float3(1.0f, 1.0f, 1.0f);
+    }
+    else if (id == 3)
+    {
+        payload.colorAndDistance.rgb = float3(1.0f, 0.0f, 0.0f);
+    }
+    else if (id == 4)
+    {
+        payload.colorAndDistance.rgb = float3(0.0f, 1.0f, 0.0f);
+    }
+
+	payload.colorAndDistance.w = RayTCurrent();
+
+    }
+
+[shader("closesthit")]
+void areaLightChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
+{
+    payload.colorAndDistance.rgb = float3(1.0f, 1.0f, 1.0f);
+    payload.colorAndDistance.w = -1;
 
 }
