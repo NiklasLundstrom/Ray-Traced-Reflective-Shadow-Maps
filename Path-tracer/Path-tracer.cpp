@@ -1017,7 +1017,7 @@ void PathTracer::createRtPipelineState()
 
     // Create the pipeline config
     
-		PipelineConfig config(4); // maxRecursionDepth - 1 TraceRay() from the ray-gen, 1 TraceRay() from the primary hit-shader
+		PipelineConfig config(10); // maxRecursionDepth - 1 TraceRay() from the ray-gen, 1 TraceRay() from the primary hit-shader
 		subobjects[index++] = config.subobject; // 18
 
     // Create the global root signature and store the empty signature
@@ -1234,6 +1234,14 @@ void PathTracer::createCameraBuffer()
 
 void PathTracer::updateCameraBuffer()
 {
+
+	HRESULT deviceError = mpDevice->GetDeviceRemovedReason();
+	if (deviceError != S_OK)
+	{
+		int bp = 1;
+	}
+
+
 	std::vector<vec4> vectors(2);
 	vectors[0] = mCamera.cameraPosition;
 	vectors[1] = mCamera.cameraDirection;

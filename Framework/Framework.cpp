@@ -113,21 +113,13 @@ namespace
 		int currFPS = 0;
 		int fpsSamples = 0;
 
+		int frameCount = 0;
+
         MSG msg;
         while (1)
         {
-			nowTime = GetTimeMilliseconds();
-			mDeltaTime = (float) (nowTime - lastTime);
-			if (nowTime > fpsNextTick)
-			{
-				fpsNextTick += 1000.0;
-				currFPS = fpsSamples;
-				fpsSamples = 0;
-				char title[100];
-				snprintf(title, sizeof(title), "Path-tracer, FPS: %d, Render time: %f", currFPS, mDeltaTime);
-				SetWindowTextA(winHandle, title);
-			}
-			fpsSamples++;
+			
+			
 
             if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
             {
@@ -137,7 +129,21 @@ namespace
             }
             else
             {
+				nowTime = GetTimeMilliseconds();
+				mDeltaTime = (float) (nowTime - lastTime);
+				if (nowTime > fpsNextTick)
+				{
+					fpsNextTick += 1000.0;
+					currFPS = fpsSamples;
+					fpsSamples = 0;
+					char title[100];
+					snprintf(title, sizeof(title), "Path-tracer, FPS: %d, Render time: %f, Frame: %d", currFPS, mDeltaTime, frameCount);
+					SetWindowTextA(winHandle, title);
+				}
+				fpsSamples++;
+
                 tutorial.onFrameRender(gKeys);
+				frameCount++;
             }
 
 			lastTime = nowTime;

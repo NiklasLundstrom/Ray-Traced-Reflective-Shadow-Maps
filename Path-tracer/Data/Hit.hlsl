@@ -33,13 +33,16 @@ void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttribute
         normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
 
 	// get material color
-        float3 materialColor = float3(0.8f, 0.8f, 0.8f);
+        float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 1.0f;
+
+	// reflection direction
+        //float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
 
 	// set up ray
         RayDesc rayDiffuse;
         rayDiffuse.Origin = hitPoint;
-        rayDiffuse.Direction = getCosHemisphereSample(payload.seed, normal);
-        rayDiffuse.TMin = 0.01; // watch out for this value
+        rayDiffuse.Direction =  getCosHemisphereSample(payload.seed, normal);
+        rayDiffuse.TMin = 0.0001; // watch out for this value
         rayDiffuse.TMax = 100000;
 
         payload.depth -= 1;
@@ -76,22 +79,22 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
         int id = InstanceID();
         if (id < 3)
         {
-            materialColor = float3(1.0f, 1.0f, 1.0f);
+            materialColor = float3(1.0f, 1.0f, 1.0f) * 1.0f;
         }
         else if (id == 3)
         {
-            materialColor = float3(1.0f, 0.0f, 0.0f);
+            materialColor = float3(1.0f, 0.0f, 0.0f) * 1.0f;
         }
         else if (id == 4)
         {
-            materialColor = float3(0.0f, 1.0f, 0.0f);
+            materialColor = float3(0.0f, 1.0f, 0.0f) * 1.0f;
         }
 
 		// set up ray
         RayDesc rayDiffuse;
         rayDiffuse.Origin = hitPoint;
         rayDiffuse.Direction = getCosHemisphereSample(payload.seed, normal);
-        rayDiffuse.TMin = 0.01; // watch out for this value
+        rayDiffuse.TMin = 0.0001; // watch out for this value
         rayDiffuse.TMax = 100000;
 
         payload.depth -= 1;
