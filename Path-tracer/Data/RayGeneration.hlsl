@@ -49,14 +49,23 @@ void rayGen()
     RayPayload payload;
     float3 color = float3(0.0, 0.0, 0.0);
 
-    int numSamples = 200;
+    int numSamples = 300;
     for (int i = 0; i < numSamples; i++)
     {
         nextRand(randSeed);
 
-        payload.depth = 3;
+        payload.depth = 4;
         payload.seed = randSeed;
-        TraceRay(gRtScene, 0 /*rayFlags*/, 0xFF, 0 /* ray index*/, 2, 0, ray, payload);
+        TraceRay(
+					gRtScene,
+					0 /*rayFlags*/, 
+					0xFF /*ray mask*/, 
+					0 /* ray index*/, 
+					1 /* total nbr of hit groups*/, 
+					0 /* miss shader index*/, 
+					ray, 
+					payload
+				);
         color += payload.color;
     }
     color /= numSamples;

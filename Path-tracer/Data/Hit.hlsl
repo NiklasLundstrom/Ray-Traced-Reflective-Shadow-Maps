@@ -33,21 +33,30 @@ void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttribute
         normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
 
 	// get material color
-        float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 1.0f;
+        float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.95f;
 
 	// reflection direction
-        //float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
+        // float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
 
 	// set up ray
         RayDesc rayDiffuse;
         rayDiffuse.Origin = hitPoint;
-        rayDiffuse.Direction =  getCosHemisphereSample(payload.seed, normal);
+        rayDiffuse.Direction = getCosHemisphereSample(payload.seed, normal);
         rayDiffuse.TMin = 0.0001; // watch out for this value
         rayDiffuse.TMax = 100000;
 
         payload.depth -= 1;
 
-		TraceRay(gRtScene, 0 /*rayFlags*/, 0xFF, 0 /* ray index*/, 2 /* total nbr of hitgroups*/, 0 /*miss shader index*/, rayDiffuse, payload);
+		TraceRay(
+					gRtScene, 
+					0 /*rayFlags*/, 
+					0xFF, /* ray mask*/
+					0 /* ray index*/, 
+					1 /* total nbr of hitgroups*/, 
+					0 /*miss shader index*/, 
+					rayDiffuse, 
+					payload
+				);
        
         float3 incomingColor =  payload.color;
 	
@@ -79,15 +88,15 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
         int id = InstanceID();
         if (id < 3)
         {
-            materialColor = float3(1.0f, 1.0f, 1.0f) * 1.0f;
+            materialColor = float3(1.0f, 1.0f, 1.0f) * 0.95f;
         }
         else if (id == 3)
         {
-            materialColor = float3(1.0f, 0.0f, 0.0f) * 1.0f;
+            materialColor = float3(1.0f, 0.0f, 0.0f) * 0.95f;
         }
         else if (id == 4)
         {
-            materialColor = float3(0.0f, 1.0f, 0.0f) * 1.0f;
+            materialColor = float3(0.0f, 1.0f, 0.0f) * 0.95f;
         }
 
 		// set up ray
@@ -99,7 +108,15 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 
         payload.depth -= 1;
 
-        TraceRay(gRtScene, 0 /*rayFlags*/, 0xFF, 0 /* ray index*/, 2 /* total nbr of hitgroups*/, 0 /*miss shader index*/, rayDiffuse, payload);
+        TraceRay(	gRtScene,
+					0 /*rayFlags*/, 
+					0xFF, /* ray mask*/
+					0 /* ray index*/, 
+					1 /* total nbr of hitgroups*/, 
+					0 /*miss shader index*/, 
+					rayDiffuse, 
+					payload
+				);
        
         float3 incomingColor = payload.color;
 

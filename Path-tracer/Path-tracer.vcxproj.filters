@@ -18,9 +18,6 @@
     <FxCompile Include="Data\Hit.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
-    <FxCompile Include="Data\ShadowRay.hlsl">
-      <Filter>Data</Filter>
-    </FxCompile>
     <FxCompile Include="Data\RayGeneration.hlsl">
       <Filter>Data</Filter>
     </FxCompile>

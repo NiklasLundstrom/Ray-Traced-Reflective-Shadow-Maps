@@ -6,10 +6,6 @@ struct RayPayload
     int depth;
 };
 	
-struct ShadowPayload
-{
-    bool hit;
-};
 ////////////////////////////////
 
 
