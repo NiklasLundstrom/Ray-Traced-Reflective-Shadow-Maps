@@ -49,7 +49,7 @@ void rayGen()
     RayPayload payload;
     float3 color = float3(0.0, 0.0, 0.0);
 
-    int numSamples = 300;
+    int numSamples = 400;
     for (int i = 0; i < numSamples; i++)
     {
         nextRand(randSeed);
