@@ -30,6 +30,7 @@
 #include <codecvt>
 
 float mDeltaTime = 0;
+int frameCount = 0;
 
 
 namespace
@@ -109,17 +110,12 @@ namespace
     {
 		double nowTime, lastTime = GetTimeMilliseconds();
 		double fpsNextTick = lastTime + 1000.0;
-		//f64 mDeltaTime = 0;
 		int currFPS = 0;
 		int fpsSamples = 0;
-
-		int frameCount = 0;
 
         MSG msg;
         while (1)
         {
-			
-			
 
             if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
             {
@@ -136,13 +132,14 @@ namespace
 					fpsNextTick += 1000.0;
 					currFPS = fpsSamples;
 					fpsSamples = 0;
-					char title[100];
-					snprintf(title, sizeof(title), "Path-tracer, FPS: %d, Render time: %f, Frame: %d", currFPS, mDeltaTime, frameCount);
-					SetWindowTextA(winHandle, title);
 				}
 				fpsSamples++;
+				char title[100];
+				snprintf(title, sizeof(title), "Path-tracer, FPS: %d, Render time: %f, Frame: %d", currFPS, mDeltaTime, frameCount);
+				SetWindowTextA(winHandle, title);
 
                 tutorial.onFrameRender(gKeys);
+
 				frameCount++;
             }
 

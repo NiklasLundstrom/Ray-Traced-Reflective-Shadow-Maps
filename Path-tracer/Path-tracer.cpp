@@ -427,7 +427,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
     D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
     inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
     inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
-    inputs.NumDescs = 7;
+    inputs.NumDescs = 5;
     inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
 
     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
@@ -456,20 +456,20 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
     ZeroMemory(instanceDescs, sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * 7);
 
     // The transformation matrices for the instances
-    mat4 transformation[7];
+    mat4 transformation[5];
     mat4 rotationMat = eulerAngleY(rotation*0.5f);
 	mat4 rotationMat2 = eulerAngleY(rotation*0.25f);
-    transformation[0] = mat4();
-	transformation[1] = translate(mat4(), vec3(0.0, 5.0, 5.0)) * eulerAngleX(-0.5f*pi<float>());
-	transformation[2] = translate(mat4(), vec3(0.0, 10.0, 0.0)) * eulerAngleX(pi<float>());
-	transformation[3] = translate(mat4(), vec3(-5.0, 5.0, 0.0)) * eulerAngleZ(-0.5f*pi<float>());
-	transformation[4] = translate(mat4(), vec3(5.0, 5.0, 0.0)) * eulerAngleZ(0.5f*pi<float>());
-	transformation[5] = translate(mat4(), vec3(0.0, 9.9999, 0.0)) * eulerAngleX(pi<float>()) * scale(vec3(0.5f, 0.5f, 0.5f));
-	transformation[6] = translate(mat4(), vec3(0, 0.93*1.9, 0)) * mat4() * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
+    transformation[0] = scale(10.0f*vec3(1.0f, 1.0f, 1.0f));
+	transformation[1] = translate(mat4(), vec3(-5.0, 5.0, 0.0)) * eulerAngleZ(-0.5f*pi<float>());
+	transformation[2] = translate(mat4(), vec3(0.0, 9.9999, 0.0)) * eulerAngleX(pi<float>()) * scale(vec3(0.5f, 0.5f, 0.5f));
+	transformation[3] = translate(mat4(), vec3(0, 0.93*1.9, 0)) * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
+	transformation[4] = translate(mat4(), vec3(4.0, 0.93*1.9, -5.0)) * eulerAngleY(-0.55f*pi<float>()) * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
+
+
 
     // The InstanceContributionToHitGroupIndex is set based on the shader-table layout specified in createShaderTable()
     // Create the desc for the planes
-	for (uint32_t i = 0; i <= 4; i++)
+	for (uint32_t i = 0; i <= 1; i++)
 	{
 		instanceDescs[i].InstanceID = i;// This value will be exposed to the shader via InstanceID()
 		instanceDescs[i].InstanceContributionToHitGroupIndex = 0;// 2 * i;
@@ -481,22 +481,26 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	}
 
 	// Create the desc for the Area Light
-		instanceDescs[5].InstanceID = 0;// This value will be exposed to the shader via InstanceID()
-		instanceDescs[5].InstanceContributionToHitGroupIndex = 1; // hard coded
-		instanceDescs[5].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+		instanceDescs[2].InstanceID = 0;// This value will be exposed to the shader via InstanceID()
+		instanceDescs[2].InstanceContributionToHitGroupIndex = 1; // hard coded
+		instanceDescs[2].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 		// GLM is column major, the INSTANCE_DESC is row major
-		memcpy(instanceDescs[5].Transform, &transpose(transformation[5]), sizeof(instanceDescs[5].Transform));
-		instanceDescs[5].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
-		instanceDescs[5].InstanceMask = 0xFF;
+		memcpy(instanceDescs[2].Transform, &transpose(transformation[2]), sizeof(instanceDescs[2].Transform));
+		instanceDescs[2].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
+		instanceDescs[2].InstanceMask = 0xFF;
 
-	// Create the desc for the teapot
-		instanceDescs[6].InstanceID = 0; // This value will be exposed to the shader via InstanceID()
-		instanceDescs[6].InstanceContributionToHitGroupIndex = 2;  // hard coded
-		instanceDescs[6].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		mat4 m = transpose(transformation[6]); // GLM is column major, the INSTANCE_DESC is row major
-		memcpy(instanceDescs[6].Transform, &m, sizeof(instanceDescs[5].Transform));
-		instanceDescs[6].AccelerationStructure = pBottomLevelAS[1]->GetGPUVirtualAddress();
-		instanceDescs[6].InstanceMask = 0xFF;
+	// Create the desc for the teapots
+		for (uint32_t i = 3; i <= 4; i++)
+		{
+		instanceDescs[i].InstanceID = 0; // This value will be exposed to the shader via InstanceID()
+		instanceDescs[i].InstanceContributionToHitGroupIndex = 2;  // hard coded
+		instanceDescs[i].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+		mat4 m = transpose(transformation[i]); // GLM is column major, the INSTANCE_DESC is row major
+		memcpy(instanceDescs[i].Transform, &m, sizeof(instanceDescs[i].Transform));
+		instanceDescs[i].AccelerationStructure = pBottomLevelAS[1]->GetGPUVirtualAddress();
+		instanceDescs[i].InstanceMask = 0xFF;
+
+		}
 
     // Unmap
     buffers.pInstanceDesc->Unmap(0, nullptr);
@@ -1159,15 +1163,15 @@ void PathTracer::readKeyboardInput(bool *gKeys)
 
 	if (gKeys[VK_LEFT])
 	{
-		float angle = mCamera.cameraDirection.w + 0.5f * mCameraSpeed;
-		mCamera.cameraDirection = eulerAngleY(-angle) * vec4(0,0,1,1); 
-		mCamera.cameraDirection.w = angle;
+		float angle = mCamera.cameraAngle + 0.5f * mCameraSpeed;
+		mCamera.cameraDirection = vec3(eulerAngleY(-angle) * vec4(0,0,1,1)); 
+		mCamera.cameraAngle = angle;
 	}
 	else if (gKeys[VK_RIGHT])
 	{
-		float angle = mCamera.cameraDirection.w - 0.5f * mCameraSpeed;
-		mCamera.cameraDirection = eulerAngleY(-angle) * vec4(0, 0, 1, 1);
-		mCamera.cameraDirection.w = angle;
+		float angle = mCamera.cameraAngle - 0.5f * mCameraSpeed;
+		mCamera.cameraDirection = vec3(eulerAngleY(-angle) * vec4(0, 0, 1, 1));
+		mCamera.cameraAngle = angle;
 	}
 	if (gKeys['W'])
 	{
@@ -1179,11 +1183,11 @@ void PathTracer::readKeyboardInput(bool *gKeys)
 	}
 	if (gKeys['A'])
 	{
-		mCamera.cameraPosition += mCameraSpeed * vec4(-mCamera.cameraDirection.z, 0, mCamera.cameraDirection.x, 0);
+		mCamera.cameraPosition += mCameraSpeed * vec3(-mCamera.cameraDirection.z, 0, mCamera.cameraDirection.x);
 	}
 	else if (gKeys['D'])
 	{
-		mCamera.cameraPosition -= mCameraSpeed * vec4(-mCamera.cameraDirection.z, 0, mCamera.cameraDirection.x, 0);
+		mCamera.cameraPosition -= mCameraSpeed * vec3(-mCamera.cameraDirection.z, 0, mCamera.cameraDirection.x);
 	}
 	if (gKeys['E'])
 	{
@@ -1200,7 +1204,7 @@ void PathTracer::readKeyboardInput(bool *gKeys)
 void PathTracer::createCameraBuffer()
 {
 	// Create camera buffer
-	uint32_t nbVec = 2; // Position and Direction
+	uint32_t nbVec = 3; // Position and Direction
 	mCameraBufferSize = nbVec * sizeof(vec4);
 	mpCameraBuffer = createBuffer(mpDevice, mCameraBufferSize, D3D12_RESOURCE_FLAG_NONE,
 		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
@@ -1217,13 +1221,29 @@ void PathTracer::updateCameraBuffer()
 	}
 
 
-	std::vector<vec4> vectors(2);
+	/*std::vector<vec4> vectors(3);
 	vectors[0] = mCamera.cameraPosition;
-	vectors[1] = mCamera.cameraDirection;
+	vectors[1] = vec4(mCamera.cameraAngle);
+	vectors[2] = vec4((float)frameCount);
 
 	uint8_t* pData;
 	d3d_call(mpCameraBuffer->Map(0, nullptr, (void**)&pData));
 	memcpy(pData, vectors.data(), mCameraBufferSize);
+	mpCameraBuffer->Unmap(0, nullptr);*/
+
+	uint8_t* pData;
+	d3d_call(mpCameraBuffer->Map(0, nullptr, (void**)&pData));
+	memcpy(	pData, 
+			&mCamera.cameraPosition, 
+			sizeof(mCamera.cameraPosition)
+			);
+	memcpy(	pData + sizeof(mCamera.cameraPosition), 
+			&mCamera.cameraAngle, 
+			sizeof(mCamera.cameraAngle)
+			);
+	memcpy(	pData + sizeof(mCamera.cameraPosition) + sizeof(mCamera.cameraAngle),
+			&frameCount, sizeof(frameCount)
+			);
 	mpCameraBuffer->Unmap(0, nullptr);
 }
 

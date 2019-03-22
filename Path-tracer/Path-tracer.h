@@ -121,8 +121,9 @@ private:
 	void readKeyboardInput(bool *gKeys);
 
 	struct {
-		vec4 cameraPosition = vec4(0, 5, -12, 1);
-		vec4 cameraDirection = vec4(0, 0, 1, 0);
+		vec3 cameraPosition = vec3(0, 5, -12);
+		vec3 cameraDirection = vec3(0, 0, 1);
+		float cameraAngle = 0.0f;
 	}mCamera;
 	
 	void createCameraBuffer();

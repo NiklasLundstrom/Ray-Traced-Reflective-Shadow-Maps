@@ -91,7 +91,7 @@ public:
     static void run(Tutorial& tutorial, const std::string& winTitle, uint32_t width = 1920, uint32_t height = 1200);
 };
 
-static const uint32_t kDefaultSwapChainBuffers = 3;
+static const uint32_t kDefaultSwapChainBuffers = 2;
 
 
 
@@ -118,3 +118,4 @@ std::string convertBlobToString(BlotType* pBlob)
 }
 
 extern float mDeltaTime;
+extern int frameCount;

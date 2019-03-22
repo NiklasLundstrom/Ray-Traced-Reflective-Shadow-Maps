@@ -8,7 +8,8 @@ RWTexture2D<float4> gOutput : register(u0);
 cbuffer Camera : register(b0)
 {
     float3 cameraPosition;
-    float4 cameraDirection;
+    float cameraYAngle;
+    int frameCount;
 }
 
 float3 linearToSrgb(float3 c)
@@ -33,28 +34,26 @@ void rayGen()
     float2 d = ((crd / dims) * 2.f - 1.f);
     float aspectRatio = dims.x / dims.y;
 
-    float yRotAngle = cameraDirection.w;
-    float3x3 yRotMat = float3x3(cos(yRotAngle), 0, sin(yRotAngle), 0, 1, 0, -sin(yRotAngle), 0, cos(yRotAngle));
+    float3x3 yRotMat = float3x3(cos(cameraYAngle), 0, sin(cameraYAngle), 0, 1, 0, -sin(cameraYAngle), 0, cos(cameraYAngle));
     
     RayDesc ray;
-    ray.Origin = cameraPosition; // float3(0, 0, -2);//;
+    ray.Origin = cameraPosition.xyz;
     ray.Direction = normalize(mul(float3(d.x * aspectRatio, -d.y, 1), yRotMat));
 
     ray.TMin = 0;
     ray.TMax = 100000;
 
-    uint gFrameCount = 37; // TODO: CHANGE!!!
-    uint randSeed = initRand(launchIndex.x + launchIndex.y * launchDim.x, gFrameCount, 16);
+    uint randSeed = initRand(launchIndex.x + launchIndex.y * launchDim.x, frameCount, 16);
             
     RayPayload payload;
     float3 color = float3(0.0, 0.0, 0.0);
 
-    int numSamples = 300;
+    int numSamples = (frameCount == 1)? 4 : 200;
     for (int i = 0; i < numSamples; i++)
     {
         nextRand(randSeed);
 
-        payload.depth = 4;
+        payload.depth = (frameCount == 1)? 1 : 2;
         payload.seed = randSeed;
         TraceRay(
 					gRtScene,
