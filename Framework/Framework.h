@@ -52,10 +52,11 @@
 #include <assimp/types.h>
 #include <assimp/scene.h>
 #include <chrono>
-//#include <stdlib.h>
+#include "Externals/DirectXTex/DirectXTex.h"
 
 using namespace glm;
 using namespace System::Windows::Input;
+using namespace DirectX;
 
 // Common DX12 definitions
 #define MAKE_SMART_COM_PTR(_a) _COM_SMARTPTR_TYPEDEF(_a, __uuidof(_a))

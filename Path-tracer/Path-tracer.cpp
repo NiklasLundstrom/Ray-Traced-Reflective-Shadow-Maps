@@ -370,6 +370,18 @@ ID3D12ResourcePtr createTeapotNB(ID3D12Device5Ptr pDevice, aiVector3D* aiVerteci
 	return pBuffer;
 }
 
+void importHDRTexture()
+{
+	TexMetadata t;
+	auto image = std::make_unique<ScratchImage>();
+	HRESULT hr = LoadFromHDRFile(L"Data/HDR_maps/grace_probe.hdr", &t, *image);
+	if (FAILED(hr))
+	{
+		msgBox("Failed to import HDR texture.");
+		return;
+	}
+}
+
 PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], ID3D12ResourcePtr pIB[], const uint32_t indexCount[], uint32_t geometryCount)
 {
     std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geomDesc;
@@ -1247,6 +1259,7 @@ void PathTracer::updateCameraBuffer()
 	mpCameraBuffer->Unmap(0, nullptr);
 }
 
+
 //////////////////////////////////////////////////////////////////////////
 // Callbacks
 //////////////////////////////////////////////////////////////////////////
@@ -1257,6 +1270,7 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
     createRtPipelineState();                        // Tutorial 04
 	createCameraBuffer();							// My own
     createShaderResources();                        // Tutorial 06
+	importHDRTexture();
 	createShaderTable();                            // Tutorial 05
 }
 
