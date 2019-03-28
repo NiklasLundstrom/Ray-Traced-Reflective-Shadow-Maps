@@ -33,10 +33,10 @@ void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttribute
         normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
 
 	// get material color
-        float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.95f;
+        float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.5f;
 
 	// reflection direction
-        // float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
+        //float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
 
 	// set up ray
         RayDesc rayDiffuse;
@@ -87,18 +87,14 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 		// get material color
         float3 materialColor;// = float3(1.0f, 1.0f, 1.0f);
         int id = InstanceID();
-        if (id < 3)
+        if (id <=1 )
         {
-            materialColor = float3(1.0f, 1.0f, 1.0f) * 0.95f;
+            materialColor = float3(1.0f, 1.0f, 1.0f) * 0.5f;
         }
-        else if (id == 3)
-        {
-            materialColor = float3(1.0f, 0.0f, 0.0f) * 0.95f;
-        }
-        else if (id == 4)
-        {
-            materialColor = float3(0.0f, 1.0f, 0.0f) * 0.95f;
-        }
+        
+		// reflection direction
+        //float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
+        
 
 		// set up ray
         RayDesc rayDiffuse;
@@ -128,5 +124,5 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 [shader("closesthit")]
 void areaLightChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
-    payload.color = float3(1.0f, 1.0f, 1.0f);
+    payload.color = float3(1.0f, 0.0f, 1.0f)*0.0f;
 }

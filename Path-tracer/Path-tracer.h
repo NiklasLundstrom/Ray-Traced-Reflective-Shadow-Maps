@@ -28,7 +28,7 @@
 #pragma once
 #include "Framework.h"
 
-using namespace System::Windows::Input;
+//using namespace System::Windows::Input;
 
 class PathTracer : public Tutorial
 {
@@ -121,9 +121,9 @@ private:
 	void readKeyboardInput(bool *gKeys);
 
 	struct {
-		vec3 cameraPosition = vec3(0, 5, -12);
+		vec3 cameraPosition = vec3(0, 7, -17);
 		vec3 cameraDirection = vec3(0, 0, 1);
-		float cameraAngle = 0.0f;
+		float cameraAngle = 0.0f;//glm::pi<float>();
 	}mCamera;
 	
 	void createCameraBuffer();
@@ -133,6 +133,10 @@ private:
 
 	Assimp::Importer importer;
 	float mCameraSpeed = 1.0f;
+
+	void createHDRTextureBuffer();
+	ID3D12ResourcePtr mpHDRTextureBuffer;
+	
 
 	
 };

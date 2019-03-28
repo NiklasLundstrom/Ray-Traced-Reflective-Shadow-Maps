@@ -48,12 +48,12 @@ void rayGen()
     RayPayload payload;
     float3 color = float3(0.0, 0.0, 0.0);
 
-    int numSamples = (frameCount == 1)? 4 : 200;
+    int numSamples = (frameCount == 1)? 1 : 400;
     for (int i = 0; i < numSamples; i++)
     {
         nextRand(randSeed);
 
-        payload.depth = (frameCount == 1)? 1 : 2;
+        payload.depth = (frameCount == 1)? 0 :2;
         payload.seed = randSeed;
         TraceRay(
 					gRtScene,

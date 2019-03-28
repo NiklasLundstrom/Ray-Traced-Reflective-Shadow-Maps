@@ -58,6 +58,7 @@ using namespace glm;
 using namespace System::Windows::Input;
 using namespace DirectX;
 
+
 // Common DX12 definitions
 #define MAKE_SMART_COM_PTR(_a) _COM_SMARTPTR_TYPEDEF(_a, __uuidof(_a))
 MAKE_SMART_COM_PTR(ID3D12Device5);
@@ -76,6 +77,8 @@ MAKE_SMART_COM_PTR(ID3D12RootSignature);
 MAKE_SMART_COM_PTR(ID3DBlob);
 MAKE_SMART_COM_PTR(IDxcBlobEncoding);
 
+#include "d3dx12.h"
+
 // Interface for the tutorials
 class Tutorial
 {
@@ -92,7 +95,7 @@ public:
     static void run(Tutorial& tutorial, const std::string& winTitle, uint32_t width = 1920, uint32_t height = 1200);
 };
 
-static const uint32_t kDefaultSwapChainBuffers = 2;
+static const uint32_t kDefaultSwapChainBuffers = 3;
 
 
 

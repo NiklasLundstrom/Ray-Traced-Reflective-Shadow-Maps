@@ -370,16 +370,78 @@ ID3D12ResourcePtr createTeapotNB(ID3D12Device5Ptr pDevice, aiVector3D* aiVerteci
 	return pBuffer;
 }
 
-void importHDRTexture()
+void PathTracer::createHDRTextureBuffer()
 {
-	TexMetadata t;
-	auto image = std::make_unique<ScratchImage>();
-	HRESULT hr = LoadFromHDRFile(L"Data/HDR_maps/grace_probe.hdr", &t, *image);
+	ID3D12ResourcePtr textureUploadHeap;
+
+	// Load texture file
+	auto scratchImage = std::make_unique<ScratchImage>();
+	HRESULT hr = LoadFromHDRFile(L"Data/HDR_maps/grace_probe.hdr", nullptr, *scratchImage);
 	if (FAILED(hr))
 	{
 		msgBox("Failed to import HDR texture.");
 		return;
 	}
+	auto image = scratchImage->GetImage(0, 0, 0);
+	
+
+	// Describe and create a Texture2D
+	D3D12_RESOURCE_DESC textureDesc = {};
+	textureDesc.Alignment = 0;
+	textureDesc.DepthOrArraySize = 1;
+	textureDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+	textureDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	textureDesc.Height = (UINT) image->height;
+	textureDesc.Width = (UINT) image->width;
+	//textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	textureDesc.MipLevels = 1;
+	textureDesc.SampleDesc.Count = 1;
+	textureDesc.SampleDesc.Quality = 0;
+
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kDefaultHeapProps, 
+		D3D12_HEAP_FLAG_NONE,
+		&textureDesc, 
+		D3D12_RESOURCE_STATE_COPY_DEST, 
+		nullptr, 
+		IID_PPV_ARGS(&mpHDRTextureBuffer)
+	));
+
+	const UINT64 uploadBufferSize = GetRequiredIntermediateSize(mpHDRTextureBuffer, 0, 1);
+	
+	// Create the GPU upload buffer.
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kUploadHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&CD3DX12_RESOURCE_DESC::Buffer(uploadBufferSize),
+		D3D12_RESOURCE_STATE_GENERIC_READ,
+		nullptr,
+		IID_PPV_ARGS(&textureUploadHeap)
+	));
+
+	// Copy data to the intermediate upload heap and then schedule a copy 
+	// from the upload heap to the Texture2D.
+	D3D12_SUBRESOURCE_DATA textureData = {};
+	textureData.pData = image->pixels;
+	textureData.RowPitch = image->rowPitch;
+	textureData.SlicePitch = image->slicePitch;// TODO: check if these nummerical values are correct
+
+	UpdateSubresources(
+		mpCmdList,
+		mpHDRTextureBuffer,
+		textureUploadHeap,
+		0, 0, 1,
+		&textureData
+	);
+	mpCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mpHDRTextureBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+
+	// Close the command list and execute it to begin the initial GPU setup.
+	mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
+	mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
+	WaitForSingleObject(mFenceEvent, INFINITE);
+	mpCmdList->Reset(mFrameObjects[0].pCmdAllocator, nullptr);
+
 }
 
 PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], ID3D12ResourcePtr pIB[], const uint32_t indexCount[], uint32_t geometryCount)
@@ -444,7 +506,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 
     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
     pDevice->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
-
+	
     if (update)
     {
         // If this a request for an update, then the TLAS was already used in a DispatchRay() call. We need a UAV barrier to make sure the read operation ends before updating the buffer
@@ -504,7 +566,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	// Create the desc for the teapots
 		for (uint32_t i = 3; i <= 4; i++)
 		{
-		instanceDescs[i].InstanceID = 0; // This value will be exposed to the shader via InstanceID()
+		instanceDescs[i].InstanceID = i-3; // This value will be exposed to the shader via InstanceID()
 		instanceDescs[i].InstanceContributionToHitGroupIndex = 2;  // hard coded
 		instanceDescs[i].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 		mat4 m = transpose(transformation[i]); // GLM is column major, the INSTANCE_DESC is row major
@@ -608,7 +670,6 @@ void PathTracer::createAccelerationStructures()
     mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
     mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
     WaitForSingleObject(mFenceEvent, INFINITE);
-    uint32_t bufferIndex = mpSwapChain->GetCurrentBackBufferIndex();
     mpCmdList->Reset(mFrameObjects[0].pCmdAllocator, nullptr);
 }
 
@@ -789,6 +850,50 @@ RootSignatureDesc createTeapotHitRootDesc()
 	return desc;
 }
 
+RootSignatureDesc createMissRootDesc(D3D12_STATIC_SAMPLER_DESC* sampler)
+{
+	RootSignatureDesc desc;
+	desc.range.resize(1);
+
+	// gHDRTexture
+	desc.range[0].BaseShaderRegister = 0; //t0
+	desc.range[0].NumDescriptors = 1;
+	desc.range[0].RegisterSpace = 0;
+	desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[0].OffsetInDescriptorsFromTableStart = 0;
+	//desc.range[0].Flags = D3D12_DESCRIPTOR_RANGE_FLAG_DATA_STATIC;
+
+	desc.rootParams.resize(1);
+	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
+	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
+	desc.rootParams[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+	// Sampler
+	//D3D12_STATIC_SAMPLER_DESC sampler = {};
+	sampler->Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+	sampler->AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler->AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler->AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler->MipLODBias = 0;
+	sampler->MaxAnisotropy = 0;
+	sampler->ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	sampler->BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+	sampler->MinLOD = 0.0f;
+	sampler->MaxLOD = D3D12_FLOAT32_MAX;
+	sampler->ShaderRegister = 0; // s0
+	sampler->RegisterSpace = 0;
+	sampler->ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
+	desc.desc.NumParameters = 1;
+	desc.desc.pParameters = desc.rootParams.data();
+	desc.desc.NumStaticSamplers = 1;
+	desc.desc.pStaticSamplers = sampler;
+	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;//D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT
+
+	return desc;
+}
+
 struct DxilLibrary
 {
     DxilLibrary(ID3DBlobPtr pBlob, const WCHAR* entryPoint[], uint32_t entryPointCount) : pShaderBlob(pBlob)
@@ -928,17 +1033,18 @@ struct PipelineConfig
 
 void PathTracer::createRtPipelineState()
 {
-    // Need 18 subobjects:
+    // Need 20 subobjects:
     //  3 for DXIL libraries    
     //  3 for the hit-groups (plane hit-group, area light hit-group, teapot hit-group)
     //  2 for RayGen root-signature (root-signature and the subobject association)
     //  2 for the plane-hit root-signature (root-signature and the subobject association)
 	//  2 for the teapot-hit root-signature (root-signature and the subobject association)
+	//  2 for the miss root-signature (root-signature and the subobject association)
 	//  2 for empty root-signature (root-signature and the subobject association)
     //  2 for shader config (shared between all programs. 1 for the config, 1 for association)
     //  1 for pipeline config
     //  1 for the global root signature
-    std::array<D3D12_STATE_SUBOBJECT,18> subobjects;
+    std::array<D3D12_STATE_SUBOBJECT,20> subobjects;
     uint32_t index = 0;
 
     // Create the DXIL libraries
@@ -999,16 +1105,25 @@ void PathTracer::createRtPipelineState()
 			ExportAssociation teapotHitRootAssociation(&kTeapotHitGroup, 1, &(subobjects[teapotHitRootIndex]));
 			subobjects[index++] = teapotHitRootAssociation.subobject; // 11 Associate Teapot Hit Root Sig to Teapot Hit Group
 
-		// Create the empty root-signature and associate it with the primary miss-shader and area light
+		// Create the miss root-signature and association
+			D3D12_STATIC_SAMPLER_DESC sampler = {};
+			LocalRootSignature missRootSignature(mpDevice, createMissRootDesc(&sampler).desc);
+			subobjects[index] = missRootSignature.subobject; // 12 Miss Root Sig
+
+			uint32_t missRootIndex = index++;
+			ExportAssociation missRootAssociation(&kMissShader, 1, &(subobjects[missRootIndex]));
+			subobjects[index++] = missRootAssociation.subobject; // 13 Associate Miss Root Sig to Miss shader
+
+		// Create the empty root-signature and associate it with the area light
 			D3D12_ROOT_SIGNATURE_DESC emptyDesc = {};
 			emptyDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 			LocalRootSignature emptyRootSignature(mpDevice, emptyDesc);
-			subobjects[index] = emptyRootSignature.subobject; // 12 Empty Root Sig for Miss and Area light
+			subobjects[index] = emptyRootSignature.subobject; // 14 Empty Root Sig for Area light
 
 			uint32_t emptyRootIndex = index++;
-			const WCHAR* emptyRootExport[] = { kMissShader, kAreaLightChs };
+			const WCHAR* emptyRootExport[] = { kAreaLightChs };
 			ExportAssociation emptyRootAssociation(emptyRootExport, arraysize(emptyRootExport), &(subobjects[emptyRootIndex]));
-			subobjects[index++] = emptyRootAssociation.subobject; // 13 Associate empty root sig to Miss and Area light
+			subobjects[index++] = emptyRootAssociation.subobject; // 15 Associate empty root sig to Area light
 	#pragma endregion
 
 	//---- Create Shader config, Pipeline config and Global Root-Signature----//
@@ -1016,28 +1131,28 @@ void PathTracer::createRtPipelineState()
     // Bind the payload size to all programs
     
 		ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 7);
-		subobjects[index] = primaryShaderConfig.subobject; // 14
+		subobjects[index] = primaryShaderConfig.subobject; // 16
 
 		uint32_t primaryShaderConfigIndex = index++;
 		const WCHAR* primaryShaderExports[] = { kRayGenShader, kMissShader, kPlaneChs, kAreaLightChs, kTeapotChs};
 		ExportAssociation primaryConfigAssociation(primaryShaderExports, arraysize(primaryShaderExports), &(subobjects[primaryShaderConfigIndex]));
-		subobjects[index++] = primaryConfigAssociation.subobject; // 15 Associate shader config to all programs
+		subobjects[index++] = primaryConfigAssociation.subobject; // 17 Associate shader config to all programs
 
     // Create the pipeline config
     
 		PipelineConfig config(10); // maxRecursionDepth
-		subobjects[index++] = config.subobject; // 16
+		subobjects[index++] = config.subobject; // 18
 
     // Create the global root signature and store the empty signature
 	
 		GlobalRootSignature root(mpDevice, {});
 		mpEmptyRootSig = root.pRootSig;
-		subobjects[index++] = root.subobject; // 17
+		subobjects[index++] = root.subobject; // 19
 	#pragma endregion
 
     // Create the state
     D3D12_STATE_OBJECT_DESC desc;
-    desc.NumSubobjects = index; // 18
+    desc.NumSubobjects = index; // 20
     desc.pSubobjects = subobjects.data();
     desc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
 
@@ -1083,7 +1198,9 @@ void PathTracer::createShaderTable()
 		*(uint64_t*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = heapStart;
 
     // Entry 1 - primary ray miss
-		memcpy(pData + mShaderTableEntrySize, pRtsoProps->GetShaderIdentifier(kMissShader), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		uint8_t* pEntry1 = pData + mShaderTableEntrySize * 1;
+		memcpy(pEntry1, pRtsoProps->GetShaderIdentifier(kMissShader), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		*(uint64_t*)(pEntry1 + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = heapStart + 3 * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     // Entry 2 - Planes, primary ray. ProgramID, TLAS SRV and Normal buffer
 		uint8_t* pEntry2 = pData + mShaderTableEntrySize * 2;
@@ -1134,34 +1251,55 @@ void PathTracer::createShaderResources()
     d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&mpOutputResource))); // Starting as copy-source to simplify onFrameRender()
 
 	
-    // Create an SRV/UAV/CBV descriptor heap. Need 3 entries - 1 SRV for the scene, 1 UAV for the output and 1 for the camera
-    mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 3, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+    // Create an SRV/UAV/CBV descriptor heap. 
+	// Need 4 entries 
+	//	- 1 SRV for the scene
+	//	- 1 UAV for the output
+	//	- 1 for the camera
+	//	- 1 for the texture
+    mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 4, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 
 
     // Create the UAV. Based on the root signature we created it should be the first entry
-    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
-    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    mpDevice->CreateUnorderedAccessView(mpOutputResource, nullptr, &uavDesc, mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart());
+		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
+		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
+		mpDevice->CreateUnorderedAccessView(mpOutputResource, nullptr, &uavDesc, mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart());
 
     // Create the TLAS SRV right after the UAV. Note that we are using a different SRV desc here
-    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
-    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
-    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    srvDesc.RaytracingAccelerationStructure.Location = mTopLevelBuffers.pResult->GetGPUVirtualAddress();
-    D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
-    srvHandle.ptr += mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    mpDevice->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+		srvDesc.ViewDimension = D3D12_SRV_DIMENSION_RAYTRACING_ACCELERATION_STRUCTURE;
+		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvDesc.RaytracingAccelerationStructure.Location = mTopLevelBuffers.pResult->GetGPUVirtualAddress();
+		
+		D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
+		srvHandle.ptr += mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		
+		mpDevice->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
 
-	// Create the CBV
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-	cbvDesc.BufferLocation = mpCameraBuffer->GetGPUVirtualAddress();
-	uint32_t allignmentConst = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - mCameraBufferSize % D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
-	cbvDesc.SizeInBytes = mCameraBufferSize + allignmentConst;
+	// Create the CBV for the camera buffer
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+		cbvDesc.BufferLocation = mpCameraBuffer->GetGPUVirtualAddress();
+		uint32_t allignmentConst = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - mCameraBufferSize % D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+		cbvDesc.SizeInBytes = mCameraBufferSize + allignmentConst;
 	
-	D3D12_CPU_DESCRIPTOR_HANDLE cbvHandle = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
-	cbvHandle.ptr += 2 * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		D3D12_CPU_DESCRIPTOR_HANDLE cbvHandle = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
+		cbvHandle.ptr += 2 * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	mpDevice->CreateConstantBufferView(&cbvDesc, cbvHandle);
+		mpDevice->CreateConstantBufferView(&cbvDesc, cbvHandle);
+
+	// Describe and create a SRV for the texture.
+		D3D12_SHADER_RESOURCE_VIEW_DESC srvTextureDesc = {};
+		srvTextureDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		srvTextureDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		srvTextureDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		srvTextureDesc.Texture2D.MipLevels = 1;
+		srvTextureDesc.Texture2D.MostDetailedMip = 0;
+		srvTextureDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+		D3D12_CPU_DESCRIPTOR_HANDLE srvTextureHandle = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
+		srvTextureHandle.ptr += 3 * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	
+		mpDevice->CreateShaderResourceView(mpHDRTextureBuffer, &srvTextureDesc, srvTextureHandle);
 
 }
 
@@ -1269,8 +1407,8 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
     createAccelerationStructures();                 // Tutorial 03
     createRtPipelineState();                        // Tutorial 04
 	createCameraBuffer();							// My own
+	createHDRTextureBuffer();
     createShaderResources();                        // Tutorial 06
-	importHDRTexture();
 	createShaderTable();                            // Tutorial 05
 }
 
