@@ -121,9 +121,9 @@ private:
 	void readKeyboardInput(bool *gKeys);
 
 	struct {
-		vec3 cameraPosition = vec3(0, 7, -17);
-		vec3 cameraDirection = vec3(0, 0, 1);
-		float cameraAngle = 0.0f;//glm::pi<float>();
+		vec3 cameraPosition = vec3(0, 7, 17);
+		vec3 cameraDirection = vec3(0, 0, -1);
+		float cameraAngle = glm::pi<float>();
 	}mCamera;
 	
 	void createCameraBuffer();

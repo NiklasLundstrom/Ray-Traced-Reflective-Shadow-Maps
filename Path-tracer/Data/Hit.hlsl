@@ -36,12 +36,12 @@ void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttribute
         float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.5f;
 
 	// reflection direction
-        //float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
+        float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
 
 	// set up ray
         RayDesc rayDiffuse;
         rayDiffuse.Origin = hitPoint;
-        rayDiffuse.Direction = getCosHemisphereSample(payload.seed, normal);
+        rayDiffuse.Direction = (InstanceID() == 1)? reflectDir : getCosHemisphereSample(payload.seed, normal);
         rayDiffuse.TMin = 0.0001; // watch out for this value
         rayDiffuse.TMax = 100000;
 
@@ -93,7 +93,7 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
         }
         
 		// reflection direction
-        //float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
+        float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
         
 
 		// set up ray

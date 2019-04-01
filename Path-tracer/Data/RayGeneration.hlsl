@@ -1,5 +1,6 @@
 #include "Common.hlsli"
 #include "hlslUtils.hlsli"
+#include "ToneMapping.hlsli"
 
 
 RaytracingAccelerationStructure gRtScene : register(t0);
@@ -21,6 +22,7 @@ float3 linearToSrgb(float3 c)
     float3 srgb = 0.662002687 * sq1 + 0.684122060 * sq2 - 0.323583601 * sq3 - 0.0225411470 * c;
     return srgb;
 }
+
 
 [shader("raygeneration")]
 void rayGen()
@@ -48,7 +50,7 @@ void rayGen()
     RayPayload payload;
     float3 color = float3(0.0, 0.0, 0.0);
 
-    int numSamples = (frameCount == 1)? 1 : 400;
+    int numSamples = (frameCount == 1)? 1 : 800;
     for (int i = 0; i < numSamples; i++)
     {
         nextRand(randSeed);
@@ -69,7 +71,12 @@ void rayGen()
     }
     color /= numSamples;
 
-    color = linearToSrgb(color);
-    gOutput[launchIndex.xy] = float4(color, 1);
+    //color = linearToSrgb(color);
+
+	//color = linearToSrgb(FilmicToneMapping(color));
+
+    color = linearToSrgb(ACESFitted(1.5 * color));
+
+    gOutput[launchIndex.xy] = float4((color), 1);
 }
 

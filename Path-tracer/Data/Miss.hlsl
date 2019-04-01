@@ -16,7 +16,7 @@ void miss(inout RayPayload payload)
     float r = (1 / PI) * acos(dir.z) / length(dir.xy);
     float4 c = gHDRTexture[uint2(((dir.xy * r) * 0.5 + 0.5) * uint2(width, height))].rgba;
         
-    payload.color = c.rgb; //(c.r>0 ? 1.0 : 0.2) * float3(1.0, 1.0, 1.0);
+    payload.color = c.rgb;
 	
 	//
 

@@ -30,5 +30,8 @@
     <None Include="Data\hlslUtils.hlsli">
       <Filter>Data</Filter>
     </None>
+    <None Include="Data\ToneMapping.hlsli">
+      <Filter>Data</Filter>
+    </None>
   </ItemGroup>
 </Project>
