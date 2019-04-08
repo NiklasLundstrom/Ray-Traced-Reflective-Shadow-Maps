@@ -533,9 +533,12 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
     mat4 transformation[5];
     mat4 rotationMat = eulerAngleY(rotation*0.5f);
 	mat4 rotationMat2 = eulerAngleY(rotation*0.25f);
+	// planes
     transformation[0] = scale(10.0f*vec3(1.0f, 1.0f, 1.0f));
 	transformation[1] = translate(mat4(), vec3(-5.0, 5.0, 0.0)) * eulerAngleZ(-0.5f*pi<float>());
+	// area light
 	transformation[2] = translate(mat4(), vec3(0.0, 9.9999, 0.0)) * eulerAngleX(pi<float>()) * scale(vec3(0.5f, 0.5f, 0.5f));
+	// teapots
 	transformation[3] = translate(mat4(), vec3(0, 0.93*1.9, 0)) * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
 	transformation[4] = translate(mat4(), vec3(4.0, 0.93*1.9, -5.0)) * eulerAngleY(-0.55f*pi<float>()) * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
 

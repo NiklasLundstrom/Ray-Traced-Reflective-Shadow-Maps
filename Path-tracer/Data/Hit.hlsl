@@ -31,12 +31,14 @@ void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttribute
 					+ n1 * attribs.barycentrics.x
 					+ n2 * attribs.barycentrics.y;
         normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
+        normal = faceforward(normal, rayDirW, normal);
+
 
 	// get material color
         float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.5f;
 
 	// reflection direction
-        float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
+        float3 reflectDir = normalize(reflect(rayDirW, normal)); // normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
 
 	// set up ray
         RayDesc rayDiffuse;
@@ -47,18 +49,18 @@ void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttribute
 
         payload.depth -= 1;
 
-		TraceRay(
-					gRtScene, 
-					0 /*rayFlags*/, 
-					0xFF, /* ray mask*/
-					0 /* ray index*/, 
-					1 /* total nbr of hitgroups*/, 
-					0 /*miss shader index*/, 
-					rayDiffuse, 
-					payload
-				);
+        TraceRay(
+				gRtScene,
+				0 /*rayFlags*/,
+				0xFF, /* ray mask*/
+				0 /* ray index*/,
+				1 /* total nbr of hitgroups*/,
+				0 /*miss shader index*/,
+				rayDiffuse,
+				payload
+			);
        
-        float3 incomingColor =  payload.color;
+        float3 incomingColor = payload.color;
 	
         payload.color = materialColor * incomingColor;
     }
@@ -93,7 +95,7 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
         }
         
 		// reflection direction
-        float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
+        //float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
         
 
 		// set up ray
