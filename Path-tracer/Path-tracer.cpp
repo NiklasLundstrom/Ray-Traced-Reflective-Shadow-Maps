@@ -540,7 +540,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	transformation[2] = translate(mat4(), vec3(0.0, 9.9999, 0.0)) * eulerAngleX(pi<float>()) * scale(vec3(0.5f, 0.5f, 0.5f));
 	// teapots
 	transformation[3] = translate(mat4(), vec3(0, 0.93*1.9, 0)) * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
-	transformation[4] = translate(mat4(), vec3(4.0, 0.93*1.9, -5.0)) * eulerAngleY(-0.55f*pi<float>()) * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
+	transformation[4] = translate(mat4(), vec3(4.0, 1.5*0.93*1.9, -5.0)) * eulerAngleY(-0.55f*pi<float>()) * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
 
 
 

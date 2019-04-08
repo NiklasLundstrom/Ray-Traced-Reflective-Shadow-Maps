@@ -92,7 +92,7 @@ public:
 class Framework
 {
 public:
-    static void run(Tutorial& tutorial, const std::string& winTitle, uint32_t width = 1920, uint32_t height = 1200);
+    static void run(Tutorial& tutorial, const std::string& winTitle, uint32_t width = 1200, uint32_t height = 1200);
 };
 
 static const uint32_t kDefaultSwapChainBuffers = 3;
