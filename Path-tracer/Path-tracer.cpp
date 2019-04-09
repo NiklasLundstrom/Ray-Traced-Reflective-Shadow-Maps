@@ -321,8 +321,8 @@ ID3D12ResourcePtr createPlaneNB(ID3D12Device5Ptr pDevice)
 
 ID3D12ResourcePtr createTeapotVB(ID3D12Device5Ptr pDevice, aiVector3D* aiVertecies)
 {
-	vec3 vertices[2522];
-	for (uint i = 0; i < 2522; i++)
+	vec3 vertices[1388];
+	for (uint i = 0; i < 1388; i++)
 	{
 		vertices[i] = vec3(aiVertecies[i].x, aiVertecies[i].y, aiVertecies[i].z);
 	}
@@ -338,8 +338,8 @@ ID3D12ResourcePtr createTeapotVB(ID3D12Device5Ptr pDevice, aiVector3D* aiVerteci
 ID3D12ResourcePtr createTeapotIB(ID3D12Device5Ptr pDevice, aiFace* aiIndices)
 {
 
-	uint indices[4032 * 3];
-	for (uint i = 0; i < 4032; i++)
+	uint indices[1226 * 3];
+	for (uint i = 0; i < 1226; i++)
 	{
 		indices[3*i] = aiIndices[i].mIndices[0];
 		indices[3*i + 1] = aiIndices[i].mIndices[1];
@@ -356,8 +356,8 @@ ID3D12ResourcePtr createTeapotIB(ID3D12Device5Ptr pDevice, aiFace* aiIndices)
 
 ID3D12ResourcePtr createTeapotNB(ID3D12Device5Ptr pDevice, aiVector3D* aiVertecies)
 {
-	vec3 normals[2522];
-	for (uint i = 0; i < 2522; i++)
+	vec3 normals[1388];
+	for (uint i = 0; i < 1388; i++)
 	{
 		normals[i] = vec3(aiVertecies[i].x, aiVertecies[i].y, aiVertecies[i].z);
 	}
@@ -539,10 +539,10 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	transformation[0] = scale(10.0f*vec3(1.0f, 1.0f, 1.0f));
 	transformation[1] = translate(mat4(), vec3(-5.0, 5.0, 0.0)) * eulerAngleZ(-0.5f*pi<float>());
 	// area light
-	transformation[2] = translate(mat4(), vec3(0.0, 9.9999, 0.0)) * eulerAngleX(pi<float>()) * scale(vec3(0.5f, 0.5f, 0.5f));
-	// teapots
-	transformation[3] = translate(mat4(), vec3(0, 0.93*1.9, 0)) * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
-	transformation[4] = translate(mat4(), vec3(4.0, 0.93*1.9, -5.0)) * eulerAngleY(-0.55f*pi<float>()) * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
+	transformation[2] = translate(mat4(), vec3(0.0, 15, 0.0)) * eulerAngleX(pi<float>()) * scale(vec3(0.5f, 0.5f, 0.5f));
+	// robots
+	transformation[3] = translate(mat4(), vec3(0, 1.39, 0)) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f));
+	transformation[4] = translate(mat4(), vec3(3.0, 1.39, -4.2)) * eulerAngleY(-0.55f*pi<float>()) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f));
 
 
 	// The InstanceContributionToHitGroupIndex is set based on the shader-table layout specified in createShaderTable()
@@ -572,7 +572,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 
 	instanceIdx++;
 
-	// Create the desc for the teapots
+	// Create the desc for the robots
 	for (uint32_t i = 0; i < 2; i++)
 	{
 		instanceDescs[instanceIdx].InstanceID = i; // This value will be exposed to the shader via InstanceID()
@@ -622,7 +622,7 @@ void PathTracer::createAccelerationStructures()
 
 
 	// Load teapot
-	const aiScene* teapotScene = importer.ReadFile("Data/teapot/utah-teapot.obj",
+	const aiScene* teapotScene = importer.ReadFile("Data/Models/robot.fbx",
 		aiProcess_CalcTangentSpace		|
 		aiProcess_JoinIdenticalVertices	|
 		aiProcess_Triangulate			|
@@ -883,7 +883,7 @@ RootSignatureDesc createMissRootDesc(D3D12_STATIC_SAMPLER_DESC* sampler)
 
 	// Sampler
 	//D3D12_STATIC_SAMPLER_DESC sampler = {};
-	sampler->Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+	sampler->Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 	sampler->AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
 	sampler->AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
 	sampler->AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;

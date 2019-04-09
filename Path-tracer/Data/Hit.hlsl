@@ -126,5 +126,5 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 [shader("closesthit")]
 void areaLightChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
-    payload.color = float3(1.0f, 0.0f, 1.0f)*0.0f;
+    payload.color = float3(1.0f, 0.0f, 1.0f)*5.0f;
 }
