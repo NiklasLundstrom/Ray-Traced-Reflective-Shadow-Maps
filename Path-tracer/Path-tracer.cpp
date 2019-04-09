@@ -497,44 +497,46 @@ PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pD
 
 void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[3], uint64_t& tlasSize, float rotation, bool update, PathTracer::AccelerationStructureBuffers& buffers)
 {
-    // First, get the size of the TLAS buffers and create them
-    D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
-    inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-    inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
-    inputs.NumDescs = 5;
-    inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
+	int numInstances = 5;
 
-    D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
-    pDevice->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
-	
-    if (update)
-    {
-        // If this a request for an update, then the TLAS was already used in a DispatchRay() call. We need a UAV barrier to make sure the read operation ends before updating the buffer
-        D3D12_RESOURCE_BARRIER uavBarrier = {};
-        uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
-        uavBarrier.UAV.pResource = buffers.pResult;
-        pCmdList->ResourceBarrier(1, &uavBarrier);
-    }
-    else
-    {
-        // If this is not an update operation then we need to create the buffers, otherwise we will refit in-place
-        buffers.pScratch = createBuffer(pDevice, info.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, kDefaultHeapProps);
-        buffers.pResult = createBuffer(pDevice, info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, kDefaultHeapProps);
-        buffers.pInstanceDesc = createBuffer(pDevice, sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * 3, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-        tlasSize = info.ResultDataMaxSizeInBytes;
-    }
+	// First, get the size of the TLAS buffers and create them
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
+	inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+	inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
+	inputs.NumDescs = numInstances;
+	inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
 
-    // Map the instance desc buffer
-    D3D12_RAYTRACING_INSTANCE_DESC* instanceDescs;
-    buffers.pInstanceDesc->Map(0, nullptr, (void**)&instanceDescs);
-    ZeroMemory(instanceDescs, sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * 7);
+	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
+	pDevice->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
 
-    // The transformation matrices for the instances
-    mat4 transformation[5];
-    mat4 rotationMat = eulerAngleY(rotation*0.5f);
+	if (update)
+	{
+		// If this a request for an update, then the TLAS was already used in a DispatchRay() call. We need a UAV barrier to make sure the read operation ends before updating the buffer
+		D3D12_RESOURCE_BARRIER uavBarrier = {};
+		uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+		uavBarrier.UAV.pResource = buffers.pResult;
+		pCmdList->ResourceBarrier(1, &uavBarrier);
+	}
+	else
+	{
+		// If this is not an update operation then we need to create the buffers, otherwise we will refit in-place
+		buffers.pScratch = createBuffer(pDevice, info.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, kDefaultHeapProps);
+		buffers.pResult = createBuffer(pDevice, info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, kDefaultHeapProps);
+		buffers.pInstanceDesc = createBuffer(pDevice, sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * numInstances, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+		tlasSize = info.ResultDataMaxSizeInBytes;
+	}
+
+	// Map the instance desc buffer
+	D3D12_RAYTRACING_INSTANCE_DESC* instanceDescs;
+	buffers.pInstanceDesc->Map(0, nullptr, (void**)&instanceDescs);
+	ZeroMemory(instanceDescs, sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * numInstances);
+
+	// The transformation matrices for the instances
+	mat4 transformation[5]; // hard coded number, doesn't have to be equal to numInstances
+	mat4 rotationMat = eulerAngleY(rotation*0.5f);
 	mat4 rotationMat2 = eulerAngleY(rotation*0.25f);
 	// planes
-    transformation[0] = scale(10.0f*vec3(1.0f, 1.0f, 1.0f));
+	transformation[0] = scale(10.0f*vec3(1.0f, 1.0f, 1.0f));
 	transformation[1] = translate(mat4(), vec3(-5.0, 5.0, 0.0)) * eulerAngleZ(-0.5f*pi<float>());
 	// area light
 	transformation[2] = translate(mat4(), vec3(0.0, 9.9999, 0.0)) * eulerAngleX(pi<float>()) * scale(vec3(0.5f, 0.5f, 0.5f));
@@ -543,41 +545,48 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	transformation[4] = translate(mat4(), vec3(4.0, 0.93*1.9, -5.0)) * eulerAngleY(-0.55f*pi<float>()) * scale(0.19f*vec3(1.0f, 1.0f, 1.0f));
 
 
-
-    // The InstanceContributionToHitGroupIndex is set based on the shader-table layout specified in createShaderTable()
-    // Create the desc for the planes
-	for (uint32_t i = 0; i <= 1; i++)
+	// The InstanceContributionToHitGroupIndex is set based on the shader-table layout specified in createShaderTable()
+	int instanceIdx = 0;
+	// Create the desc for the planes
+	for (uint32_t i = 0; i < 2; i++)
 	{
-		instanceDescs[i].InstanceID = i;// This value will be exposed to the shader via InstanceID()
-		instanceDescs[i].InstanceContributionToHitGroupIndex = 0;// 2 * i;
-		instanceDescs[i].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+		instanceDescs[instanceIdx].InstanceID = i;// This value will be exposed to the shader via InstanceID()
+		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 0; // hard coded
+		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 		// GLM is column major, the INSTANCE_DESC is row major
-		memcpy(instanceDescs[i].Transform, &transpose(transformation[i]), sizeof(instanceDescs[i].Transform));
-		instanceDescs[i].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
-		instanceDescs[i].InstanceMask = 0xFF;
+		memcpy(instanceDescs[instanceIdx].Transform, &transpose(transformation[instanceIdx]), sizeof(instanceDescs[instanceIdx].Transform));
+		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
+		instanceDescs[instanceIdx].InstanceMask = 0xFF;
+
+		instanceIdx++;
 	}
 
 	// Create the desc for the Area Light
-		instanceDescs[2].InstanceID = 0;// This value will be exposed to the shader via InstanceID()
-		instanceDescs[2].InstanceContributionToHitGroupIndex = 1; // hard coded
-		instanceDescs[2].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		// GLM is column major, the INSTANCE_DESC is row major
-		memcpy(instanceDescs[2].Transform, &transpose(transformation[2]), sizeof(instanceDescs[2].Transform));
-		instanceDescs[2].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
-		instanceDescs[2].InstanceMask = 0xFF;
+	instanceDescs[instanceIdx].InstanceID = 0;// This value will be exposed to the shader via InstanceID()
+	instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 1; // hard coded
+	instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+	// GLM is column major, the INSTANCE_DESC is row major
+	memcpy(instanceDescs[instanceIdx].Transform, &transpose(transformation[instanceIdx]), sizeof(instanceDescs[instanceIdx].Transform));
+	instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
+	instanceDescs[instanceIdx].InstanceMask = 0xFF;
+
+	instanceIdx++;
 
 	// Create the desc for the teapots
-		for (uint32_t i = 3; i <= 4; i++)
-		{
-		instanceDescs[i].InstanceID = i-3; // This value will be exposed to the shader via InstanceID()
-		instanceDescs[i].InstanceContributionToHitGroupIndex = 2;  // hard coded
-		instanceDescs[i].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		mat4 m = transpose(transformation[i]); // GLM is column major, the INSTANCE_DESC is row major
-		memcpy(instanceDescs[i].Transform, &m, sizeof(instanceDescs[i].Transform));
-		instanceDescs[i].AccelerationStructure = pBottomLevelAS[1]->GetGPUVirtualAddress();
-		instanceDescs[i].InstanceMask = 0xFF;
+	for (uint32_t i = 0; i < 2; i++)
+	{
+		instanceDescs[instanceIdx].InstanceID = i; // This value will be exposed to the shader via InstanceID()
+		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2;  // hard coded
+		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+		mat4 m = transpose(transformation[instanceIdx]); // GLM is column major, the INSTANCE_DESC is row major
+		memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
+		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[1]->GetGPUVirtualAddress();
+		instanceDescs[instanceIdx].InstanceMask = 0xFF;
 
-		}
+		instanceIdx++;
+	}
+
+	assert(instanceIdx == numInstances);
 
     // Unmap
     buffers.pInstanceDesc->Unmap(0, nullptr);

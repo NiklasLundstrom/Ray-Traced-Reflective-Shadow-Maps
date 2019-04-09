@@ -47,15 +47,15 @@
 #include <array>
 #include <stdio.h>
 #include <iostream>
-#include <assimp/Importer.hpp>
-#include <assimp/postprocess.h>
-#include <assimp/types.h>
-#include <assimp/scene.h>
+#include "Externals/Assimp/include/assimp/Importer.hpp"
+#include "Externals/Assimp/include/assimp/postprocess.h"
+#include "Externals/Assimp/include/assimp/types.h"
+#include "Externals/Assimp/include/assimp/scene.h"
 #include <chrono>
 #include "Externals/DirectXTex/DirectXTex.h"
 
 using namespace glm;
-using namespace System::Windows::Input;
+//using namespace System::Windows::Input;
 using namespace DirectX;
 
 
@@ -92,7 +92,7 @@ public:
 class Framework
 {
 public:
-    static void run(Tutorial& tutorial, const std::string& winTitle, uint32_t width = 1920, uint32_t height = 1200);
+    static void run(Tutorial& tutorial, const std::string& winTitle, uint32_t width = 1200, uint32_t height = 1200);
 };
 
 static const uint32_t kDefaultSwapChainBuffers = 3;

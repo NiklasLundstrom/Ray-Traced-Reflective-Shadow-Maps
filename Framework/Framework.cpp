@@ -141,9 +141,10 @@ namespace
                 tutorial.onFrameRender(gKeys);
 
 				frameCount++;
+
+				lastTime = nowTime;
             }
 
-			lastTime = nowTime;
         }
     }
 };
