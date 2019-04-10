@@ -8,7 +8,7 @@ StructuredBuffer<float3> normals : register(t2);
 
 
 [shader("closesthit")]
-void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
+void robotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
     if (payload.depth <= 0)
     {
@@ -37,13 +37,23 @@ void teapotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttribute
 	// get material color
         float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.5f;
 
-	// reflection direction
-        float3 reflectDir = normalize(reflect(rayDirW, normal)); // normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
+	// define out direction
+        float3 outDir;
 
+        if (nextRand(payload.seed) < 0.2)
+        {
+			// reflection direction
+            outDir = normalize(reflect(rayDirW, normal));
+        }
+		else
+        {
+			// diffuse random direction
+            outDir = getCosHemisphereSample(payload.seed, normal);
+        }
 	// set up ray
         RayDesc rayDiffuse;
         rayDiffuse.Origin = hitPoint;
-        rayDiffuse.Direction = (InstanceID() == 1)? reflectDir : getCosHemisphereSample(payload.seed, normal);
+        rayDiffuse.Direction = outDir;
         rayDiffuse.TMin = 0.0001; // watch out for this value
         rayDiffuse.TMax = 100000;
 

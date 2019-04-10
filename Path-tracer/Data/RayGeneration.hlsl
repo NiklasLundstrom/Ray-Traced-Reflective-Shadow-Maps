@@ -55,7 +55,7 @@ void rayGen()
     {
         nextRand(randSeed);
 
-        payload.depth = 2;
+        payload.depth = 3;
         payload.seed = randSeed;
         TraceRay(
 					gRtScene,

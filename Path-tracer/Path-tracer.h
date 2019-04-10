@@ -28,6 +28,8 @@
 #pragma once
 #include "Framework.h"
 
+#define HYBRID
+
 //using namespace System::Windows::Input;
 
 class PathTracer : public Tutorial
@@ -92,7 +94,7 @@ private:
     // Tutorial 04
     //////////////////////////////////////////////////////////////////////////
     void createRtPipelineState();
-    ID3D12StateObjectPtr mpPipelineState;
+    ID3D12StateObjectPtr mpRtPipelineState;
     ID3D12RootSignaturePtr mpEmptyRootSig;
     
     //////////////////////////////////////////////////////////////////////////
@@ -137,6 +139,13 @@ private:
 	void createHDRTextureBuffer();
 	ID3D12ResourcePtr mpHDRTextureBuffer;
 	
+	//////////////////////////////////////////////////////////////////////////
+	// Hybrid stuff
+	//////////////////////////////////////////////////////////////////////////
+	#ifdef HYBRID
 
-	
+
+
+
+	#endif // HYBRID
 };
