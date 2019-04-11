@@ -180,6 +180,28 @@ void PathTracer::initDXR(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
     // Create a RTV descriptor heap
     mRtvHeap.pHeap = createDescriptorHeap(mpDevice, kRtvHeapSize, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
 
+#ifdef  HYBRID
+	// Create a RTV descriptor heap for Rasterization
+	mpRasterRtvHeap = createDescriptorHeap(mpDevice, 1, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
+
+	// Create a DSV descriptor heap
+	mpRasterDsvHeap = createDescriptorHeap(mpDevice, 1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, false);
+
+	// Set up viewPort
+		mRasterViewPort.Width = kShadowMapWidth;
+		mRasterViewPort.Height = kShadowMapHeight;
+		mRasterViewPort.MinDepth = 0.0f;
+		mRasterViewPort.MaxDepth = 1.0f;
+		mRasterViewPort.TopLeftX = 0.0f;
+		mRasterViewPort.TopLeftY = 0.0f;
+	// Set up Scissor rectangle
+		mRasterScissorRect.left = 0;
+		mRasterScissorRect.top = 0;
+		mRasterScissorRect.right = kShadowMapWidth;
+		mRasterScissorRect.bottom = kShadowMapHeight;
+
+#endif
+
     // Create the per-frame objects
     for (uint32_t i = 0; i < arraysize(mFrameObjects); i++)
     {
@@ -723,7 +745,7 @@ void PathTracer::createAccelerationStructures()
 //////////////////////////////////////////////////////////////////////////
 // Tutorial 04 code
 //////////////////////////////////////////////////////////////////////////
-ID3DBlobPtr compileLibrary(const WCHAR* filename, const WCHAR* targetString)
+ID3DBlobPtr compileLibrary(const WCHAR* filename, const WCHAR* entryPoint, const WCHAR* targetString)
 {
     // Initialize the helper
     d3d_call(gDxcDllHelper.Initialize());
@@ -751,7 +773,7 @@ ID3DBlobPtr compileLibrary(const WCHAR* filename, const WCHAR* targetString)
 
     // Compile
     IDxcOperationResultPtr pResult;
-    d3d_call(pCompiler->Compile(pTextBlob, filename, L"", targetString, nullptr, 0, nullptr, 0, dxcIncludeHandler, &pResult));
+    d3d_call(pCompiler->Compile(pTextBlob, filename, entryPoint, targetString, nullptr, 0, nullptr, 0, dxcIncludeHandler, &pResult));
 
     // Verify the result
     HRESULT resultCode;
@@ -1098,15 +1120,15 @@ void PathTracer::createRtPipelineState()
     // Create the DXIL libraries
 	#pragma region
 		const WCHAR* entryPointsRayGen[] = { kRayGenShader };
-		DxilLibrary rayGenLib = DxilLibrary(compileLibrary(L"Data/RayGeneration.hlsl", L"lib_6_3"), entryPointsRayGen, arraysize(entryPointsRayGen));
+		DxilLibrary rayGenLib = DxilLibrary(compileLibrary(L"Data/RayGeneration.hlsl", L"", L"lib_6_3"), entryPointsRayGen, arraysize(entryPointsRayGen));
 		subobjects[index++] = rayGenLib.stateSubobject; // 0 RayGen Library
 		
 		const WCHAR* entryPointsMiss[] = { kMissShader };
-		DxilLibrary missLib = DxilLibrary(compileLibrary(L"Data/Miss.hlsl", L"lib_6_3"), entryPointsMiss, arraysize(entryPointsMiss));
+		DxilLibrary missLib = DxilLibrary(compileLibrary(L"Data/Miss.hlsl", L"", L"lib_6_3"), entryPointsMiss, arraysize(entryPointsMiss));
 		subobjects[index++] = missLib.stateSubobject; // 1 Miss Library
 
 		const WCHAR* entryPointsHit[] = { kRobotChs, kPlaneChs, kAreaLightChs };
-		DxilLibrary hitLib = DxilLibrary(compileLibrary(L"Data/Hit.hlsl", L"lib_6_3"), entryPointsHit, arraysize(entryPointsHit));
+		DxilLibrary hitLib = DxilLibrary(compileLibrary(L"Data/Hit.hlsl", L"", L"lib_6_3"), entryPointsHit, arraysize(entryPointsHit));
 		subobjects[index++] = hitLib.stateSubobject; // 2 Hit Library
 
 	#pragma endregion
@@ -1461,6 +1483,83 @@ void PathTracer::updateCameraBuffer()
 	mpCameraBuffer->Unmap(0, nullptr);
 }
 
+#ifdef HYBRID
+void PathTracer::createRasterPipelineState()
+{
+	// Root signature
+	RootSignatureDesc desc;
+	desc.desc.NumParameters = 0;
+	desc.desc.pParameters = nullptr;
+	desc.desc.NumStaticSamplers = 0;
+	desc.desc.pStaticSamplers = nullptr;
+	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
+
+	mpRasterRootSig = createRootSignature(mpDevice, desc.desc);
+
+	// Compile shaders
+	ID3DBlobPtr vertexShader = compileLibrary(L"Data/RasterShaders.hlsl", L"VSMain", L"vs_6_3");
+	ID3DBlobPtr pixelShader = compileLibrary(L"Data/RasterShaders.hlsl", L"PSMain", L"ps_6_3");
+
+	// Define the vertex input layout.
+	D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+	};
+
+	// Create the graphics pipeline state object (PSO).
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+	psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
+	psoDesc.pRootSignature = mpRasterRootSig.GetInterfacePtr();
+	psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.GetInterfacePtr());
+	psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.GetInterfacePtr());
+	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+	psoDesc.DepthStencilState.DepthEnable = FALSE;
+	psoDesc.DepthStencilState.StencilEnable = FALSE;
+	psoDesc.SampleMask = UINT_MAX;
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.RTVFormats[0] = DXGI_FORMAT_D32_FLOAT;
+	psoDesc.SampleDesc.Count = 1;
+
+	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpRasterPipelineState)));
+}
+
+void PathTracer::renderDepthToTexture()
+{
+	mpCmdList->SetGraphicsRootSignature(mpRasterRootSig.GetInterfacePtr());
+	mpCmdList->RSSetViewports(1, &mRasterViewPort);
+	mpCmdList->RSSetScissorRects(1, &mRasterScissorRect);
+
+	// set render target
+	mpCmdList->OMSetRenderTargets(
+								1,
+								&mpRasterRtvHeap->GetCPUDescriptorHandleForHeapStart(),
+								false,
+								&mpRasterDsvHeap->GetCPUDescriptorHandleForHeapStart()
+								);
+	// clear render target
+	const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
+	mpCmdList->ClearRenderTargetView(
+									mpRasterRtvHeap->GetCPUDescriptorHandleForHeapStart(),
+									clearColor,
+									0,
+									nullptr
+									);
+
+	mpCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	// Render Plane
+	mpCmdList->IASetVertexBuffers(/*fill in*/);
+	mpCmdList->IASetIndexBuffer(/*fill in*/);
+	// render shader etc... drawIndexed
+	// look in graphicsclass.cpp line 313
+
+	// render robot
+	//...
+}
+
+#endif
 
 //////////////////////////////////////////////////////////////////////////
 // Callbacks
@@ -1470,14 +1569,26 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
     initDXR(winHandle, winWidth, winHeight);        // Tutorial 02
     createAccelerationStructures();                 // Tutorial 03
     createRtPipelineState();                        // Tutorial 04
+#ifdef HYBRID
+	createRasterPipelineState();
+#endif
 	createCameraBuffer();							// My own
 	createHDRTextureBuffer();
     createShaderResources();                        // Tutorial 06
 	createShaderTable();                            // Tutorial 05
+
+	// Submit command list and wait for completion
+		mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
+		mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
+		WaitForSingleObject(mFenceEvent, INFINITE);
+		mpCmdList->Reset(mFrameObjects[0].pCmdAllocator, nullptr);
 }
 
 void PathTracer::onFrameRender(bool *gKeys)
 {	
+
+
+
 	readKeyboardInput(gKeys);
 
     uint32_t rtvIndex = beginFrame();

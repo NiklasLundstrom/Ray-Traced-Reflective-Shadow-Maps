@@ -143,9 +143,21 @@ private:
 	// Hybrid stuff
 	//////////////////////////////////////////////////////////////////////////
 	#ifdef HYBRID
+	mat4 mLightViewProjMatrix;
+	
+	const UINT kShadowMapWidth = 1000;
+	const UINT kShadowMapHeight = 1000;
 
+	D3D12_VIEWPORT			mRasterViewPort;
+	D3D12_RECT				mRasterScissorRect;
+	ID3D12RootSignaturePtr	mpRasterRootSig;
+	ID3D12ResourcePtr		mpShadowMapResource;
+	ID3D12DescriptorHeapPtr mpRasterRtvHeap;
+	ID3D12DescriptorHeapPtr mpRasterDsvHeap;
+	ID3D12PipelineStatePtr	mpRasterPipelineState;
 
-
+	void createRasterPipelineState();
+	void renderDepthToTexture();
 
 	#endif // HYBRID
 };

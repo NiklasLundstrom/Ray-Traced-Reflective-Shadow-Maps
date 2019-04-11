@@ -76,6 +76,7 @@ MAKE_SMART_COM_PTR(ID3D12StateObject);
 MAKE_SMART_COM_PTR(ID3D12RootSignature);
 MAKE_SMART_COM_PTR(ID3DBlob);
 MAKE_SMART_COM_PTR(IDxcBlobEncoding);
+MAKE_SMART_COM_PTR(ID3D12PipelineState);
 
 #include "d3dx12.h"
 
