@@ -181,15 +181,11 @@ void PathTracer::initDXR(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
     mRtvHeap.pHeap = createDescriptorHeap(mpDevice, kRtvHeapSize, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
 
 #ifdef  HYBRID
-	// Create a RTV descriptor heap for Rasterization
-	mpRasterRtvHeap = createDescriptorHeap(mpDevice, 1, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
 
-	// Create a DSV descriptor heap
-	mpRasterDsvHeap = createDescriptorHeap(mpDevice, 1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, false);
 
 	// Set up viewPort
-		mRasterViewPort.Width = kShadowMapWidth;
-		mRasterViewPort.Height = kShadowMapHeight;
+		mRasterViewPort.Width = (float) kShadowMapWidth;
+		mRasterViewPort.Height = (float) kShadowMapHeight;
 		mRasterViewPort.MinDepth = 0.0f;
 		mRasterViewPort.MaxDepth = 1.0f;
 		mRasterViewPort.TopLeftX = 0.0f;
@@ -448,6 +444,28 @@ void PathTracer::createHDRTextureBuffer()
 
 }
 
+void PathTracer::buildTransforms(float rotation)
+{
+	mat4 rotationMat = eulerAngleY(rotation*0.5f);
+	// planes
+	mTransforms[0] = scale(10.0f*vec3(1.0f, 1.0f, 1.0f));
+	// area light
+	mTransforms[1] = translate(mat4(), vec3(0.0, 15, 0.0)) * eulerAngleX(pi<float>()) * scale(vec3(0.5f, 0.5f, 0.5f));
+	// robots
+	mTransforms[2] = rotationMat * translate(mat4(), vec3(2, 1.39, 2 * sin(rotation*0.7f))) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f));
+	// room
+	//transformation[3] = scale(100.0f*vec3(1.0f, 1.0f, 1.0f));
+
+}
+
+void PathTracer::createTransformBuffers()
+{
+	for (int i = 0; i < mNumInstances; i++)
+	{
+		mpTransformBuffer[i] = createBuffer(mpDevice, sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	}
+}
+
 PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], ID3D12ResourcePtr pIB[], const uint32_t indexCount[], uint32_t geometryCount)
 {
     std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geomDesc;
@@ -499,9 +517,9 @@ PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pD
     return buffers;
 }
 
-void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, float rotation, bool update, PathTracer::AccelerationStructureBuffers& buffers)
+void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, mat4 transforms[], PathTracer::AccelerationStructureBuffers& buffers)
 {
-	int numInstances = 3;
+	int numInstances = 3; // keep in sync with mNumInstances
 
 	// First, get the size of the TLAS buffers and create them
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
@@ -535,19 +553,6 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	buffers.pInstanceDesc->Map(0, nullptr, (void**)&instanceDescs);
 	ZeroMemory(instanceDescs, sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * numInstances);
 
-	// The transformation matrices for the instances
-	mat4 transformation[3]; // hard coded number, doesn't have to be equal to numInstances
-	mat4 rotationMat = eulerAngleY(rotation*0.5f);
-	// planes
-	transformation[0] = scale(10.0f*vec3(1.0f, 1.0f, 1.0f));
-	// area light
-	transformation[1] = translate(mat4(), vec3(0.0, 15, 0.0)) * eulerAngleX(pi<float>()) * scale(vec3(0.5f, 0.5f, 0.5f));
-	// robots
-	transformation[2] = rotationMat*translate(mat4(), vec3(2, 1.39, 2*sin(rotation*0.7f))) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f));
-	// room
-	//transformation[3] = scale(100.0f*vec3(1.0f, 1.0f, 1.0f));
-
-
 	// The InstanceContributionToHitGroupIndex is set based on the shader-table layout specified in createShaderTable()
 	int instanceIdx = 0;
 	// Create the desc for the planes
@@ -557,7 +562,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 0; // hard coded
 		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 		// GLM is column major, the INSTANCE_DESC is row major
-		memcpy(instanceDescs[instanceIdx].Transform, &transpose(transformation[instanceIdx]), sizeof(instanceDescs[instanceIdx].Transform));
+		memcpy(instanceDescs[instanceIdx].Transform, &transpose(transforms[instanceIdx]), sizeof(instanceDescs[instanceIdx].Transform));
 		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
 		instanceDescs[instanceIdx].InstanceMask = 0xFF;
 
@@ -569,7 +574,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 1; // hard coded
 	instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 	// GLM is column major, the INSTANCE_DESC is row major
-	memcpy(instanceDescs[instanceIdx].Transform, &transpose(transformation[instanceIdx]), sizeof(instanceDescs[instanceIdx].Transform));
+	memcpy(instanceDescs[instanceIdx].Transform, &transpose(transforms[instanceIdx]), sizeof(instanceDescs[instanceIdx].Transform));
 	instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
 	instanceDescs[instanceIdx].InstanceMask = 0xFF;
 
@@ -581,7 +586,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 		instanceDescs[instanceIdx].InstanceID = i; // This value will be exposed to the shader via InstanceID()
 		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2;  // hard coded
 		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		mat4 m = transpose(transformation[instanceIdx]); // GLM is column major, the INSTANCE_DESC is row major
+		mat4 m = transpose(transforms[instanceIdx]); // GLM is column major, the INSTANCE_DESC is row major
 		memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
 		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[1]->GetGPUVirtualAddress();
 		instanceDescs[instanceIdx].InstanceMask = 0xFF;
@@ -636,6 +641,16 @@ void PathTracer::createAccelerationStructures()
     mpVertexBuffer[0] = createPlaneVB(mpDevice);
 	mpIndexBuffer[0] = createPlaneIB(mpDevice);
 	mpNormalBuffer[0] = createPlaneNB(mpDevice);
+#ifdef HYBRID
+	mVertexBufferView[0].BufferLocation = mpVertexBuffer[0]->GetGPUVirtualAddress();
+	mVertexBufferView[0].StrideInBytes = sizeof(vec3);
+	mVertexBufferView[0].SizeInBytes = 4 * sizeof(vec3);//hard coded
+
+	mIndexBufferView[0].BufferLocation = mpIndexBuffer[0]->GetGPUVirtualAddress();
+	mIndexBufferView[0].Format = DXGI_FORMAT_R32_UINT;
+	mIndexBufferView[0].SizeInBytes = 6 * sizeof(uint);
+#endif
+
 
 	// Load robot
 	const aiScene* robotScene = importer.ReadFile("Data/Models/robot.fbx",
@@ -653,6 +668,16 @@ void PathTracer::createAccelerationStructures()
 	mpVertexBuffer[1] = createModelVB(mpDevice, robot->mVertices, robot->mNumVertices);
 	mpIndexBuffer[1] = createModelIB(mpDevice, robot->mFaces, robot->mNumFaces);
 	mpNormalBuffer[1] = createModelNB(mpDevice, robot->mNormals, robot->mNumVertices);
+#ifdef HYBRID
+	mVertexBufferView[1].BufferLocation = mpVertexBuffer[1]->GetGPUVirtualAddress();
+	mVertexBufferView[1].StrideInBytes = sizeof(vec3);
+	mVertexBufferView[1].SizeInBytes = robot->mNumVertices * sizeof(vec3);
+
+	mIndexBufferView[1].BufferLocation = mpIndexBuffer[1]->GetGPUVirtualAddress();
+	mIndexBufferView[1].Format = DXGI_FORMAT_R32_UINT;
+	mIndexBufferView[1].SizeInBytes = robot->mNumFaces * 3 * sizeof(uint);
+#endif
+
 	
 	//// Load room
 	//const aiScene* roomScene = importer.ReadFile("Data/Models/room_with_window.fbx",
@@ -732,7 +757,7 @@ void PathTracer::createAccelerationStructures()
 	//	}
 
     // Create the TLAS
-    buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, false, 0, mTopLevelBuffers);
+    buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, false, mTransforms, mTopLevelBuffers);
 
     // The tutorial doesn't have any resource lifetime management, so we flush and sync here. 
 	//This is not required by the DXR spec - you can submit the list whenever you like as long as you take care of the resources lifetime.
@@ -1271,7 +1296,7 @@ void PathTracer::createShaderTable()
 		int entryIndex = 0;
     // Entry 0 - ray-gen program ID and descriptor data
 		memcpy(pData, pRtsoProps->GetShaderIdentifier(kRayGenShader), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		// Output UAV
+		// Output UAV + TLAS + Camera buffer
 			*(D3D12_GPU_VIRTUAL_ADDRESS*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = heapStart;
 		entryIndex++;
 
@@ -1343,13 +1368,21 @@ void PathTracer::createShaderResources()
 	//	- 1 SRV for the scene
 	//	- 1 for the camera
 	//	- 1 for the texture
+#ifdef HYBRID
+	//  - 1 for the light buffer
+	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 6, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+#else
     mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 4, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+#endif
 
+	// Step size
+	const UINT cbvSrvDescriptorSize = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	const D3D12_CPU_DESCRIPTOR_HANDLE cbvSrvHeapStart = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
 
     // Create the UAV. Based on the root signature we created it should be the first entry
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-		mpDevice->CreateUnorderedAccessView(mpOutputResource, nullptr, &uavDesc, mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart());
+		mpDevice->CreateUnorderedAccessView(mpOutputResource, nullptr, &uavDesc, cbvSrvHeapStart);
 
     // Create the TLAS SRV right after the UAV. Note that we are using a different SRV desc here
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
@@ -1357,23 +1390,22 @@ void PathTracer::createShaderResources()
 		srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		srvDesc.RaytracingAccelerationStructure.Location = mTopLevelBuffers.pResult->GetGPUVirtualAddress();
 		
-		D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
-		srvHandle.ptr += mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		D3D12_CPU_DESCRIPTOR_HANDLE srvHandle = cbvSrvHeapStart;
+		srvHandle.ptr += cbvSrvDescriptorSize;
 		
 		mpDevice->CreateShaderResourceView(nullptr, &srvDesc, srvHandle);
 
 	// Create the CBV for the camera buffer
 		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 		cbvDesc.BufferLocation = mpCameraBuffer->GetGPUVirtualAddress();
-		uint32_t allignmentConst = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT - mCameraBufferSize % D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
-		cbvDesc.SizeInBytes = mCameraBufferSize + allignmentConst;
+		cbvDesc.SizeInBytes = (sizeof(mCameraBufferSize) + 255) & ~255; // align to 256
 	
-		D3D12_CPU_DESCRIPTOR_HANDLE cbvHandle = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
-		cbvHandle.ptr += 2 * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		D3D12_CPU_DESCRIPTOR_HANDLE cbvHandle = cbvSrvHeapStart;
+		cbvHandle.ptr += 2 * cbvSrvDescriptorSize;
 
 		mpDevice->CreateConstantBufferView(&cbvDesc, cbvHandle);
 
-	// Describe and create a SRV for the texture.
+	// Create the SRV for the Environment map.
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvTextureDesc = {};
 		srvTextureDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		srvTextureDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
@@ -1382,11 +1414,56 @@ void PathTracer::createShaderResources()
 		srvTextureDesc.Texture2D.MostDetailedMip = 0;
 		srvTextureDesc.Texture2D.ResourceMinLODClamp = 0.0f;
 
-		D3D12_CPU_DESCRIPTOR_HANDLE srvTextureHandle = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
-		srvTextureHandle.ptr += 3 * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		D3D12_CPU_DESCRIPTOR_HANDLE srvTextureHandle = cbvSrvHeapStart;
+		srvTextureHandle.ptr += 3 * cbvSrvDescriptorSize;
 	
 		mpDevice->CreateShaderResourceView(mpHDRTextureBuffer, &srvTextureDesc, srvTextureHandle);
 
+#ifdef HYBRID
+	// Create the CBV for the light buffer
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvLightDesc = {};
+		cbvLightDesc.BufferLocation = mpLightBuffer->GetGPUVirtualAddress();
+		cbvLightDesc.SizeInBytes = (mLightBufferSize + 255) & ~255; // align to 256
+
+		D3D12_CPU_DESCRIPTOR_HANDLE cbvLightHandle = cbvSrvHeapStart;
+		cbvLightHandle.ptr += 4 * cbvSrvDescriptorSize;
+
+		mpDevice->CreateConstantBufferView(&cbvLightDesc, cbvLightHandle);
+		mLightBufferView = cbvLightHandle;
+
+	// Create the SRV for the Shadow map
+		D3D12_SHADER_RESOURCE_VIEW_DESC shadowMapSrvDesc = {};
+		shadowMapSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+		shadowMapSrvDesc.Format = DXGI_FORMAT_R32_FLOAT;
+		shadowMapSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+		shadowMapSrvDesc.Texture2D.MipLevels = 1;
+
+		D3D12_CPU_DESCRIPTOR_HANDLE srvShadowMapHandle = cbvSrvHeapStart;
+		srvShadowMapHandle.ptr += 5 * cbvSrvDescriptorSize;
+
+		mpDevice->CreateShaderResourceView(mpShadowMapTexture, &shadowMapSrvDesc, srvShadowMapHandle);
+
+	////////////////// End of SRV/UAV/CBV descriptor heap //////////////////
+
+
+	// Create a DSV descriptor heap
+	// needs 1 entry
+	// - 1 DSV for the Shadow Map
+
+	// create a DSV descriptor heap
+		mpDsvHeap = createDescriptorHeap(mpDevice, 1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, false);
+
+	// create the depth view
+		D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
+		depthStencilViewDesc.Format = DXGI_FORMAT_D32_FLOAT;
+		depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
+		depthStencilViewDesc.Texture2D.MipSlice = 0;
+
+		D3D12_CPU_DESCRIPTOR_HANDLE dsvHeapStart = mpDsvHeap->GetCPUDescriptorHandleForHeapStart();
+
+		mpDevice->CreateDepthStencilView(mpShadowMapTexture, &depthStencilViewDesc, dsvHeapStart);
+		mShadowMapDepthView = mpDsvHeap->GetCPUDescriptorHandleForHeapStart();
+#endif
 }
 
 
@@ -1456,17 +1533,6 @@ void PathTracer::updateCameraBuffer()
 		int bp = 1;
 	}
 
-
-	/*std::vector<vec4> vectors(3);
-	vectors[0] = mCamera.cameraPosition;
-	vectors[1] = vec4(mCamera.cameraAngle);
-	vectors[2] = vec4((float)frameCount);
-
-	uint8_t* pData;
-	d3d_call(mpCameraBuffer->Map(0, nullptr, (void**)&pData));
-	memcpy(pData, vectors.data(), mCameraBufferSize);
-	mpCameraBuffer->Unmap(0, nullptr);*/
-
 	uint8_t* pData;
 	d3d_call(mpCameraBuffer->Map(0, nullptr, (void**)&pData));
 	memcpy(	pData, 
@@ -1486,10 +1552,37 @@ void PathTracer::updateCameraBuffer()
 #ifdef HYBRID
 void PathTracer::createRasterPipelineState()
 {
+	D3D12_DESCRIPTOR_RANGE range[1];
+	// Light buffer
+	range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+	range[0].NumDescriptors = 1;
+	range[0].BaseShaderRegister = 0; //b0
+	range[0].RegisterSpace = 0;
+	range[0].OffsetInDescriptorsFromTableStart = 0;
+
+	D3D12_ROOT_PARAMETER rootParameters[2];
+	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
+	rootParameters[0].DescriptorTable.pDescriptorRanges = range;
+	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+	// Model transform buffer
+	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	rootParameters[1].Descriptor.RegisterSpace = 0;
+	rootParameters[1].Descriptor.ShaderRegister = 1; // b1
+	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS;
+
 	// Root signature
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 0;
-	desc.desc.pParameters = nullptr;
+	desc.desc.NumParameters = 2;
+	desc.desc.pParameters = rootParameters;
 	desc.desc.NumStaticSamplers = 0;
 	desc.desc.pStaticSamplers = nullptr;
 	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT;
@@ -1511,52 +1604,149 @@ void PathTracer::createRasterPipelineState()
 	psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
 	psoDesc.pRootSignature = mpRasterRootSig.GetInterfacePtr();
 	psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.GetInterfacePtr());
-	psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.GetInterfacePtr());
+	psoDesc.PS = CD3DX12_SHADER_BYTECODE(0, 0);// no need for a PS
 	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	psoDesc.DepthStencilState.DepthEnable = FALSE;
+	psoDesc.DepthStencilState.DepthEnable = true;
+	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 	psoDesc.DepthStencilState.StencilEnable = FALSE;
 	psoDesc.SampleMask = UINT_MAX;
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	psoDesc.NumRenderTargets = 1;
-	psoDesc.RTVFormats[0] = DXGI_FORMAT_D32_FLOAT;
+	psoDesc.NumRenderTargets = 0;// we don't use one
+	psoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN; 
+	psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 	psoDesc.SampleDesc.Count = 1;
 
 	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpRasterPipelineState)));
 }
 
+void PathTracer::createLightBuffer()
+{
+	// Create light buffer
+	mpLightBuffer = createBuffer(mpDevice, mLightBufferSize, D3D12_RESOURCE_FLAG_NONE,
+		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+
+	// Set up Light values
+	mLight.projMat = glm::perspectiveFovRH(glm::half_pi<float>(), (float) kShadowMapWidth, (float) kShadowMapHeight, 0.01f, 125.0f);
+}
+
+void PathTracer::updateLightBuffer()
+{
+	mLight.eye = mLight.position;
+	mLight.at = mLight.eye + mLight.direction;
+	// up vector constant
+
+	mat4 viewMat = transpose( lookAtRH(mLight.eye, mLight.at, mLight.up) );
+	// projMat constant
+
+
+	uint8_t* pData;
+	d3d_call(mpLightBuffer->Map(0, nullptr, (void**)&pData));
+	memcpy(pData,
+		&mLight.viewMat,
+		sizeof(mat4));
+	memcpy(pData + sizeof(mat4),
+		&mLight.projMat,
+		sizeof(mat4));
+	mpLightBuffer->Unmap(0, nullptr);
+}
+
+void PathTracer::updateTransformBuffers()
+{
+	for (int i = 0; i < mNumInstances; i++)
+	{
+		uint8_t* pData;
+		d3d_call(mpTransformBuffer[i]->Map(0, nullptr, (void**)&pData));
+			memcpy(pData, &mTransforms[i], sizeof(mat4));
+		mpTransformBuffer[i]->Unmap(0, nullptr);
+	}
+}
+
+void PathTracer::createShadowMapTexture()
+{
+	D3D12_RESOURCE_DESC shadowTexDesc;
+	shadowTexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	shadowTexDesc.Alignment = 0;
+	shadowTexDesc.Width = kShadowMapWidth;
+	shadowTexDesc.Height = kShadowMapHeight;
+	shadowTexDesc.DepthOrArraySize = 1;
+	shadowTexDesc.MipLevels = 1;
+	shadowTexDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+	shadowTexDesc.SampleDesc.Count = 1;
+	shadowTexDesc.SampleDesc.Quality = 0;
+	shadowTexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	shadowTexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+	D3D12_CLEAR_VALUE clearValue;
+	clearValue.Format = DXGI_FORMAT_D32_FLOAT;
+	clearValue.DepthStencil.Depth = 1.0f;
+	clearValue.DepthStencil.Stencil = 0;
+
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kDefaultHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&shadowTexDesc,
+		D3D12_RESOURCE_STATE_DEPTH_WRITE,
+		&clearValue,
+		IID_PPV_ARGS(&mpShadowMapTexture)
+	));
+
+}
+
 void PathTracer::renderDepthToTexture()
 {
+	// Set pipeline state
+	mpCmdList->SetPipelineState(mpRasterPipelineState);
+
+	// Set Root signature
 	mpCmdList->SetGraphicsRootSignature(mpRasterRootSig.GetInterfacePtr());
+
+	// Set descriptor heaps
+	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap };// , mpDsvHeap};
+	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+	// set "Shader Table", i.e. resources for root signature
+	D3D12_GPU_DESCRIPTOR_HANDLE lightBufferHandle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+	lightBufferHandle.ptr += 4 * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mpCmdList->SetGraphicsRootDescriptorTable(0, lightBufferHandle); // b0
+
+	// viewport
 	mpCmdList->RSSetViewports(1, &mRasterViewPort);
 	mpCmdList->RSSetScissorRects(1, &mRasterScissorRect);
 
+	mpCmdList->OMSetStencilRef(0);
+
+	// clear shadow map
+	mpCmdList->ClearDepthStencilView(mShadowMapDepthView, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
 	// set render target
+	// TODO: fix
 	mpCmdList->OMSetRenderTargets(
-								1,
-								&mpRasterRtvHeap->GetCPUDescriptorHandleForHeapStart(),
+								0,
+								nullptr,
 								false,
-								&mpRasterDsvHeap->GetCPUDescriptorHandleForHeapStart()
+								&mShadowMapDepthView
 								);
-	// clear render target
-	const float clearColor[] = { 0.0f, 0.0f, 0.0f, 1.0f };
-	mpCmdList->ClearRenderTargetView(
-									mpRasterRtvHeap->GetCPUDescriptorHandleForHeapStart(),
-									clearColor,
-									0,
-									nullptr
-									);
 
 	mpCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// Render Plane
-	mpCmdList->IASetVertexBuffers(/*fill in*/);
-	mpCmdList->IASetIndexBuffer(/*fill in*/);
-	// render shader etc... drawIndexed
-	// look in graphicsclass.cpp line 313
-
+	mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[0]->GetGPUVirtualAddress());
+	mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[0]);
+	mpCmdList->IASetIndexBuffer(&mIndexBufferView[0]);
+	mpCmdList->DrawIndexedInstanced(mIndexBufferView[0].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
 	// render robot
-	//...
+	mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[2]->GetGPUVirtualAddress());
+	mpCmdList->IASetVertexBuffers(1, 1, &mVertexBufferView[1]);
+	mpCmdList->IASetIndexBuffer(&mIndexBufferView[1]);
+	mpCmdList->DrawIndexedInstanced(mIndexBufferView[1].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+
+	// submit command list and reset
+	mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
+	mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
+	WaitForSingleObject(mFenceEvent, INFINITE);
+	mpCmdList->Reset(mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator, nullptr);
 }
 
 #endif
@@ -1567,10 +1757,14 @@ void PathTracer::renderDepthToTexture()
 void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 {
     initDXR(winHandle, winWidth, winHeight);        // Tutorial 02
+	buildTransforms(mRotation);
     createAccelerationStructures();                 // Tutorial 03
     createRtPipelineState();                        // Tutorial 04
 #ifdef HYBRID
 	createRasterPipelineState();
+	createLightBuffer();
+	createShadowMapTexture();
+	createTransformBuffers();
 #endif
 	createCameraBuffer();							// My own
 	createHDRTextureBuffer();
@@ -1586,8 +1780,23 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 
 void PathTracer::onFrameRender(bool *gKeys)
 {	
+	
+	// Update object transforms
+	buildTransforms(mRotation);
+	mRotation += 0.5f*mCameraSpeed;
 
+#ifdef HYBRID
 
+	// Update transform buffer
+	updateTransformBuffers();
+
+	// Update light buffer
+	updateLightBuffer();
+
+	// Rasterize
+	renderDepthToTexture();
+
+#endif
 
 	readKeyboardInput(gKeys);
 
@@ -1597,8 +1806,8 @@ void PathTracer::onFrameRender(bool *gKeys)
 	updateCameraBuffer();
 
     // Refit the top-level acceleration structure
-    buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, mRotation, true, mTopLevelBuffers);
-    mRotation += 0.5f*mCameraSpeed;
+    buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, true, mTransforms, mTopLevelBuffers);
+    
 
     // Let's raytrace
     resourceBarrier(mpCmdList, mpOutputResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);

@@ -24,6 +24,9 @@
     <FxCompile Include="Data\Common.hlsli">
       <Filter>Data</Filter>
     </FxCompile>
+    <FxCompile Include="Data\RasterShaders.hlsl">
+      <Filter>Data</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

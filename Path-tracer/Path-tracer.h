@@ -52,20 +52,20 @@ private:
     void initDXR(HWND winHandle, uint32_t winWidth, uint32_t winHeight);
     uint32_t beginFrame();
     void endFrame(uint32_t rtvIndex);
-    HWND mHwnd = nullptr;
-    ID3D12Device5Ptr mpDevice;
-    ID3D12CommandQueuePtr mpCmdQueue;
-    IDXGISwapChain3Ptr mpSwapChain;
-    uvec2 mSwapChainSize;
-    ID3D12GraphicsCommandList4Ptr mpCmdList;
-    ID3D12FencePtr mpFence;
-    HANDLE mFenceEvent;
-    uint64_t mFenceValue = 0;
+    HWND							mHwnd = nullptr;
+    ID3D12Device5Ptr				mpDevice;
+    ID3D12CommandQueuePtr			mpCmdQueue;
+    IDXGISwapChain3Ptr				mpSwapChain;
+    uvec2							mSwapChainSize;
+    ID3D12GraphicsCommandList4Ptr	mpCmdList;
+    ID3D12FencePtr					mpFence;
+    HANDLE							mFenceEvent;
+    uint64_t						mFenceValue = 0;
 
     struct
     {
-        ID3D12CommandAllocatorPtr pCmdAllocator;
-        ID3D12ResourcePtr pSwapChainBuffer;
+        ID3D12CommandAllocatorPtr	pCmdAllocator;
+        ID3D12ResourcePtr			pSwapChainBuffer;
         D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
     } mFrameObjects[kDefaultSwapChainBuffers];
 
@@ -74,43 +74,58 @@ private:
     struct HeapData
     {
         ID3D12DescriptorHeapPtr pHeap;
-        uint32_t usedEntries = 0;
+        uint32_t				usedEntries = 0;
     };
     HeapData mRtvHeap;
-    static const uint32_t kRtvHeapSize = 3;
+    static const uint32_t		kRtvHeapSize = 3;
 
     //////////////////////////////////////////////////////////////////////////
     // Tutorial 03, Tutorial 11
     //////////////////////////////////////////////////////////////////////////
     void createAccelerationStructures();
-    ID3D12ResourcePtr mpVertexBuffer[2];
-	ID3D12ResourcePtr mpIndexBuffer[2];
-	ID3D12ResourcePtr mpNormalBuffer[2];
-    ID3D12ResourcePtr mpBottomLevelAS[2];
-    AccelerationStructureBuffers mTopLevelBuffers;
-    uint64_t mTlasSize = 0;
+    ID3D12ResourcePtr			mpVertexBuffer[2];
+	// 3 instances: plane, area light and robot
+	// keep in sync with value hard coded in buildTopLevelAS()
+	static const int			mNumInstances = 3; 
+	mat4 mTransforms[mNumInstances];
+	void buildTransforms(float rotation);
+
+#ifdef HYBRID
+	D3D12_VERTEX_BUFFER_VIEW	mVertexBufferView[2];
+	D3D12_INDEX_BUFFER_VIEW		mIndexBufferView[2];
+	ID3D12ResourcePtr			mpTransformBuffer[mNumInstances];
+	void createTransformBuffers();
+	void updateTransformBuffers();
+#endif
+
+	ID3D12ResourcePtr				mpIndexBuffer[2];
+	ID3D12ResourcePtr				mpNormalBuffer[2];
+    ID3D12ResourcePtr				mpBottomLevelAS[2];
+    AccelerationStructureBuffers	mTopLevelBuffers;
+    uint64_t						mTlasSize = 0;
+
 
     //////////////////////////////////////////////////////////////////////////
     // Tutorial 04
     //////////////////////////////////////////////////////////////////////////
     void createRtPipelineState();
-    ID3D12StateObjectPtr mpRtPipelineState;
-    ID3D12RootSignaturePtr mpEmptyRootSig;
+    ID3D12StateObjectPtr	mpRtPipelineState;
+    ID3D12RootSignaturePtr	mpEmptyRootSig;
     
     //////////////////////////////////////////////////////////////////////////
     // Tutorial 05
     //////////////////////////////////////////////////////////////////////////
     void createShaderTable();
-    ID3D12ResourcePtr mpShaderTable;
-    uint32_t mShaderTableEntrySize = 0;
+    ID3D12ResourcePtr		mpShaderTable;
+    uint32_t				mShaderTableEntrySize = 0;
 
     //////////////////////////////////////////////////////////////////////////
     // Tutorial 06
     //////////////////////////////////////////////////////////////////////////
     void createShaderResources();
-    ID3D12ResourcePtr mpOutputResource;
+    ID3D12ResourcePtr		mpOutputResource;
     ID3D12DescriptorHeapPtr mpCbvSrvUavHeap;
-    static const uint32_t kSrvUavHeapSize = 2;
+    static const uint32_t	kSrvUavHeapSize = 2;
 
     //////////////////////////////////////////////////////////////////////////
     // Tutorial 14
@@ -123,27 +138,26 @@ private:
 	void readKeyboardInput(bool *gKeys);
 
 	struct {
-		vec3 cameraPosition = vec3(0, 7, 17);
-		vec3 cameraDirection = vec3(0, 0, -1);
-		float cameraAngle = glm::pi<float>();
+		vec3	cameraPosition = vec3(0, 7, 17);
+		vec3	cameraDirection = vec3(0, 0, -1);
+		float	cameraAngle = glm::pi<float>();
 	}mCamera;
 	
 	void createCameraBuffer();
 	void updateCameraBuffer();
-	ID3D12ResourcePtr mpCameraBuffer;
-	uint32_t mCameraBufferSize = 0;
+	ID3D12ResourcePtr	mpCameraBuffer;
+	uint32_t			mCameraBufferSize = 0;
 
-	Assimp::Importer importer;
-	float mCameraSpeed = 1.0f;
+	Assimp::Importer	importer;
+	float				mCameraSpeed = 1.0f;
 
 	void createHDRTextureBuffer();
-	ID3D12ResourcePtr mpHDRTextureBuffer;
+	ID3D12ResourcePtr	mpHDRTextureBuffer;
 	
 	//////////////////////////////////////////////////////////////////////////
 	// Hybrid stuff
 	//////////////////////////////////////////////////////////////////////////
 	#ifdef HYBRID
-	mat4 mLightViewProjMatrix;
 	
 	const UINT kShadowMapWidth = 1000;
 	const UINT kShadowMapHeight = 1000;
@@ -151,13 +165,32 @@ private:
 	D3D12_VIEWPORT			mRasterViewPort;
 	D3D12_RECT				mRasterScissorRect;
 	ID3D12RootSignaturePtr	mpRasterRootSig;
-	ID3D12ResourcePtr		mpShadowMapResource;
-	ID3D12DescriptorHeapPtr mpRasterRtvHeap;
-	ID3D12DescriptorHeapPtr mpRasterDsvHeap;
+	ID3D12DescriptorHeapPtr mpDsvHeap;
+	ID3D12ResourcePtr		mpShadowMapTexture;
 	ID3D12PipelineStatePtr	mpRasterPipelineState;
+	ID3D12ResourcePtr		mpLightBuffer;
+	uint32_t				mLightBufferSize = 2 * sizeof(mat4); // view and projection
+	D3D12_CPU_DESCRIPTOR_HANDLE mShadowMapDepthView;
+	D3D12_CPU_DESCRIPTOR_HANDLE mLightBufferView;
 
 	void createRasterPipelineState();
 	void renderDepthToTexture();
+	void createLightBuffer();
+	void updateLightBuffer();
+	void createShadowMapTexture();
+
+	struct
+	{
+		vec3 position = vec3(0.0, 5.0, -10.0);
+		vec3 direction = vec3(0.0, -0.5, 1.0);
+
+		vec3 eye;
+		vec3 at;
+		vec3 up = vec3(0, 1, 0);
+
+		mat4 viewMat;
+		mat4 projMat;
+	} mLight;
 
 	#endif // HYBRID
 };
