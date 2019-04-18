@@ -21,11 +21,13 @@ PSInput VSMain(
 
     float4 newPosition = float4(position, 1.0);
 
-	newPosition = mul(newPosition, model);
-    newPosition = mul(newPosition, view);
-    newPosition = mul(newPosition, projection);
-
+	newPosition = mul(model, newPosition);
+    newPosition = mul(view, newPosition);
+    //newPosition.z += 5;
+    //newPosition.y *= -1;
+    newPosition = mul(projection, newPosition);
     vsOutput.position = newPosition;
+
     return vsOutput;
 }
 

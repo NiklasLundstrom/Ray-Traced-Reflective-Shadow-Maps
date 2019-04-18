@@ -6,6 +6,8 @@
 RaytracingAccelerationStructure gRtScene : register(t0);
 RWTexture2D<float4> gOutput : register(u0);
 
+Texture2D<float> gShadowMap : register(t1);
+
 cbuffer Camera : register(b0)
 {
     float3 cameraPosition;
@@ -50,12 +52,12 @@ void rayGen()
     RayPayload payload;
     float3 color = float3(0.0, 0.0, 0.0);
 
-    int numSamples = 80;
+    int numSamples = 10;
     for (int i = 0; i < numSamples; i++)
     {
         nextRand(randSeed);
 
-        payload.depth = 3;
+        payload.depth = 1;
         payload.seed = randSeed;
         TraceRay(
 					gRtScene,
@@ -77,6 +79,8 @@ void rayGen()
 
     color = linearToSrgb(ACESFitted(1.5 * color));
 
-    gOutput[launchIndex.xy] = float4((color), 1);
+    float test = gShadowMap[crd];
+
+    gOutput[launchIndex.xy] = float4(test, color.gb, 1);
 }
 

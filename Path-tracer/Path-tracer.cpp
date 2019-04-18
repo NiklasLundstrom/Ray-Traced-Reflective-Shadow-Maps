@@ -287,7 +287,7 @@ ID3D12ResourcePtr createPlaneVB(ID3D12Device5Ptr pDevice)
     {
         vec3(-5, 0,  -5),
         vec3( 5, 0,  5),
-        vec3(-5, 0,  5),
+        vec3(-5, 2,  5),
         vec3( 5, 0,  -5),
     };			   
 
@@ -458,6 +458,7 @@ void PathTracer::buildTransforms(float rotation)
 
 }
 
+#ifdef HYBRID
 void PathTracer::createTransformBuffers()
 {
 	for (int i = 0; i < mNumInstances; i++)
@@ -465,6 +466,7 @@ void PathTracer::createTransformBuffers()
 		mpTransformBuffer[i] = createBuffer(mpDevice, sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
 	}
 }
+#endif
 
 PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], ID3D12ResourcePtr pIB[], const uint32_t indexCount[], uint32_t geometryCount)
 {
@@ -843,22 +845,22 @@ struct RootSignatureDesc
 
 RootSignatureDesc createRayGenRootDesc()
 {
-    // Create the root-signature
-    RootSignatureDesc desc;
-    desc.range.resize(3);
-    // gOutput
-    desc.range[0].BaseShaderRegister = 0;// u0
-    desc.range[0].NumDescriptors = 1;
-    desc.range[0].RegisterSpace = 0;
-    desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
-    desc.range[0].OffsetInDescriptorsFromTableStart = 0;
+	// Create the root-signature
+	RootSignatureDesc desc;
+	desc.range.resize(4);
+	// gOutput
+	desc.range[0].BaseShaderRegister = 0;// u0
+	desc.range[0].NumDescriptors = 1;
+	desc.range[0].RegisterSpace = 0;
+	desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+	desc.range[0].OffsetInDescriptorsFromTableStart = 0;
 
-    // gRtScene
-    desc.range[1].BaseShaderRegister = 0; //t0
-    desc.range[1].NumDescriptors = 1;
-    desc.range[1].RegisterSpace = 0;
-    desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    desc.range[1].OffsetInDescriptorsFromTableStart = 1;
+	// gRtScene
+	desc.range[1].BaseShaderRegister = 0; //t0
+	desc.range[1].NumDescriptors = 1;
+	desc.range[1].RegisterSpace = 0;
+	desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[1].OffsetInDescriptorsFromTableStart = 1;
 
 	// Camera
 	desc.range[2].BaseShaderRegister = 0; //b0
@@ -867,13 +869,24 @@ RootSignatureDesc createRayGenRootDesc()
 	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 	desc.range[2].OffsetInDescriptorsFromTableStart = 2;
 
-    desc.rootParams.resize(1);
-    desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 3;
-    desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
+	// Shadow map
+	desc.range[3].BaseShaderRegister = 1; //t1
+	desc.range[3].NumDescriptors = 1;
+	desc.range[3].RegisterSpace = 0;
+	desc.range[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[3].OffsetInDescriptorsFromTableStart = 0;
+
+	desc.rootParams.resize(2);
+	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 3;
+	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
+
+	desc.rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	desc.rootParams[1].DescriptorTable.NumDescriptorRanges = 1;
+	desc.rootParams[1].DescriptorTable.pDescriptorRanges = &desc.range[3];
 
     // Create the desc
-    desc.desc.NumParameters = 1;
+    desc.desc.NumParameters = 2;
     desc.desc.pParameters = desc.rootParams.data();
     desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 
@@ -1295,9 +1308,14 @@ void PathTracer::createShaderTable()
 
 		int entryIndex = 0;
     // Entry 0 - ray-gen program ID and descriptor data
-		memcpy(pData, pRtsoProps->GetShaderIdentifier(kRayGenShader), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		uint8_t* pEntry0 = pData;
+		memcpy(pEntry0, pRtsoProps->GetShaderIdentifier(kRayGenShader), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+			pEntry0 += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
 		// Output UAV + TLAS + Camera buffer
-			*(D3D12_GPU_VIRTUAL_ADDRESS*)(pData + D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES) = heapStart;
+			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry0 = heapStart;
+			pEntry0 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
+		// Shadow map
+			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry0 = heapStart + 5 * heapEntrySize;
 		entryIndex++;
 
     // Entry 1 - primary ray miss
@@ -1398,7 +1416,7 @@ void PathTracer::createShaderResources()
 	// Create the CBV for the camera buffer
 		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
 		cbvDesc.BufferLocation = mpCameraBuffer->GetGPUVirtualAddress();
-		cbvDesc.SizeInBytes = (sizeof(mCameraBufferSize) + 255) & ~255; // align to 256
+		cbvDesc.SizeInBytes = (mCameraBufferSize + 255) & ~255; // align to 256
 	
 		D3D12_CPU_DESCRIPTOR_HANDLE cbvHandle = cbvSrvHeapStart;
 		cbvHandle.ptr += 2 * cbvSrvDescriptorSize;
@@ -1461,7 +1479,7 @@ void PathTracer::createShaderResources()
 
 		D3D12_CPU_DESCRIPTOR_HANDLE dsvHeapStart = mpDsvHeap->GetCPUDescriptorHandleForHeapStart();
 
-		mpDevice->CreateDepthStencilView(mpShadowMapTexture, &depthStencilViewDesc, dsvHeapStart);
+		mpDevice->CreateDepthStencilView(mpShadowMapTexture, nullptr, dsvHeapStart);//null for desc?
 		mShadowMapDepthView = mpDsvHeap->GetCPUDescriptorHandleForHeapStart();
 #endif
 }
@@ -1510,6 +1528,44 @@ void PathTracer::readKeyboardInput(bool *gKeys)
 	{
 		mCamera.cameraPosition.y -= mCameraSpeed;
 	}
+
+#ifdef HYBRID
+	// Light
+	if (gKeys['F'])
+	{
+		float angle = 0.5f * mCameraSpeed;
+		mLight.direction = vec3(eulerAngleY(-angle) * vec4(mLight.direction, 1));	
+	}
+	else if (gKeys['K'])
+	{
+		float angle = -0.5f * mCameraSpeed;
+		mLight.direction = vec3(eulerAngleY(-angle) * vec4(mLight.direction, 1));
+	}
+	if (gKeys['Y'])
+	{
+		mLight.position += mLight.direction * mCameraSpeed;
+	}
+	else if (gKeys['H'])
+	{
+		mLight.position -= mLight.direction * mCameraSpeed;
+	}
+	if (gKeys['G'])
+	{
+		mLight.position += mCameraSpeed * vec3(-mLight.direction.z, 0, mLight.direction.x);
+	}
+	else if (gKeys['J'])
+	{
+		mLight.position -= mCameraSpeed * vec3(-mLight.direction.z, 0, mLight.direction.x);
+	}
+	if (gKeys['U'])
+	{
+		mLight.position.y += mCameraSpeed;
+	}
+	else if (gKeys['T'])
+	{
+		mLight.position.y -= mCameraSpeed;
+	}
+#endif
 
 
 }
@@ -1607,10 +1663,16 @@ void PathTracer::createRasterPipelineState()
 	psoDesc.PS = CD3DX12_SHADER_BYTECODE(0, 0);// no need for a PS
 	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	psoDesc.DepthStencilState.DepthEnable = true;
+	psoDesc.DepthStencilState.DepthEnable = TRUE;
 	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
 	psoDesc.DepthStencilState.StencilEnable = FALSE;
+	psoDesc.DepthStencilState.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+	psoDesc.DepthStencilState.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+	const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
+	{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+	psoDesc.DepthStencilState.FrontFace = defaultStencilOp;
+	psoDesc.DepthStencilState.BackFace = defaultStencilOp;
 	psoDesc.SampleMask = UINT_MAX;
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	psoDesc.NumRenderTargets = 0;// we don't use one
@@ -1628,27 +1690,30 @@ void PathTracer::createLightBuffer()
 		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
 
 	// Set up Light values
-	mLight.projMat = glm::perspectiveFovRH(glm::half_pi<float>(), (float) kShadowMapWidth, (float) kShadowMapHeight, 0.01f, 125.0f);
+	float fovAngle = glm::half_pi<float>();
+	
+	// Left-hand system, depth from 0 to 1
+	mLight.projMat = glm::perspectiveFovLH_ZO(fovAngle, (float) kShadowMapWidth, (float) kShadowMapHeight, 0.01f, 100.0f);
 }
 
 void PathTracer::updateLightBuffer()
 {
-	mLight.eye = mLight.position;
-	mLight.at = mLight.eye + mLight.direction;
+	mLight.eye = mCamera.cameraPosition;// mLight.position;
+	mLight.at = mCamera.cameraDirection;// mLight.eye + mLight.direction;
 	// up vector constant
 
-	mat4 viewMat = transpose( lookAtRH(mLight.eye, mLight.at, mLight.up) );
+	vec3 center = mLight.eye + mLight.at;
+	mLight.viewMat = lookAtLH(mLight.eye, center, mLight.up);
 	// projMat constant
-
 
 	uint8_t* pData;
 	d3d_call(mpLightBuffer->Map(0, nullptr, (void**)&pData));
 	memcpy(pData,
 		&mLight.viewMat,
-		sizeof(mat4));
-	memcpy(pData + sizeof(mat4),
+		sizeof(mLight.viewMat));
+	memcpy(pData + sizeof(mLight.viewMat),
 		&mLight.projMat,
-		sizeof(mat4));
+		sizeof(mLight.projMat));
 	mpLightBuffer->Unmap(0, nullptr);
 }
 
@@ -1672,7 +1737,7 @@ void PathTracer::createShadowMapTexture()
 	shadowTexDesc.Height = kShadowMapHeight;
 	shadowTexDesc.DepthOrArraySize = 1;
 	shadowTexDesc.MipLevels = 1;
-	shadowTexDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+	shadowTexDesc.Format = DXGI_FORMAT_D32_FLOAT;//D32_float? R32_typeless??
 	shadowTexDesc.SampleDesc.Count = 1;
 	shadowTexDesc.SampleDesc.Quality = 0;
 	shadowTexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
@@ -1703,7 +1768,7 @@ void PathTracer::renderDepthToTexture()
 	mpCmdList->SetGraphicsRootSignature(mpRasterRootSig.GetInterfacePtr());
 
 	// Set descriptor heaps
-	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap };// , mpDsvHeap};
+	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };// , mpDsvHeap};
 	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
 	// set "Shader Table", i.e. resources for root signature
@@ -1717,8 +1782,10 @@ void PathTracer::renderDepthToTexture()
 
 	mpCmdList->OMSetStencilRef(0);
 
+	mpCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mpShadowMapTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+
 	// clear shadow map
-	mpCmdList->ClearDepthStencilView(mShadowMapDepthView, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	mpCmdList->ClearDepthStencilView(mShadowMapDepthView, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
 
 	// set render target
 	// TODO: fix
@@ -1730,7 +1797,7 @@ void PathTracer::renderDepthToTexture()
 								);
 
 	mpCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
+	
 	// Render Plane
 	mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[0]->GetGPUVirtualAddress());
 	mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[0]);
@@ -1738,15 +1805,19 @@ void PathTracer::renderDepthToTexture()
 	mpCmdList->DrawIndexedInstanced(mIndexBufferView[0].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
 	// render robot
 	mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[2]->GetGPUVirtualAddress());
-	mpCmdList->IASetVertexBuffers(1, 1, &mVertexBufferView[1]);
+	mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[1]);
 	mpCmdList->IASetIndexBuffer(&mIndexBufferView[1]);
 	mpCmdList->DrawIndexedInstanced(mIndexBufferView[1].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
 
 	// submit command list and reset
+	mpCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mpShadowMapTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
 	mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
 	mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
 	WaitForSingleObject(mFenceEvent, INFINITE);
+	mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator->Reset();
 	mpCmdList->Reset(mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator, nullptr);
+
+
 }
 
 #endif
@@ -1775,11 +1846,14 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 		mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
 		mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
 		WaitForSingleObject(mFenceEvent, INFINITE);
+
+		mFrameObjects[0].pCmdAllocator->Reset();
 		mpCmdList->Reset(mFrameObjects[0].pCmdAllocator, nullptr);
 }
 
 void PathTracer::onFrameRender(bool *gKeys)
 {	
+	readKeyboardInput(gKeys);
 	
 	// Update object transforms
 	buildTransforms(mRotation);
@@ -1797,8 +1871,6 @@ void PathTracer::onFrameRender(bool *gKeys)
 	renderDepthToTexture();
 
 #endif
-
-	readKeyboardInput(gKeys);
 
     uint32_t rtvIndex = beginFrame();
 

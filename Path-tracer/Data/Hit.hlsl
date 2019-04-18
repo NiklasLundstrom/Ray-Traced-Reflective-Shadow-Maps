@@ -31,7 +31,7 @@ void robotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 					+ n1 * attribs.barycentrics.x
 					+ n2 * attribs.barycentrics.y;
         normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
-        normal = faceforward(normal, rayDirW, normal);
+        //normal = faceforward(normal, rayDirW, normal);
 
 
 	// get material color
@@ -94,7 +94,7 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 		// get normal
         float3 normal = normals[0];
         normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
-        normal = faceforward(normal, rayDirW, normal);
+        //normal = faceforward(normal, rayDirW, normal);
 
 		// get material color
         float3 materialColor;// = float3(1.0f, 1.0f, 1.0f);
