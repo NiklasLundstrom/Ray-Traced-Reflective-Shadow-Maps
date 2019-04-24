@@ -181,8 +181,8 @@ private:
 
 	struct
 	{
-		vec3 position = vec3(10.0, 17.0, 15.0);
-		vec3 direction = vec3(0.0, 0.0, -1.0);
+		vec3 position = vec3(0.0, 0.0, 0.0);
+		vec3 direction = vec3(0.0, 0.0, 1.0);
 
 		vec3 eye;
 		vec3 at;

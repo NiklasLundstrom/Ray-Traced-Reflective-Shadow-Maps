@@ -285,10 +285,10 @@ ID3D12ResourcePtr createPlaneVB(ID3D12Device5Ptr pDevice)
 {
     const vec3 vertices[] =
     {
-        vec3(-5, 0,  -5),
-        vec3( 5, 0,  5),
-        vec3(-5, 2,  5),
-        vec3( 5, 0,  -5),
+        vec3(-1, 0,  -1),
+        vec3( 1, 0,  1),
+        vec3(-1, 0,  1),
+        //vec3( 1, 0,  -1),
     };			   
 
     // For simplicity, we create the vertex buffer on the upload heap, but that's not required
@@ -304,13 +304,13 @@ ID3D12ResourcePtr createPlaneIB(ID3D12Device5Ptr pDevice)
 {
 	const uint indices[] =
 	{
-		0,
-		1,
 		2,
+		1,
 		0,
+		/*1,
 		3,
-		1
-	};
+		2*/
+	};// left hand oriented!
 
 	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
 	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(indices), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
@@ -447,11 +447,11 @@ void PathTracer::createHDRTextureBuffer()
 void PathTracer::buildTransforms(float rotation)
 {
 	mat4 rotationMat = eulerAngleY(rotation*0.5f);
-	// planes
+	// plane
 	mTransforms[0] = scale(10.0f*vec3(1.0f, 1.0f, 1.0f));
 	// area light
-	mTransforms[1] = translate(mat4(), vec3(0.0, 15, 0.0)) * eulerAngleX(pi<float>()) * scale(vec3(0.5f, 0.5f, 0.5f));
-	// robots
+	mTransforms[1] = translate(mat4(), vec3(0.0, 15, 0.0)) * eulerAngleX(pi<float>()) * scale(5.0f*vec3(0.5f, 0.5f, 0.5f));
+	// robot
 	mTransforms[2] = rotationMat * translate(mat4(), vec3(2, 1.39, 2 * sin(rotation*0.7f))) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f));
 	// room
 	//transformation[3] = scale(100.0f*vec3(1.0f, 1.0f, 1.0f));
@@ -1662,6 +1662,7 @@ void PathTracer::createRasterPipelineState()
 	psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.GetInterfacePtr());
 	psoDesc.PS = CD3DX12_SHADER_BYTECODE(0, 0);// no need for a PS
 	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	psoDesc.DepthStencilState.DepthEnable = TRUE;
 	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
@@ -1690,16 +1691,20 @@ void PathTracer::createLightBuffer()
 		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
 
 	// Set up Light values
-	float fovAngle = glm::half_pi<float>();
+	float fovAngle = glm::quarter_pi<float>();
 	
 	// Left-hand system, depth from 0 to 1
-	mLight.projMat = glm::perspectiveFovLH_ZO(fovAngle, (float) kShadowMapWidth, (float) kShadowMapHeight, 0.01f, 100.0f);
+	float fFar = 20.0f;
+	mLight.projMat = glm::perspectiveFovLH_ZO(fovAngle, (float) kShadowMapWidth, (float) kShadowMapHeight, 0.01f, fFar);
+	// Make depth linear
+	mLight.projMat[2][2] /= fFar;
+	mLight.projMat[3][2] /= fFar;
 }
 
 void PathTracer::updateLightBuffer()
 {
-	mLight.eye = mCamera.cameraPosition;// mLight.position;
-	mLight.at = mCamera.cameraDirection;// mLight.eye + mLight.direction;
+	mLight.eye = mLight.position;//mCamera.cameraPosition; 
+	mLight.at = mLight.direction;//mCamera.cameraDirection; 
 	// up vector constant
 
 	vec3 center = mLight.eye + mLight.at;
@@ -1785,7 +1790,7 @@ void PathTracer::renderDepthToTexture()
 	mpCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mpShadowMapTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE));
 
 	// clear shadow map
-	mpCmdList->ClearDepthStencilView(mShadowMapDepthView, D3D12_CLEAR_FLAG_DEPTH, 0.0f, 0, 0, nullptr);
+	mpCmdList->ClearDepthStencilView(mShadowMapDepthView, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 	// set render target
 	// TODO: fix
@@ -1808,6 +1813,12 @@ void PathTracer::renderDepthToTexture()
 	mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[1]);
 	mpCmdList->IASetIndexBuffer(&mIndexBufferView[1]);
 	mpCmdList->DrawIndexedInstanced(mIndexBufferView[1].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+	// Render area light
+	mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[1]->GetGPUVirtualAddress());
+	mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[0]);
+	mpCmdList->IASetIndexBuffer(&mIndexBufferView[0]);
+	mpCmdList->DrawIndexedInstanced(mIndexBufferView[0].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+
 
 	// submit command list and reset
 	mpCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mpShadowMapTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
@@ -1914,7 +1925,7 @@ void PathTracer::onFrameRender(bool *gKeys)
     // Copy the results to the back-buffer
     resourceBarrier(mpCmdList, mpOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
     resourceBarrier(mpCmdList, mFrameObjects[rtvIndex].pSwapChainBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
-    mpCmdList->CopyResource(mFrameObjects[rtvIndex].pSwapChainBuffer, mpOutputResource);
+	mpCmdList->CopyResource(mFrameObjects[rtvIndex].pSwapChainBuffer, mpOutputResource);//mpShadowMapTexture); 
 
     endFrame(rtvIndex);
 }

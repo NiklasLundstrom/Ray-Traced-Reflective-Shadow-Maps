@@ -79,8 +79,31 @@ void rayGen()
 
     color = linearToSrgb(ACESFitted(1.5 * color));
 
-    float test = gShadowMap[crd];
 
-    gOutput[launchIndex.xy] = float4(test, color.gb, 1);
-}
+	// Render depth map to the corner
+    float3 outColor;
+
+    uint shadowWidth;
+    uint shadowHeight;
+    gShadowMap.GetDimensions(shadowWidth, shadowHeight);
+    int scale = 4;
+    if (launchIndex.x < 1000/scale && launchIndex.y < 1000/scale)
+    {
+		float test = gShadowMap[crd*scale];
+		//test = (test - 0.95) * 20.0f;
+        outColor = test * float3(1.0, 1.0, 1.0);
+    }
+	else
+    {
+        outColor = color;
+    }
+
+        
+    
+
+    //float3 outColor = (test > 0.999) ? float3(0.8, 0.5, 0.5) : float3(0.1, 0.1, 0.1);
+
+        gOutput[launchIndex.xy] = float4(outColor, 1);
+
+    }
 

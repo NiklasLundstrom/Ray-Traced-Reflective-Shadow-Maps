@@ -26,6 +26,10 @@ PSInput VSMain(
     //newPosition.z += 5;
     //newPosition.y *= -1;
     newPosition = mul(projection, newPosition);
+
+	// fix depth
+    newPosition.z *= newPosition.w;
+
     vsOutput.position = newPosition;
 
     return vsOutput;
