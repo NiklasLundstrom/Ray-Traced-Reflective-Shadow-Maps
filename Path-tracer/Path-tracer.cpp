@@ -288,7 +288,7 @@ ID3D12ResourcePtr createPlaneVB(ID3D12Device5Ptr pDevice)
         vec3(-1, 0,  -1),
         vec3( 1, 0,  1),
         vec3(-1, 0,  1),
-        //vec3( 1, 0,  -1),
+        vec3( 1, 0,  -1),
     };			   
 
     // For simplicity, we create the vertex buffer on the upload heap, but that's not required
@@ -304,12 +304,12 @@ ID3D12ResourcePtr createPlaneIB(ID3D12Device5Ptr pDevice)
 {
 	const uint indices[] =
 	{
-		2,
-		1,
 		0,
-		/*1,
+		2,
 		3,
-		2*/
+		1,
+		3,
+		2
 	};// left hand oriented!
 
 	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
@@ -325,6 +325,9 @@ ID3D12ResourcePtr createPlaneNB(ID3D12Device5Ptr pDevice)
 {
 	const vec3 normals[] =
 	{
+		vec3(0, 1, 0),
+		vec3(0, 1, 0),
+		vec3(0, 1, 0),
 		vec3(0, 1, 0)
 	};
 
@@ -407,6 +410,7 @@ void PathTracer::createHDRTextureBuffer()
 		nullptr, 
 		IID_PPV_ARGS(&mpHDRTextureBuffer)
 	));
+	mpHDRTextureBuffer->SetName(L"Environment map");
 
 	const UINT64 uploadBufferSize = GetRequiredIntermediateSize(mpHDRTextureBuffer, 0, 1);
 	
@@ -465,6 +469,9 @@ void PathTracer::createTransformBuffers()
 	{
 		mpTransformBuffer[i] = createBuffer(mpDevice, sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
 	}
+	mpTransformBuffer[0]->SetName(L"Plane Transform");
+	mpTransformBuffer[1]->SetName(L"Area Light Transform");
+	mpTransformBuffer[2]->SetName(L"Robot Transform");
 }
 #endif
 
@@ -640,9 +647,13 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 
 void PathTracer::createAccelerationStructures()
 {
+
     mpVertexBuffer[0] = createPlaneVB(mpDevice);
+		mpVertexBuffer[0]->SetName(L"Plane Vertex Buffer");
 	mpIndexBuffer[0] = createPlaneIB(mpDevice);
+		mpIndexBuffer[0]->SetName(L"Plane Index Buffer");
 	mpNormalBuffer[0] = createPlaneNB(mpDevice);
+		mpNormalBuffer[0]->SetName(L"Plane Normal Buffer");
 #ifdef HYBRID
 	mVertexBufferView[0].BufferLocation = mpVertexBuffer[0]->GetGPUVirtualAddress();
 	mVertexBufferView[0].StrideInBytes = sizeof(vec3);
@@ -668,8 +679,11 @@ void PathTracer::createAccelerationStructures()
 	aiMesh* robot = robotScene->mMeshes[0];
 	
 	mpVertexBuffer[1] = createModelVB(mpDevice, robot->mVertices, robot->mNumVertices);
+		mpVertexBuffer[1]->SetName(L"Robot Vertex Buffer");
 	mpIndexBuffer[1] = createModelIB(mpDevice, robot->mFaces, robot->mNumFaces);
+		mpIndexBuffer[1]->SetName(L"Robot Index Buffer");
 	mpNormalBuffer[1] = createModelNB(mpDevice, robot->mNormals, robot->mNumVertices);
+		mpNormalBuffer[1]->SetName(L"Robot Normal Buffer");
 #ifdef HYBRID
 	mVertexBufferView[1].BufferLocation = mpVertexBuffer[1]->GetGPUVirtualAddress();
 	mVertexBufferView[1].StrideInBytes = sizeof(vec3);
@@ -722,6 +736,7 @@ void PathTracer::createAccelerationStructures()
 													1
 												   );
 		mpBottomLevelAS[0] = bottomLevelBuffers[0].pResult;
+			mpBottomLevelAS[0]->SetName(L"BLAS Plane");
 
 	// The second bottom-level buffer is for the robot
 		ID3D12ResourcePtr vertexBufferRobot[] = { mpVertexBuffer[1] };
@@ -738,6 +753,7 @@ void PathTracer::createAccelerationStructures()
 													1
 												   );
 		mpBottomLevelAS[1] = bottomLevelBuffers[1].pResult;
+			mpBottomLevelAS[1]->SetName(L"BLAS Robot");
 
 	//// Then set up the Room buffers
 	//	for (int i = 0; i < 8; i++)
@@ -847,7 +863,7 @@ RootSignatureDesc createRayGenRootDesc()
 {
 	// Create the root-signature
 	RootSignatureDesc desc;
-	desc.range.resize(4);
+	desc.range.resize(7);
 	// gOutput
 	desc.range[0].BaseShaderRegister = 0;// u0
 	desc.range[0].NumDescriptors = 1;
@@ -869,12 +885,33 @@ RootSignatureDesc createRayGenRootDesc()
 	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 	desc.range[2].OffsetInDescriptorsFromTableStart = 2;
 
-	// Shadow map
+	// Shadow map Depth
 	desc.range[3].BaseShaderRegister = 1; //t1
 	desc.range[3].NumDescriptors = 1;
 	desc.range[3].RegisterSpace = 0;
 	desc.range[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[3].OffsetInDescriptorsFromTableStart = 0;
+
+	// Shadow map Position
+	desc.range[4].BaseShaderRegister = 2; //t2
+	desc.range[4].NumDescriptors = 1;
+	desc.range[4].RegisterSpace = 0;
+	desc.range[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[4].OffsetInDescriptorsFromTableStart = 1;
+
+	// Shadow map Normal
+	desc.range[5].BaseShaderRegister = 3; //t3
+	desc.range[5].NumDescriptors = 1;
+	desc.range[5].RegisterSpace = 0;
+	desc.range[5].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[5].OffsetInDescriptorsFromTableStart = 2;
+
+	// Shadow map Flux
+	desc.range[6].BaseShaderRegister = 4; //t4
+	desc.range[6].NumDescriptors = 1;
+	desc.range[6].RegisterSpace = 0;
+	desc.range[6].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[6].OffsetInDescriptorsFromTableStart = 3;
 
 	desc.rootParams.resize(2);
 	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
@@ -882,8 +919,8 @@ RootSignatureDesc createRayGenRootDesc()
 	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
 
 	desc.rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	desc.rootParams[1].DescriptorTable.NumDescriptorRanges = 1;
-	desc.rootParams[1].DescriptorTable.pDescriptorRanges = &desc.range[3];
+	desc.rootParams[1].DescriptorTable.NumDescriptorRanges = 4;
+	desc.rootParams[1].DescriptorTable.pDescriptorRanges = desc.range.data() + 3;//&desc.range[3];
 
     // Create the desc
     desc.desc.NumParameters = 2;
@@ -1293,6 +1330,7 @@ void PathTracer::createShaderTable()
 
     // For simplicity, we create the shader-table on the upload heap. You can also create it on the default heap
     mpShaderTable = createBuffer(mpDevice, shaderTableSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+		mpShaderTable->SetName(L"Shader Table");
 
 	// heap info
 	D3D12_GPU_VIRTUAL_ADDRESS heapStart = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart().ptr;
@@ -1378,7 +1416,7 @@ void PathTracer::createShaderResources()
     resDesc.SampleDesc.Count = 1;
     resDesc.Width = mSwapChainSize.x;
     d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&mpOutputResource))); // Starting as copy-source to simplify onFrameRender()
-
+		mpOutputResource->SetName(L"RT Output resource");
 	
     // Create an SRV/UAV/CBV descriptor heap. 
 	// Need 4 entries 
@@ -1388,7 +1426,9 @@ void PathTracer::createShaderResources()
 	//	- 1 for the texture
 #ifdef HYBRID
 	//  - 1 for the light buffer
-	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 6, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+	//  - 4 for the Shadow map (depth, position, normal, flux)
+
+	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 9, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #else
     mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 4, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #endif
@@ -1449,17 +1489,37 @@ void PathTracer::createShaderResources()
 		mpDevice->CreateConstantBufferView(&cbvLightDesc, cbvLightHandle);
 		mLightBufferView = cbvLightHandle;
 
-	// Create the SRV for the Shadow map
+	// Create the SRV for the Shadow map Depth
 		D3D12_SHADER_RESOURCE_VIEW_DESC shadowMapSrvDesc = {};
 		shadowMapSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 		shadowMapSrvDesc.Format = DXGI_FORMAT_R32_FLOAT;
 		shadowMapSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 		shadowMapSrvDesc.Texture2D.MipLevels = 1;
 
-		D3D12_CPU_DESCRIPTOR_HANDLE srvShadowMapHandle = cbvSrvHeapStart;
-		srvShadowMapHandle.ptr += 5 * cbvSrvDescriptorSize;
+		D3D12_CPU_DESCRIPTOR_HANDLE srvShadowMapDepthHandle = cbvSrvHeapStart;
+		srvShadowMapDepthHandle.ptr += 5 * cbvSrvDescriptorSize;
 
-		mpDevice->CreateShaderResourceView(mpShadowMapTexture, &shadowMapSrvDesc, srvShadowMapHandle);
+		mpDevice->CreateShaderResourceView(mpShadowMapTexture_Depth, &shadowMapSrvDesc, srvShadowMapDepthHandle);
+
+	// Create the SRV for the Shadow map Position
+		shadowMapSrvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+
+		D3D12_CPU_DESCRIPTOR_HANDLE srvShadowMapPositionHandle = cbvSrvHeapStart;
+		srvShadowMapPositionHandle.ptr += 6 * cbvSrvDescriptorSize;
+
+		mpDevice->CreateShaderResourceView(mpShadowMapTexture_Position, &shadowMapSrvDesc, srvShadowMapPositionHandle);
+
+	// Create the SRV for the Shadow map Normal
+		D3D12_CPU_DESCRIPTOR_HANDLE srvShadowMapNormalHandle = cbvSrvHeapStart;
+		srvShadowMapNormalHandle.ptr += 7 * cbvSrvDescriptorSize;
+
+		mpDevice->CreateShaderResourceView(mpShadowMapTexture_Normal, &shadowMapSrvDesc, srvShadowMapNormalHandle);
+
+	// Create the SRV for the Shadow map Normal
+		D3D12_CPU_DESCRIPTOR_HANDLE srvShadowMapFluxHandle = cbvSrvHeapStart;
+		srvShadowMapFluxHandle.ptr += 8 * cbvSrvDescriptorSize;
+
+		mpDevice->CreateShaderResourceView(mpShadowMapTexture_Flux, &shadowMapSrvDesc, srvShadowMapFluxHandle);
 
 	////////////////// End of SRV/UAV/CBV descriptor heap //////////////////
 
@@ -1469,7 +1529,7 @@ void PathTracer::createShaderResources()
 	// - 1 DSV for the Shadow Map
 
 	// create a DSV descriptor heap
-		mpDsvHeap = createDescriptorHeap(mpDevice, 1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, false);
+		mpShadowMapDsvHeap = createDescriptorHeap(mpDevice, 1, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, false);
 
 	// create the depth view
 		D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
@@ -1477,10 +1537,51 @@ void PathTracer::createShaderResources()
 		depthStencilViewDesc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 		depthStencilViewDesc.Texture2D.MipSlice = 0;
 
-		D3D12_CPU_DESCRIPTOR_HANDLE dsvHeapStart = mpDsvHeap->GetCPUDescriptorHandleForHeapStart();
+		D3D12_CPU_DESCRIPTOR_HANDLE dsvHeapStart = mpShadowMapDsvHeap->GetCPUDescriptorHandleForHeapStart();
 
-		mpDevice->CreateDepthStencilView(mpShadowMapTexture, nullptr, dsvHeapStart);//null for desc?
-		mShadowMapDepthView = mpDsvHeap->GetCPUDescriptorHandleForHeapStart();
+		mpDevice->CreateDepthStencilView(mpShadowMapTexture_Depth, nullptr, dsvHeapStart);//null for desc?
+		mShadowMapDsv_Depth = mpShadowMapDsvHeap->GetCPUDescriptorHandleForHeapStart();
+
+	// Create a RTV descriptor heap
+	// needs 1 entry
+	// - 1 RTV for Position
+	// - 1 RTV for Normal
+	// - 1 RTV for Flux
+
+	// create a RTV descriptor heap
+		mpShadowMapRtvHeap = createDescriptorHeap(mpDevice, 3, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
+
+		// Description
+			D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {};
+			renderTargetViewDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+			renderTargetViewDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
+			renderTargetViewDesc.Texture2D.MipSlice = 0;
+
+		// start handle and size
+			D3D12_CPU_DESCRIPTOR_HANDLE rtvHeapStart = mpShadowMapRtvHeap->GetCPUDescriptorHandleForHeapStart();
+			const UINT rtvDescriptorSize = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+		// Position view
+			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Position, &renderTargetViewDesc, rtvHeapStart);
+			mShadowMapRtv_Position = rtvHeapStart;
+			mShadowMapRTVs[0] = mShadowMapRtv_Position;
+
+		// Normal view
+			D3D12_CPU_DESCRIPTOR_HANDLE rtvNormalHandle = rtvHeapStart;
+			rtvNormalHandle.ptr += rtvDescriptorSize;
+
+			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Normal, &renderTargetViewDesc, rtvNormalHandle);
+			mShadowMapRtv_Normal = rtvNormalHandle;
+			mShadowMapRTVs[1] = mShadowMapRtv_Normal;
+
+		// Flux view
+			D3D12_CPU_DESCRIPTOR_HANDLE rtvFluxHandle = rtvNormalHandle;
+			rtvFluxHandle.ptr += rtvDescriptorSize;
+
+			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Flux, &renderTargetViewDesc, rtvFluxHandle);
+			mShadowMapRtv_Flux = rtvFluxHandle;
+			mShadowMapRTVs[2] = mShadowMapRtv_Flux;
+
 #endif
 }
 
@@ -1577,7 +1678,7 @@ void PathTracer::createCameraBuffer()
 	mCameraBufferSize = nbVec * sizeof(vec4);
 	mpCameraBuffer = createBuffer(mpDevice, mCameraBufferSize, D3D12_RESOURCE_FLAG_NONE,
 		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-
+	mpCameraBuffer->SetName(L"Camera buffer");
 }
 
 void PathTracer::updateCameraBuffer()
@@ -1616,7 +1717,7 @@ void PathTracer::createRasterPipelineState()
 	range[0].RegisterSpace = 0;
 	range[0].OffsetInDescriptorsFromTableStart = 0;
 
-	D3D12_ROOT_PARAMETER rootParameters[2];
+	D3D12_ROOT_PARAMETER rootParameters[3];
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
 	rootParameters[0].DescriptorTable.pDescriptorRanges = range;
@@ -1628,6 +1729,12 @@ void PathTracer::createRasterPipelineState()
 	rootParameters[1].Descriptor.ShaderRegister = 1; // b1
 	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
+	// normals
+	rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	rootParameters[2].Descriptor.RegisterSpace = 0;
+	rootParameters[2].Descriptor.ShaderRegister = 0;//t0
+	rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
 	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
@@ -1637,7 +1744,7 @@ void PathTracer::createRasterPipelineState()
 
 	// Root signature
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 2;
+	desc.desc.NumParameters = 3;
 	desc.desc.pParameters = rootParameters;
 	desc.desc.NumStaticSamplers = 0;
 	desc.desc.pStaticSamplers = nullptr;
@@ -1660,7 +1767,7 @@ void PathTracer::createRasterPipelineState()
 	psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
 	psoDesc.pRootSignature = mpRasterRootSig.GetInterfacePtr();
 	psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.GetInterfacePtr());
-	psoDesc.PS = CD3DX12_SHADER_BYTECODE(0, 0);// no need for a PS
+	psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.GetInterfacePtr());
 	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
@@ -1676,8 +1783,10 @@ void PathTracer::createRasterPipelineState()
 	psoDesc.DepthStencilState.BackFace = defaultStencilOp;
 	psoDesc.SampleMask = UINT_MAX;
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	psoDesc.NumRenderTargets = 0;// we don't use one
-	psoDesc.RTVFormats[0] = DXGI_FORMAT_UNKNOWN; 
+	psoDesc.NumRenderTargets = 3;
+	psoDesc.RTVFormats[0] = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	psoDesc.RTVFormats[1] = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	psoDesc.RTVFormats[2] = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 	psoDesc.SampleDesc.Count = 1;
 
@@ -1689,16 +1798,17 @@ void PathTracer::createLightBuffer()
 	// Create light buffer
 	mpLightBuffer = createBuffer(mpDevice, mLightBufferSize, D3D12_RESOURCE_FLAG_NONE,
 		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	mpLightBuffer->SetName(L"Light Buffer");
 
 	// Set up Light values
 	float fovAngle = glm::quarter_pi<float>();
 	
 	// Left-hand system, depth from 0 to 1
-	float fFar = 20.0f;
-	mLight.projMat = glm::perspectiveFovLH_ZO(fovAngle, (float) kShadowMapWidth, (float) kShadowMapHeight, 0.01f, fFar);
+	float fFar = 40.0f;
+	mLight.projMat = glm::perspectiveFovLH_ZO(fovAngle, (float) kShadowMapWidth, (float) kShadowMapHeight, 0.1f, fFar);
 	// Make depth linear
-	mLight.projMat[2][2] /= fFar;
-	mLight.projMat[3][2] /= fFar;
+	/*mLight.projMat[2][2] /= fFar;
+	mLight.projMat[3][2] /= fFar;*/
 }
 
 void PathTracer::updateLightBuffer()
@@ -1733,7 +1843,7 @@ void PathTracer::updateTransformBuffers()
 	}
 }
 
-void PathTracer::createShadowMapTexture()
+void PathTracer::createShadowMapTextures()
 {
 	D3D12_RESOURCE_DESC shadowTexDesc;
 	shadowTexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -1759,8 +1869,51 @@ void PathTracer::createShadowMapTexture()
 		&shadowTexDesc,
 		D3D12_RESOURCE_STATE_DEPTH_WRITE,
 		&clearValue,
-		IID_PPV_ARGS(&mpShadowMapTexture)
+		IID_PPV_ARGS(&mpShadowMapTexture_Depth)
 	));
+	mpShadowMapTexture_Depth->SetName(L"RSM Depth");
+
+	// Create resources for Position, Normal and Flux
+		shadowTexDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		shadowTexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+		/*D3D12_CLEAR_VALUE rgbClearValue;
+		rgbClearValue.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		rgbClearValue.Color = 1.0f;*/
+		
+		// position
+
+			d3d_call(mpDevice->CreateCommittedResource(
+				&kDefaultHeapProps,
+				D3D12_HEAP_FLAG_NONE,
+				&shadowTexDesc,
+				D3D12_RESOURCE_STATE_RENDER_TARGET,
+				nullptr,
+				IID_PPV_ARGS(&mpShadowMapTexture_Position)
+			));
+			mpShadowMapTexture_Position->SetName(L"RSM Position");
+
+		// normal
+			d3d_call(mpDevice->CreateCommittedResource(
+				&kDefaultHeapProps,
+				D3D12_HEAP_FLAG_NONE,
+				&shadowTexDesc,
+				D3D12_RESOURCE_STATE_RENDER_TARGET,
+				nullptr,
+				IID_PPV_ARGS(&mpShadowMapTexture_Normal)
+			));
+			mpShadowMapTexture_Normal->SetName(L"RSM Normal");
+
+		// flux
+			d3d_call(mpDevice->CreateCommittedResource(
+				&kDefaultHeapProps,
+				D3D12_HEAP_FLAG_NONE,
+				&shadowTexDesc,
+				D3D12_RESOURCE_STATE_RENDER_TARGET,
+				nullptr,
+				IID_PPV_ARGS(&mpShadowMapTexture_Flux)
+			));
+			mpShadowMapTexture_Flux->SetName(L"RSM Flux");
 
 }
 
@@ -1787,41 +1940,69 @@ void PathTracer::renderDepthToTexture()
 
 	mpCmdList->OMSetStencilRef(0);
 
-	mpCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mpShadowMapTexture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE));
+	mpCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mpShadowMapTexture_Depth, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE));
 
 	// clear shadow map
-	mpCmdList->ClearDepthStencilView(mShadowMapDepthView, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	mpCmdList->ClearDepthStencilView(mShadowMapDsv_Depth, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	mpCmdList->ClearRenderTargetView(mShadowMapRtv_Position, clearColor, 0, nullptr);
+	mpCmdList->ClearRenderTargetView(mShadowMapRtv_Flux, clearColor, 0, nullptr);
+	float clearNormal[4] = { 0.5f, 0.5f, 1.0f, 0.0f };
+	mpCmdList->ClearRenderTargetView(mShadowMapRtv_Normal, clearNormal, 0, nullptr);
 
 	// set render target
 	// TODO: fix
 	mpCmdList->OMSetRenderTargets(
-								0,
-								nullptr,
+								3,
+								mShadowMapRTVs,
 								false,
-								&mShadowMapDepthView
+								&mShadowMapDsv_Depth
 								);
 
 	mpCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	
 	// Render Plane
-	mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[0]->GetGPUVirtualAddress());
-	mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[0]);
-	mpCmdList->IASetIndexBuffer(&mIndexBufferView[0]);
-	mpCmdList->DrawIndexedInstanced(mIndexBufferView[0].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+
+		// Model to World Transform
+		mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[0]->GetGPUVirtualAddress());
+		// Normal buffer
+		mpCmdList->SetGraphicsRootShaderResourceView(2, mpNormalBuffer[0]->GetGPUVirtualAddress());
+		// Vertex and Index buffers
+		mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[0]);
+		mpCmdList->IASetIndexBuffer(&mIndexBufferView[0]);
+
+		// Draw
+		mpCmdList->DrawIndexedInstanced(mIndexBufferView[0].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+
 	// render robot
-	mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[2]->GetGPUVirtualAddress());
-	mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[1]);
-	mpCmdList->IASetIndexBuffer(&mIndexBufferView[1]);
-	mpCmdList->DrawIndexedInstanced(mIndexBufferView[1].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+
+		// Model to World Transform
+		mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[2]->GetGPUVirtualAddress());
+		// Normal buffer
+		mpCmdList->SetGraphicsRootShaderResourceView(2, mpNormalBuffer[1]->GetGPUVirtualAddress());
+		// Vertex and Index buffers
+		mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[1]);
+		mpCmdList->IASetIndexBuffer(&mIndexBufferView[1]);
+
+		// Draw
+		mpCmdList->DrawIndexedInstanced(mIndexBufferView[1].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+
 	// Render area light
-	mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[1]->GetGPUVirtualAddress());
-	mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[0]);
-	mpCmdList->IASetIndexBuffer(&mIndexBufferView[0]);
-	mpCmdList->DrawIndexedInstanced(mIndexBufferView[0].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+
+		// Model to World Transform
+		mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[1]->GetGPUVirtualAddress());
+		// Normal buffer
+		mpCmdList->SetGraphicsRootShaderResourceView(2, mpNormalBuffer[0]->GetGPUVirtualAddress());
+		// Vertex and Index buffers
+		mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[0]);
+		mpCmdList->IASetIndexBuffer(&mIndexBufferView[0]);
+
+		// Draw
+		mpCmdList->DrawIndexedInstanced(mIndexBufferView[0].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
 
 
 	// submit command list and reset
-	mpCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mpShadowMapTexture, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
+	mpCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mpShadowMapTexture_Depth, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
 	mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
 	mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
 	WaitForSingleObject(mFenceEvent, INFINITE);
@@ -1845,7 +2026,7 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 #ifdef HYBRID
 	createRasterPipelineState();
 	createLightBuffer();
-	createShadowMapTexture();
+	createShadowMapTextures();
 	createTransformBuffers();
 #endif
 	createCameraBuffer();							// My own

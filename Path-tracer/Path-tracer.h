@@ -165,19 +165,30 @@ private:
 	D3D12_VIEWPORT			mRasterViewPort;
 	D3D12_RECT				mRasterScissorRect;
 	ID3D12RootSignaturePtr	mpRasterRootSig;
-	ID3D12DescriptorHeapPtr mpDsvHeap;
-	ID3D12ResourcePtr		mpShadowMapTexture;
 	ID3D12PipelineStatePtr	mpRasterPipelineState;
-	ID3D12ResourcePtr		mpLightBuffer;
-	uint32_t				mLightBufferSize = 2 * sizeof(mat4); // view and projection
-	D3D12_CPU_DESCRIPTOR_HANDLE mShadowMapDepthView;
+
+	ID3D12ResourcePtr			mpLightBuffer;
+	uint32_t					mLightBufferSize = 2 * sizeof(mat4); // view and projection
 	D3D12_CPU_DESCRIPTOR_HANDLE mLightBufferView;
+
+	ID3D12DescriptorHeapPtr		mpShadowMapDsvHeap;
+	ID3D12DescriptorHeapPtr		mpShadowMapRtvHeap;
+	ID3D12ResourcePtr			mpShadowMapTexture_Depth;
+	ID3D12ResourcePtr			mpShadowMapTexture_Position;
+	ID3D12ResourcePtr			mpShadowMapTexture_Normal;
+	ID3D12ResourcePtr			mpShadowMapTexture_Flux;
+	D3D12_CPU_DESCRIPTOR_HANDLE mShadowMapDsv_Depth;
+	D3D12_CPU_DESCRIPTOR_HANDLE	mShadowMapRtv_Position;
+	D3D12_CPU_DESCRIPTOR_HANDLE	mShadowMapRtv_Normal;
+	D3D12_CPU_DESCRIPTOR_HANDLE	mShadowMapRtv_Flux;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE mShadowMapRTVs[3];
 
 	void createRasterPipelineState();
 	void renderDepthToTexture();
 	void createLightBuffer();
 	void updateLightBuffer();
-	void createShadowMapTexture();
+	void createShadowMapTextures();
 
 	struct
 	{

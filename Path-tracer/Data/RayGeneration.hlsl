@@ -6,7 +6,10 @@
 RaytracingAccelerationStructure gRtScene : register(t0);
 RWTexture2D<float4> gOutput : register(u0);
 
-Texture2D<float> gShadowMap : register(t1);
+Texture2D<float> gShadowMap_Depth : register(t1);
+Texture2D<float4> gShadowMap_Position : register(t2);
+Texture2D<float4> gShadowMap_Normal : register(t3);
+Texture2D<float4> gShadowMap_Flux : register(t4);
 
 cbuffer Camera : register(b0)
 {
@@ -80,30 +83,47 @@ void rayGen()
     color = linearToSrgb(ACESFitted(1.5 * color));
 
 
-	// Render depth map to the corner
-    float3 outColor;
-
+	// Render Shadow map to the side
     uint shadowWidth;
     uint shadowHeight;
-    gShadowMap.GetDimensions(shadowWidth, shadowHeight);
+    gShadowMap_Depth.GetDimensions(shadowWidth, shadowHeight);
     int scale = 4;
-    if (launchIndex.x < 1000/scale && launchIndex.y < 1000/scale)
+    if (launchIndex.x < shadowWidth / scale && launchIndex.y < shadowHeight / scale)
     {
-		float test = gShadowMap[crd*scale];
-		//test = (test - 0.95) * 20.0f;
-        outColor = test * float3(1.0, 1.0, 1.0);
+		float zPrim = gShadowMap_Depth[crd*scale];
+        float f = 40.0f; // Sync this value to the C++ code!
+        float n = 0.1f;
+		// Transform to linear view space
+        float z = f * n / (f - zPrim * (f - n));
+        zPrim = z * zPrim;
+        zPrim /= f; // z <- 0..1
+        color = zPrim * float3(1.0, 1.0, 1.0);
     }
-	else
+    else if (launchIndex.x < shadowWidth / scale && launchIndex.y < 2 * shadowHeight / scale)
     {
-        outColor = color;
+        uint2 coords = crd;
+        coords.y -= shadowHeight / scale;
+        float3 cPrim = gShadowMap_Position[coords * scale].rgb;
+        color = cPrim;
+    }
+    else if (launchIndex.x < shadowWidth / scale && launchIndex.y < 3 * shadowHeight / scale)
+    {
+        uint2 coords = crd;
+        coords.y -= 2 * shadowHeight / scale;
+        float3 cPrim = gShadowMap_Normal[coords * scale].rgb;
+        color = cPrim;
+    }
+    else if (launchIndex.x < shadowWidth / scale && launchIndex.y < 4 * shadowHeight / scale)
+    {
+        uint2 coords = crd;
+        coords.y -= 3 * shadowHeight / scale;
+        float3 cPrim = gShadowMap_Flux[coords * scale].rgb;
+        color = cPrim;
     }
 
-        
     
 
-    //float3 outColor = (test > 0.999) ? float3(0.8, 0.5, 0.5) : float3(0.1, 0.1, 0.1);
 
-        gOutput[launchIndex.xy] = float4(outColor, 1);
-
+        gOutput[launchIndex.xy] = float4(color, 1);
     }
 
