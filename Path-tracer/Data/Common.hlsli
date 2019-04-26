@@ -7,7 +7,10 @@ struct RayPayload
 };
 	
 ////////////////////////////////
-
+struct ShadowPayload
+{
+    bool hit;
+};
 
 //// resources ////
-static const float PI = 3.14159265f;
+    static const float PI = 3.14159265f;

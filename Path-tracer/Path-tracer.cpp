@@ -580,7 +580,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 
 	// Create the desc for the Area Light
 	instanceDescs[instanceIdx].InstanceID = 0;// This value will be exposed to the shader via InstanceID()
-	instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 1; // hard coded
+	instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2; // hard coded
 	instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 	// GLM is column major, the INSTANCE_DESC is row major
 	memcpy(instanceDescs[instanceIdx].Transform, &transpose(transforms[instanceIdx]), sizeof(instanceDescs[instanceIdx].Transform));
@@ -593,7 +593,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	for (uint32_t i = 0; i < 1; i++)
 	{
 		instanceDescs[instanceIdx].InstanceID = i; // This value will be exposed to the shader via InstanceID()
-		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2;  // hard coded
+		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 4;  // hard coded
 		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 		mat4 m = transpose(transforms[instanceIdx]); // GLM is column major, the INSTANCE_DESC is row major
 		memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
@@ -1082,7 +1082,9 @@ static const WCHAR* kRobotChs = L"robotChs";
 static const WCHAR* kPlaneHitGroup = L"PlaneHitGroup";
 static const WCHAR* kRobotHitGroup = L"RobotHitGroup";
 static const WCHAR* kAreaLightHitGroup = L"AreaLightHitGroup";
-
+static const WCHAR* kShadowMissShader = L"shadowMiss";
+static const WCHAR* kShadowChs = L"shadowChs";
+static const WCHAR* kShadowHitGroup = L"shadowHitGroup";
 
 struct HitProgram
 {
@@ -1178,8 +1180,8 @@ struct PipelineConfig
 void PathTracer::createRtPipelineState()
 {
     // Need 20 subobjects:
-    //  3 for DXIL libraries    
-    //  3 for the hit-groups (plane hit-group, area light hit-group, robot hit-group)
+    //  3/4 for DXIL libraries    
+    //  3/4 for the hit-groups (plane hit-group, area light hit-group, robot hit-group) / shadow ray
     //  2 for RayGen root-signature (root-signature and the subobject association)
     //  2 for the plane-hit root-signature (root-signature and the subobject association)
 	//  2 for the robot-hit root-signature (root-signature and the subobject association)
@@ -1188,7 +1190,11 @@ void PathTracer::createRtPipelineState()
     //  2 for shader config (shared between all programs. 1 for the config, 1 for association)
     //  1 for pipeline config
     //  1 for the global root signature
+#ifdef HYBRID
+	const int numSubobjects = 22;
+#else
 	const int numSubobjects = 20;
+#endif
     std::array<D3D12_STATE_SUBOBJECT, numSubobjects> subobjects;
     uint32_t index = 0;
 
@@ -1196,15 +1202,22 @@ void PathTracer::createRtPipelineState()
 	#pragma region
 		const WCHAR* entryPointsRayGen[] = { kRayGenShader };
 		DxilLibrary rayGenLib = DxilLibrary(compileLibrary(L"Data/RayGeneration.hlsl", L"", L"lib_6_3"), entryPointsRayGen, arraysize(entryPointsRayGen));
-		subobjects[index++] = rayGenLib.stateSubobject; // 0 RayGen Library
+		subobjects[index++] = rayGenLib.stateSubobject; // RayGen Library
 		
 		const WCHAR* entryPointsMiss[] = { kMissShader };
 		DxilLibrary missLib = DxilLibrary(compileLibrary(L"Data/Miss.hlsl", L"", L"lib_6_3"), entryPointsMiss, arraysize(entryPointsMiss));
-		subobjects[index++] = missLib.stateSubobject; // 1 Miss Library
+		subobjects[index++] = missLib.stateSubobject; // Miss Library
 
 		const WCHAR* entryPointsHit[] = { kRobotChs, kPlaneChs, kAreaLightChs };
 		DxilLibrary hitLib = DxilLibrary(compileLibrary(L"Data/Hit.hlsl", L"", L"lib_6_3"), entryPointsHit, arraysize(entryPointsHit));
-		subobjects[index++] = hitLib.stateSubobject; // 2 Hit Library
+		subobjects[index++] = hitLib.stateSubobject; // Hit Library
+
+#ifdef HYBRID
+		const WCHAR* entryPointsShadowRay[] = { kShadowChs, kShadowMissShader };
+		DxilLibrary shadowRayLib = DxilLibrary(compileLibrary(L"Data/ShadowRay.hlsl", L"", L"lib_6_3"), entryPointsShadowRay, arraysize(entryPointsShadowRay));
+		subobjects[index++] = shadowRayLib.stateSubobject; // Shadow ray Library
+#endif
+
 
 	#pragma endregion
 	
@@ -1212,15 +1225,22 @@ void PathTracer::createRtPipelineState()
 	#pragma region
 		// Create the plane HitProgram
 			HitProgram planeHitProgram(nullptr, kPlaneChs, kPlaneHitGroup);
-			subobjects[index++] = planeHitProgram.subObject; // 3 Plane Hit Group
+			subobjects[index++] = planeHitProgram.subObject; // Plane Hit Group
 
 		// Create the area light HitProgram
 			HitProgram areaLightHitProgram(nullptr, kAreaLightChs, kAreaLightHitGroup);
-			subobjects[index++] = areaLightHitProgram.subObject; //4 Area Light Hit Group
+			subobjects[index++] = areaLightHitProgram.subObject; // Area Light Hit Group
 		
 		// Create the robot HitProgram
 			HitProgram robotHitProgram(nullptr, kRobotChs, kRobotHitGroup);
-			subobjects[index++] = robotHitProgram.subObject; // 5 Robot Hit Group
+			subobjects[index++] = robotHitProgram.subObject; // Robot Hit Group
+
+#ifdef HYBRID
+		// Create the Shadow-ray HitProgram
+			HitProgram shadowHitProgram(nullptr, kShadowChs, kShadowHitGroup);
+			subobjects[index++] = shadowHitProgram.subObject; // Shadow Hit Group
+#endif
+
 
 	#pragma endregion
 
@@ -1228,47 +1248,51 @@ void PathTracer::createRtPipelineState()
 	#pragma region
 		// Create the ray-gen root-signature and association
 			LocalRootSignature rgsRootSignature(mpDevice, createRayGenRootDesc().desc);
-			subobjects[index] = rgsRootSignature.subobject; // 6 Ray Gen Root Sig
+			subobjects[index] = rgsRootSignature.subobject; // Ray Gen Root Sig
 
 			uint32_t rgsRootIndex = index++;
 			ExportAssociation rgsRootAssociation(&kRayGenShader, 1, &(subobjects[rgsRootIndex]));
-			subobjects[index++] = rgsRootAssociation.subobject; // 7 Associate Root Sig to RGS
+			subobjects[index++] = rgsRootAssociation.subobject; // Associate Root Sig to RGS
 
 		// Create the plane hit root-signature and association
 			LocalRootSignature planeHitRootSignature(mpDevice, createPlaneHitRootDesc().desc);
-			subobjects[index] = planeHitRootSignature.subobject; // 8 Plane Hit Root Sig
+			subobjects[index] = planeHitRootSignature.subobject; // Plane Hit Root Sig
 
 			uint32_t planeHitRootIndex = index++;
 			ExportAssociation planeHitRootAssociation(&kPlaneHitGroup, 1, &(subobjects[planeHitRootIndex]));
-			subobjects[index++] = planeHitRootAssociation.subobject; // 9 Associate Plane Hit Root Sig to Plane Hit Group
+			subobjects[index++] = planeHitRootAssociation.subobject; // Associate Plane Hit Root Sig to Plane Hit Group
 
 		// Create the robot hit root-signature and association
 			LocalRootSignature robotHitRootSignature(mpDevice, createRobotHitRootDesc().desc);
-			subobjects[index] = robotHitRootSignature.subobject; // 10 Robot Hit Root Sig
+			subobjects[index] = robotHitRootSignature.subobject; // Robot Hit Root Sig
 
 			uint32_t robotHitRootIndex = index++;
 			ExportAssociation robotHitRootAssociation(&kRobotHitGroup, 1, &(subobjects[robotHitRootIndex]));
-			subobjects[index++] = robotHitRootAssociation.subobject; // 11 Associate Robot Hit Root Sig to Robot Hit Group
+			subobjects[index++] = robotHitRootAssociation.subobject; // Associate Robot Hit Root Sig to Robot Hit Group
 
 		// Create the miss root-signature and association
 			D3D12_STATIC_SAMPLER_DESC sampler = {};
 			LocalRootSignature missRootSignature(mpDevice, createMissRootDesc(&sampler).desc);
-			subobjects[index] = missRootSignature.subobject; // 12 Miss Root Sig
+			subobjects[index] = missRootSignature.subobject; // Miss Root Sig
 
 			uint32_t missRootIndex = index++;
 			ExportAssociation missRootAssociation(&kMissShader, 1, &(subobjects[missRootIndex]));
-			subobjects[index++] = missRootAssociation.subobject; // 13 Associate Miss Root Sig to Miss shader
+			subobjects[index++] = missRootAssociation.subobject; // Associate Miss Root Sig to Miss shader
 
 		// Create the empty root-signature and associate it with the area light
 			D3D12_ROOT_SIGNATURE_DESC emptyDesc = {};
 			emptyDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 			LocalRootSignature emptyRootSignature(mpDevice, emptyDesc);
-			subobjects[index] = emptyRootSignature.subobject; // 14 Empty Root Sig for Area light
+			subobjects[index] = emptyRootSignature.subobject; // Empty Root Sig for Area light
 
 			uint32_t emptyRootIndex = index++;
-			const WCHAR* emptyRootExport[] = { kAreaLightChs };
+#ifdef HYBRID
+			const WCHAR* emptyRootExport[] = { kAreaLightChs, kShadowChs, kShadowMissShader };
+#else
+			const WCHAR* emptyRootExport[] = { kAreaLightChs};
+#endif
 			ExportAssociation emptyRootAssociation(emptyRootExport, arraysize(emptyRootExport), &(subobjects[emptyRootIndex]));
-			subobjects[index++] = emptyRootAssociation.subobject; // 15 Associate empty root sig to Area light
+			subobjects[index++] = emptyRootAssociation.subobject; // Associate empty root sig to Area light and Shadow ray
 	#pragma endregion
 
 	//---- Create Shader config, Pipeline config and Global Root-Signature----//
@@ -1276,30 +1300,34 @@ void PathTracer::createRtPipelineState()
     // Bind the payload size to all programs
     
 		ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 7);
-		subobjects[index] = primaryShaderConfig.subobject; // 16
+		subobjects[index] = primaryShaderConfig.subobject; // Payload size
 
 		uint32_t primaryShaderConfigIndex = index++;
+#ifdef HYBRID
+		const WCHAR* primaryShaderExports[] = { kRayGenShader, kMissShader, kPlaneChs, kAreaLightChs, kRobotChs, kShadowMissShader, kShadowChs};
+#else
 		const WCHAR* primaryShaderExports[] = { kRayGenShader, kMissShader, kPlaneChs, kAreaLightChs, kRobotChs};
+#endif
 		ExportAssociation primaryConfigAssociation(primaryShaderExports, arraysize(primaryShaderExports), &(subobjects[primaryShaderConfigIndex]));
-		subobjects[index++] = primaryConfigAssociation.subobject; // 17 Associate shader config to all programs
+		subobjects[index++] = primaryConfigAssociation.subobject; // Associate shader config to all programs
 
     // Create the pipeline config
     
 		PipelineConfig config(10); // maxRecursionDepth
-		subobjects[index++] = config.subobject; // 18
+		subobjects[index++] = config.subobject; // Recursion depth
 
     // Create the global root signature and store the empty signature
 	
 		GlobalRootSignature root(mpDevice, {});
 		mpEmptyRootSig = root.pRootSig;
-		subobjects[index++] = root.subobject; // 19
+		subobjects[index++] = root.subobject; // Global root signature
 	#pragma endregion
 
 	assert(index == numSubobjects);
 
     // Create the state
     D3D12_STATE_OBJECT_DESC desc;
-    desc.NumSubobjects = index; // 20
+    desc.NumSubobjects = index;
     desc.pSubobjects = subobjects.data();
     desc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
 
@@ -1314,14 +1342,20 @@ void PathTracer::createShaderTable()
     /** The shader-table layout is as follows:
         Entry 0 - Ray-gen program
         Entry 1 - Miss program for the primary ray
-        Entries 2 - Hit programs for the planes
-		Entries 3 - Hit program for the area light
-		Entries 4 - Hit programs for robot
+		  /Entry 2 - Miss program for the shadow ray
+        Entries 2/3,4 - Hit programs for the planes /primary and shadow
+		Entries 3/5,6 - Hit program for the area light /primary and shadow
+		Entries 4/7,8 - Hit programs for robot /primary and shadow
         All entries in the shader-table must have the same size, so we will choose it base on the largest required entry.
-        The triangle primary-ray hit program requires the largest entry - sizeof(program identifier) + 8 bytes for the constant-buffer root descriptor.
+        The primary-ray hit program requires the largest entry - sizeof(program identifier) + 3*8 bytes for the buffer root descriptors.
         The entry size must be aligned up to D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT
     */
+#ifdef HYBRID
+	const int numShaderTableEntries = 9;
+#else
 	const int numShaderTableEntries = 5;
+#endif
+
     // Calculate the size and create the buffer
     mShaderTableEntrySize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
     mShaderTableEntrySize += 3 * sizeof(UINT64); // The hit shader constant-buffer descriptor
@@ -1352,7 +1386,7 @@ void PathTracer::createShaderTable()
 		// Output UAV + TLAS + Camera buffer
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry0 = heapStart;
 			pEntry0 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
-		// Shadow map
+		// Shadow maps
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry0 = heapStart + 5 * heapEntrySize;
 		entryIndex++;
 
@@ -1364,7 +1398,14 @@ void PathTracer::createShaderTable()
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry1 = heapStart + 3 * heapEntrySize;
 		entryIndex++;
 
-    // Entry 2 - Plane, primary ray. ProgramID, TLAS SRV and Normal buffer
+#ifdef HYBRID
+	// Entry /2 - shadow ray miss
+		uint8_t* pEntryShadowMiss = pData + mShaderTableEntrySize * entryIndex;
+		memcpy(pEntryShadowMiss, pRtsoProps->GetShaderIdentifier(kShadowMissShader), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		entryIndex++;
+#endif
+
+    // Entry 2/3 - Plane, primary ray. ProgramID, TLAS SRV and Normal buffer
 		uint8_t* pEntry2 = pData + mShaderTableEntrySize * entryIndex;
 		memcpy(pEntry2, pRtsoProps->GetShaderIdentifier(kPlaneHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 			pEntry2 += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
@@ -1375,12 +1416,26 @@ void PathTracer::createShaderTable()
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry2 = mpNormalBuffer[0]->GetGPUVirtualAddress();
 		entryIndex++;
 
-	// Entry 3 - Area Light, primary ray.
+#ifdef HYBRID
+		// Entry /4 - Plane, shadow ray
+		uint8_t* pEntryPlaneShadow = pData + mShaderTableEntrySize * entryIndex;
+		memcpy(pEntryPlaneShadow, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		entryIndex++;
+#endif
+
+	// Entry 3/5 - Area Light, primary ray.
 		uint8_t* pEntry3 = pData + mShaderTableEntrySize * entryIndex;
 		memcpy(pEntry3, pRtsoProps->GetShaderIdentifier(kAreaLightHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 		entryIndex++;
 
-	// Entry 4 - Robot, primary ray. ProgramID and index-buffer
+#ifdef HYBRID
+		// Entry /6 - Area Light, shadow ray
+		uint8_t* pEntryAreaLightShadow = pData + mShaderTableEntrySize * entryIndex;
+		memcpy(pEntryAreaLightShadow, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		entryIndex++;
+#endif
+
+	// Entry 4/7 - Robot, primary ray. ProgramID and index-buffer
 		uint8_t* pEntry4 = pData + mShaderTableEntrySize * entryIndex;
 		memcpy(pEntry4, pRtsoProps->GetShaderIdentifier(kRobotHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 			pEntry4 += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
@@ -1394,6 +1449,13 @@ void PathTracer::createShaderTable()
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry4 = mpNormalBuffer[1]->GetGPUVirtualAddress();
 		entryIndex++;
 		
+#ifdef HYBRID
+		// Entry /8 - Robot, shadow ray
+		uint8_t* pEntryRobotShadow = pData + mShaderTableEntrySize * entryIndex;
+		memcpy(pEntryRobotShadow, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		entryIndex++;
+#endif
+
     // Unmap
 	assert(entryIndex == numShaderTableEntries);
     mpShaderTable->Unmap(0, nullptr);
@@ -2086,15 +2148,30 @@ void PathTracer::onFrameRender(bool *gKeys)
 
     // Miss is the second entry in the shader-table
     size_t missOffset = 1 * mShaderTableEntrySize;
+#ifdef HYBRID
+	raytraceDesc.MissShaderTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + missOffset;
+	raytraceDesc.MissShaderTable.StrideInBytes = mShaderTableEntrySize;
+	raytraceDesc.MissShaderTable.SizeInBytes = mShaderTableEntrySize * 2;   // 2 miss-entries
+#else
     raytraceDesc.MissShaderTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + missOffset;
     raytraceDesc.MissShaderTable.StrideInBytes = mShaderTableEntrySize;
     raytraceDesc.MissShaderTable.SizeInBytes = mShaderTableEntrySize * 1;   // 1 miss-entries
+#endif
 
+#ifdef HYBRID
+	// Hit is the fourth entry in the shader-table
+	size_t hitOffset = 3 * mShaderTableEntrySize;
+	raytraceDesc.HitGroupTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + hitOffset;
+	raytraceDesc.HitGroupTable.StrideInBytes = mShaderTableEntrySize;
+	raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 6;    // 6 hit-entries
+#else
     // Hit is the third entry in the shader-table
     size_t hitOffset = 2 * mShaderTableEntrySize;
     raytraceDesc.HitGroupTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + hitOffset;
     raytraceDesc.HitGroupTable.StrideInBytes = mShaderTableEntrySize;
     raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 3;    // 3 hit-entries
+#endif
+
 
     // Bind the empty root signature
     mpCmdList->SetComputeRootSignature(mpEmptyRootSig);

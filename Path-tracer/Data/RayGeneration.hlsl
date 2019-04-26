@@ -67,7 +67,7 @@ void rayGen()
 					0 /*rayFlags*/, 
 					0xFF /*ray mask*/, 
 					0 /* ray index*/, 
-					1 /* total nbr of hit groups*/, 
+					2 /* total nbr of hit groups*/, 
 					0 /* miss shader index*/, 
 					ray, 
 					payload

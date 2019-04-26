@@ -64,7 +64,7 @@ void robotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 				0 /*rayFlags*/,
 				0xFF, /* ray mask*/
 				0 /* ray index*/,
-				1 /* total nbr of hitgroups*/,
+				2 /* total nbr of hitgroups*/,
 				0 /*miss shader index*/,
 				rayDiffuse,
 				payload
@@ -121,7 +121,7 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 					0 /*rayFlags*/, 
 					0xFF, /* ray mask*/
 					0 /* ray index*/, 
-					1 /* total nbr of hitgroups*/, 
+					2 /* total nbr of hitgroups*/, 
 					0 /*miss shader index*/, 
 					rayDiffuse, 
 					payload

@@ -24,7 +24,7 @@
     <FxCompile Include="Data\Common.hlsli">
       <Filter>Data</Filter>
     </FxCompile>
-    <FxCompile Include="Data\RasterShaders.hlsl">
+    <FxCompile Include="Data\ShadowRay.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
   </ItemGroup>
@@ -36,5 +36,8 @@
     <None Include="Data\ToneMapping.hlsli">
       <Filter>Data</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="Data\RasterShaders.hlsl" />
   </ItemGroup>
 </Project>
