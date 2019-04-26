@@ -55,7 +55,7 @@ void rayGen()
     RayPayload payload;
     float3 color = float3(0.0, 0.0, 0.0);
 
-    int numSamples = 10;
+    int numSamples = 1;
     for (int i = 0; i < numSamples; i++)
     {
         nextRand(randSeed);
@@ -87,7 +87,7 @@ void rayGen()
     uint shadowWidth;
     uint shadowHeight;
     gShadowMap_Depth.GetDimensions(shadowWidth, shadowHeight);
-    int scale = 4;
+    int scale = 1;
     if (launchIndex.x < shadowWidth / scale && launchIndex.y < shadowHeight / scale)
     {
 		float zPrim = gShadowMap_Depth[crd*scale];

@@ -934,7 +934,7 @@ RootSignatureDesc createRayGenRootDesc()
 RootSignatureDesc createPlaneHitRootDesc()
 {
     RootSignatureDesc desc;
-    desc.range.resize(1);
+    desc.range.resize(5);
 
 	// gRtScene
     desc.range[0].BaseShaderRegister = 0; //t0
@@ -943,7 +943,35 @@ RootSignatureDesc createPlaneHitRootDesc()
     desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     desc.range[0].OffsetInDescriptorsFromTableStart = 0;
 
-    desc.rootParams.resize(2);
+	// Shadow map Depth
+	desc.range[1].BaseShaderRegister = 0; //t0
+	desc.range[1].NumDescriptors = 1;
+	desc.range[1].RegisterSpace = 1;
+	desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[1].OffsetInDescriptorsFromTableStart = 0;
+
+	// Shadow map Position
+	desc.range[2].BaseShaderRegister = 1; //t1
+	desc.range[2].NumDescriptors = 1;
+	desc.range[2].RegisterSpace = 1;
+	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[2].OffsetInDescriptorsFromTableStart = 1;
+
+	// Shadow map Normal
+	desc.range[3].BaseShaderRegister = 2; //t2
+	desc.range[3].NumDescriptors = 1;
+	desc.range[3].RegisterSpace = 1;
+	desc.range[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[3].OffsetInDescriptorsFromTableStart = 2;
+
+	// Shadow map Flux
+	desc.range[4].BaseShaderRegister = 3; //t3
+	desc.range[4].NumDescriptors = 1;
+	desc.range[4].RegisterSpace = 1;
+	desc.range[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[4].OffsetInDescriptorsFromTableStart = 3;
+
+    desc.rootParams.resize(3);
     desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
     desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
     desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
@@ -953,7 +981,12 @@ RootSignatureDesc createPlaneHitRootDesc()
 	desc.rootParams[1].Descriptor.RegisterSpace = 0;
 	desc.rootParams[1].Descriptor.ShaderRegister = 2;//t2
 
-    desc.desc.NumParameters = 2;
+	// Shadow maps
+	desc.rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	desc.rootParams[2].DescriptorTable.NumDescriptorRanges = 4;
+	desc.rootParams[2].DescriptorTable.pDescriptorRanges = desc.range.data() + 1;
+
+    desc.desc.NumParameters = 3;
     desc.desc.pParameters = desc.rootParams.data();
     desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 
@@ -963,7 +996,7 @@ RootSignatureDesc createPlaneHitRootDesc()
 RootSignatureDesc createRobotHitRootDesc()
 {
 	RootSignatureDesc desc;
-	desc.range.resize(1);
+	desc.range.resize(5);
 
 	// gRtScene
 	desc.range[0].BaseShaderRegister = 0; //t0
@@ -972,7 +1005,35 @@ RootSignatureDesc createRobotHitRootDesc()
 	desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[0].OffsetInDescriptorsFromTableStart = 0;
 
-	desc.rootParams.resize(3);
+	// Shadow map Depth
+	desc.range[1].BaseShaderRegister = 0; //t0
+	desc.range[1].NumDescriptors = 1;
+	desc.range[1].RegisterSpace = 1;
+	desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[1].OffsetInDescriptorsFromTableStart = 0;
+
+	// Shadow map Position
+	desc.range[2].BaseShaderRegister = 1; //t1
+	desc.range[2].NumDescriptors = 1;
+	desc.range[2].RegisterSpace = 1;
+	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[2].OffsetInDescriptorsFromTableStart = 1;
+
+	// Shadow map Normal
+	desc.range[3].BaseShaderRegister = 2; //t2
+	desc.range[3].NumDescriptors = 1;
+	desc.range[3].RegisterSpace = 1;
+	desc.range[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[3].OffsetInDescriptorsFromTableStart = 2;
+
+	// Shadow map Flux
+	desc.range[4].BaseShaderRegister = 3; //t3
+	desc.range[4].NumDescriptors = 1;
+	desc.range[4].RegisterSpace = 1;
+	desc.range[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[4].OffsetInDescriptorsFromTableStart = 3;
+
+	desc.rootParams.resize(4);
 	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
 	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
@@ -987,7 +1048,12 @@ RootSignatureDesc createRobotHitRootDesc()
 	desc.rootParams[2].Descriptor.RegisterSpace = 0;
 	desc.rootParams[2].Descriptor.ShaderRegister = 2;//t2
 
-	desc.desc.NumParameters = 3;
+	// Shadow maps
+	desc.rootParams[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	desc.rootParams[3].DescriptorTable.NumDescriptorRanges = 4;
+	desc.rootParams[3].DescriptorTable.pDescriptorRanges = desc.range.data() + 1;
+
+	desc.desc.NumParameters = 4;
 	desc.desc.pParameters = desc.rootParams.data();
 	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 
@@ -1358,7 +1424,7 @@ void PathTracer::createShaderTable()
 
     // Calculate the size and create the buffer
     mShaderTableEntrySize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-    mShaderTableEntrySize += 3 * sizeof(UINT64); // The hit shader constant-buffer descriptor
+    mShaderTableEntrySize += 4 * sizeof(UINT64); // The hit shader constant-buffer descriptor
     mShaderTableEntrySize = align_to(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT, mShaderTableEntrySize);
     uint32_t shaderTableSize = mShaderTableEntrySize * numShaderTableEntries;
 
@@ -1414,6 +1480,9 @@ void PathTracer::createShaderTable()
 			pEntry2 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
 		// Normal buffer
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry2 = mpNormalBuffer[0]->GetGPUVirtualAddress();
+			pEntry2 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
+		// Shadow maps
+			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry2 = heapStart + 5 * heapEntrySize;
 		entryIndex++;
 
 #ifdef HYBRID
@@ -1447,6 +1516,9 @@ void PathTracer::createShaderTable()
 			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
 		// Normal buffer
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry4 = mpNormalBuffer[1]->GetGPUVirtualAddress();
+			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
+		// Shadow maps
+			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry4 = heapStart + 5 * heapEntrySize;
 		entryIndex++;
 		
 #ifdef HYBRID
@@ -1981,6 +2053,8 @@ void PathTracer::createShadowMapTextures()
 
 void PathTracer::renderDepthToTexture()
 {
+	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Rasterize shadow map");
+
 	// Set pipeline state
 	mpCmdList->SetPipelineState(mpRasterPipelineState);
 
@@ -2071,7 +2145,7 @@ void PathTracer::renderDepthToTexture()
 	mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator->Reset();
 	mpCmdList->Reset(mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator, nullptr);
 
-
+	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
 #endif
@@ -2127,6 +2201,8 @@ void PathTracer::onFrameRender(bool *gKeys)
 #endif
 
     uint32_t rtvIndex = beginFrame();
+
+	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Raytrace");
 
 	// Update camera
 	updateCameraBuffer();
@@ -2184,6 +2260,8 @@ void PathTracer::onFrameRender(bool *gKeys)
     resourceBarrier(mpCmdList, mpOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
     resourceBarrier(mpCmdList, mFrameObjects[rtvIndex].pSwapChainBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
 	mpCmdList->CopyResource(mFrameObjects[rtvIndex].pSwapChainBuffer, mpOutputResource);//mpShadowMapTexture); 
+
+	PIXEndEvent(mpCmdList.GetInterfacePtr());
 
     endFrame(rtvIndex);
 }

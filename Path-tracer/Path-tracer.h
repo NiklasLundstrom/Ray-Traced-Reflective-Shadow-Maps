@@ -159,8 +159,8 @@ private:
 	//////////////////////////////////////////////////////////////////////////
 	#ifdef HYBRID
 	
-	const UINT kShadowMapWidth = 1000;
-	const UINT kShadowMapHeight = 1000;
+	const UINT kShadowMapWidth = 100;
+	const UINT kShadowMapHeight = 100;
 
 	D3D12_VIEWPORT			mRasterViewPort;
 	D3D12_RECT				mRasterScissorRect;

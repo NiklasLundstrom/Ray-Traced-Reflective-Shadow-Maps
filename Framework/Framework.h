@@ -53,6 +53,7 @@
 #include "Externals/Assimp/include/assimp/scene.h"
 #include <chrono>
 #include "Externals/DirectXTex/DirectXTex.h"
+#include <pix.h>
 
 using namespace glm;
 //using namespace System::Windows::Input;

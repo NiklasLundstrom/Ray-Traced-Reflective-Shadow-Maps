@@ -1,10 +1,19 @@
 #include "Common.hlsli"
 #include "hlslUtils.hlsli"
+float3 sampleIndirectLight(float3 hitPoint, float3 hitPointNormal);
+
+#define HYBRID
+
 
 RaytracingAccelerationStructure gRtScene : register(t0);
 
 StructuredBuffer<uint> indices : register(t1);
 StructuredBuffer<float3> normals : register(t2);
+
+Texture2D<float> gShadowMap_Depth : register(t0, space1);
+Texture2D<float4> gShadowMap_Position : register(t1, space1);
+Texture2D<float4> gShadowMap_Normal : register(t2, space1);
+Texture2D<float4> gShadowMap_Flux : register(t3, space1);
 
 
 [shader("closesthit")]
@@ -36,6 +45,13 @@ void robotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 
 	// get material color
         float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.5f;
+
+	#ifdef HYBRID
+        float3 indirectColor = sampleIndirectLight(hitPoint, normal);
+
+        float3 incomingColor = indirectColor;
+	#else
+
 
 	// define out direction
         float3 outDir;
@@ -72,6 +88,8 @@ void robotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
        
         float3 incomingColor = payload.color;
 	
+#endif
+
         payload.color = materialColor * incomingColor;
     }
 }
@@ -107,8 +125,15 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 		// reflection direction
         //float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
         
+		
 
-		// set up ray
+        
+	#ifdef HYBRID
+        float3 indirectColor = sampleIndirectLight(hitPoint, normal);
+
+        float3 incomingColor = indirectColor;
+	#else
+		// set up diffuse ray
         RayDesc rayDiffuse;
         rayDiffuse.Origin = hitPoint;
         rayDiffuse.Direction = getCosHemisphereSample(payload.seed, normal);
@@ -129,12 +154,72 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
        
         float3 incomingColor = payload.color;
 
-        payload.color = materialColor * incomingColor;
+	#endif
+
+
+            payload.color = materialColor * incomingColor;
+
+        }
     }
-}
 
 [shader("closesthit")]
 void areaLightChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
     payload.color = float3(1.0f, 0.0f, 1.0f)*5.0f;
+}
+
+
+
+float3 sampleIndirectLight(float3 hitPoint, float3 hitPointNormal)
+{
+	
+    uint shadowWidth;
+    uint shadowHeight;
+    gShadowMap_Position.GetDimensions(shadowWidth, shadowHeight);
+
+		// set up shadow rays
+    ShadowPayload shadowPayload;
+    float3 indirectColor = float3(0.0, 0.0, 0.0);
+
+    RayDesc rayShadow;
+    rayShadow.Origin = hitPoint;
+    rayShadow.TMin = 0.0001;
+
+    for (int i = 0; i < shadowWidth; i += 4)
+    {
+        for (int j = 0; j < shadowHeight; j += 4)
+        {
+				// sample shadow map
+            float3 lightPos = gShadowMap_Position[uint2(i, j)].xyz;
+            float3 direction = lightPos - hitPoint;
+            float distance = length(direction);
+            direction = normalize(direction);
+
+				// set up ray
+            rayShadow.TMax = distance - 0.0001; // minus 0.0001?
+            rayShadow.Direction = direction;
+
+            TraceRay(
+							gRtScene,
+							0 /*rayFlags*/,
+							0xFF, /* ray mask*/
+							1 /* ray index*/,
+							2 /* total nbr of hitgroups*/,
+							1 /*miss shader index*/,
+							rayShadow,
+							shadowPayload
+						);
+
+            if (shadowPayload.hit == false)// we reached the light point
+            {
+                float angle = dot(direction, hitPointNormal);
+                indirectColor += angle * gShadowMap_Flux[uint2(i, j)].xyz;
+            }
+        }
+    }
+
+    indirectColor /= shadowWidth * shadowHeight / 16;
+
+    return indirectColor;
+
 }
