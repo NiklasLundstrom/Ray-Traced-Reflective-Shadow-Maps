@@ -1,0 +1,291 @@
+#include "Model.h"
+
+
+///////////////////////////////////////////
+// Create buffers
+///////////////////////////////////////////
+
+static const D3D12_HEAP_PROPERTIES kUploadHeapProps =
+{
+	D3D12_HEAP_TYPE_UPLOAD,
+	D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+	D3D12_MEMORY_POOL_UNKNOWN,
+	0,
+	0,
+};
+
+static const D3D12_HEAP_PROPERTIES kDefaultHeapProps =
+{
+	D3D12_HEAP_TYPE_DEFAULT,
+	D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+	D3D12_MEMORY_POOL_UNKNOWN,
+	0,
+	0
+};
+
+ID3D12ResourcePtr Model::createBuffer(ID3D12Device5Ptr pDevice, uint64_t size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initState, const D3D12_HEAP_PROPERTIES& heapProps)
+{
+	D3D12_RESOURCE_DESC bufDesc = {};
+	bufDesc.Alignment = 0;
+	bufDesc.DepthOrArraySize = 1;
+	bufDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+	bufDesc.Flags = flags;
+	bufDesc.Format = DXGI_FORMAT_UNKNOWN;
+	bufDesc.Height = 1;
+	bufDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+	bufDesc.MipLevels = 1;
+	bufDesc.SampleDesc.Count = 1;
+	bufDesc.SampleDesc.Quality = 0;
+	bufDesc.Width = size;
+
+	ID3D12ResourcePtr pBuffer;
+	d3d_call(pDevice->CreateCommittedResource(&heapProps, D3D12_HEAP_FLAG_NONE, &bufDesc, initState, nullptr, IID_PPV_ARGS(&pBuffer)));
+	return pBuffer;
+}
+
+ID3D12ResourcePtr Model::createPlaneVB(ID3D12Device5Ptr pDevice)
+{
+	const vec3 vertices[] =
+	{
+		vec3(-1, 0,  -1),
+		vec3(1, 0,  1),
+		vec3(-1, 0,  1),
+		vec3(1, 0,  -1),
+	};
+
+	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(vertices), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, vertices, sizeof(vertices));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
+ID3D12ResourcePtr Model::createPlaneIB(ID3D12Device5Ptr pDevice)
+{
+	const uint indices[] =
+	{
+		0,
+		2,
+		3,
+		1,
+		3,
+		2
+	};// left hand oriented!
+
+	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(indices), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, indices, sizeof(indices));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
+ID3D12ResourcePtr Model::createPlaneNB(ID3D12Device5Ptr pDevice)
+{
+	const vec3 normals[] =
+	{
+		vec3(0, 1, 0),
+		vec3(0, 1, 0),
+		vec3(0, 1, 0),
+		vec3(0, 1, 0)
+	};
+
+	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(normals), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, normals, sizeof(normals));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
+ID3D12ResourcePtr Model::createVB(ID3D12Device5Ptr pDevice, aiVector3D* aiVertecies, int numVertices)
+{
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, numVertices * sizeof(vec3), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, aiVertecies, numVertices * sizeof(vec3));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
+ID3D12ResourcePtr Model::createIB(ID3D12Device5Ptr pDevice, aiFace* aiFaces, int numFaces)
+{
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, numFaces * 3 * sizeof(uint), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	for (int i = 0; i < numFaces; i++)
+	{
+		memcpy(pData + i * 3 * sizeof(uint), aiFaces[i].mIndices, 3 * sizeof(uint));
+	}
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
+ID3D12ResourcePtr Model::createNB(ID3D12Device5Ptr pDevice, aiVector3D* aiNormals, int numNormals)
+{
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, numNormals * sizeof(vec3), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+	memcpy(pData, aiNormals, numNormals * sizeof(vec3));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
+AccelerationStructureBuffers Model::createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB, const uint32_t vertexCount, ID3D12ResourcePtr pIB, const uint32_t indexCount)
+{
+	D3D12_RAYTRACING_GEOMETRY_DESC geomDesc;
+	geomDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+	geomDesc.Triangles.VertexBuffer.StartAddress = pVB->GetGPUVirtualAddress();
+	geomDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(vec3);
+	geomDesc.Triangles.VertexCount = vertexCount;
+	geomDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+	geomDesc.Triangles.IndexBuffer = pIB->GetGPUVirtualAddress();
+	geomDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
+	geomDesc.Triangles.IndexCount = indexCount;
+	geomDesc.Triangles.Transform3x4 = NULL;
+	geomDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+	
+
+	// Get the size requirements for the scratch and AS buffers
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
+	inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+	inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
+	inputs.NumDescs = 1;
+	inputs.pGeometryDescs = &geomDesc;
+	inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+
+	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO info;
+	pDevice->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
+
+	// Create the buffers. They need to support UAV, and since we are going to immediately use them, we create them with an unordered-access state
+	AccelerationStructureBuffers buffers;
+	buffers.pScratch = createBuffer(pDevice, info.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON, kDefaultHeapProps);
+	buffers.pResult = createBuffer(pDevice, info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, kDefaultHeapProps);
+
+	// Create the bottom-level AS
+	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC asDesc = {};
+	asDesc.Inputs = inputs;
+	asDesc.DestAccelerationStructureData = buffers.pResult->GetGPUVirtualAddress();
+	asDesc.ScratchAccelerationStructureData = buffers.pScratch->GetGPUVirtualAddress();
+
+	pCmdList->BuildRaytracingAccelerationStructure(&asDesc, 0, nullptr);
+
+	// We need to insert a UAV barrier before using the acceleration structures in a raytracing operation
+	D3D12_RESOURCE_BARRIER uavBarrier = {};
+	uavBarrier.Type = D3D12_RESOURCE_BARRIER_TYPE_UAV;
+	uavBarrier.UAV.pResource = buffers.pResult;
+	pCmdList->ResourceBarrier(1, &uavBarrier);
+
+	return buffers;
+}
+
+
+///////////////////////////////////////////
+// Callbacks
+///////////////////////////////////////////
+
+AccelerationStructureBuffers Model::loadModelHardCodedPlane(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList)
+{
+	// create and set up VB, IB and NB
+	mpVertexBuffer = createPlaneVB(pDevice);
+	mpVertexBuffer->SetName((std::wstring(mName) + L" Vertex Buffer").c_str());
+	mpIndexBuffer = createPlaneIB(pDevice);
+	mpIndexBuffer->SetName((std::wstring(mName) + L" Index Buffer").c_str());
+	mpNormalBuffer = createPlaneNB(pDevice);
+	mpNormalBuffer->SetName((std::wstring(mName) + L" Normal Buffer").c_str());
+
+	// VB view
+	mVertexBufferView.BufferLocation = mpVertexBuffer->GetGPUVirtualAddress();
+	mVertexBufferView.StrideInBytes = sizeof(vec3);
+	mVertexBufferView.SizeInBytes = 4 * sizeof(vec3);
+
+	// IB view
+	mIndexBufferView.BufferLocation = mpIndexBuffer->GetGPUVirtualAddress();
+	mIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
+	mIndexBufferView.SizeInBytes = 6 * sizeof(uint);
+
+	// create transform buffer
+	mpTransformBuffer = createBuffer(pDevice, sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	mpTransformBuffer->SetName((std::wstring(mName) + L" Transform").c_str());
+
+
+	// BLAS
+	AccelerationStructureBuffers bottomLevelBuffer = createBottomLevelAS(
+																pDevice,
+																pCmdList,
+																mpVertexBuffer,
+																4,
+																mpIndexBuffer,
+																6
+															);
+
+	return bottomLevelBuffer;
+
+}
+
+AccelerationStructureBuffers Model::loadModelFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter)
+{
+	const aiScene* scene = pImporter->ReadFile(pFileName,
+		aiProcess_CalcTangentSpace |
+		aiProcess_JoinIdenticalVertices |
+		aiProcess_Triangulate |
+		aiProcess_GenNormals |
+		aiProcess_FixInfacingNormals |
+		aiProcess_GenUVCoords |
+		aiProcess_TransformUVCoords |
+		aiProcess_MakeLeftHanded |
+		aiProcess_FindInvalidData);
+	aiMesh* mesh = scene->mMeshes[0];
+
+	// create and set up VB, IB and NB
+	mpVertexBuffer = createVB(pDevice, mesh->mVertices, mesh->mNumVertices);
+	mpVertexBuffer->SetName((std::wstring(mName) + L" Vertex Buffer").c_str());
+	mpIndexBuffer = createIB(pDevice, mesh->mFaces, mesh->mNumFaces);
+	mpIndexBuffer->SetName((std::wstring(mName) + L" Index Buffer").c_str());
+	mpNormalBuffer = createNB(pDevice, mesh->mNormals, mesh->mNumVertices);
+	mpNormalBuffer->SetName((std::wstring(mName) + L" Normal Buffer").c_str());
+
+	// VB view
+	mVertexBufferView.BufferLocation = mpVertexBuffer->GetGPUVirtualAddress();
+	mVertexBufferView.StrideInBytes = sizeof(vec3);
+	mVertexBufferView.SizeInBytes = mesh->mNumVertices * sizeof(vec3);
+
+	// IB view
+	mIndexBufferView.BufferLocation = mpIndexBuffer->GetGPUVirtualAddress();
+	mIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
+	mIndexBufferView.SizeInBytes = mesh->mNumFaces * 3 * sizeof(uint);
+
+	// create transform buffer
+	mpTransformBuffer = createBuffer(pDevice, sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	mpTransformBuffer->SetName((std::wstring(mName) + L" Transform").c_str());
+
+	// BLAS
+	AccelerationStructureBuffers bottomLevelBuffer = createBottomLevelAS(
+																pDevice,
+																pCmdList,
+																mpVertexBuffer,
+																mesh->mNumVertices,
+																mpIndexBuffer,
+																mesh->mNumFaces * 3
+															);
+
+	return bottomLevelBuffer;
+}
+
+void Model::updateTransformBuffer()
+{
+	uint8_t* pData;
+	d3d_call(mpTransformBuffer->Map(0, nullptr, (void**)&pData));
+		memcpy(pData, &mModelToWorld, sizeof(mat4));
+	mpTransformBuffer->Unmap(0, nullptr);
+}
+
+Model::Model(LPCWSTR name)
+{
+	mName = name;
+
+}

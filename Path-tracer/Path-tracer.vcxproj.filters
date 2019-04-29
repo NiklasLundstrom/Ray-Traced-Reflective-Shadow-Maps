@@ -7,9 +7,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Path-tracer.cpp" />
+    <ClCompile Include="Model.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Path-tracer.h" />
+    <ClInclude Include="Model.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Data\Miss.hlsl">

@@ -27,6 +27,7 @@
  ***************************************************************************/
 #pragma once
 #include "Framework.h"
+#include "Model.h"
 
 #define HYBRID
 
@@ -35,12 +36,12 @@
 class PathTracer : public Tutorial
 {
 public:
-    struct AccelerationStructureBuffers
-    {
-        ID3D12ResourcePtr pScratch;
-        ID3D12ResourcePtr pResult;
-        ID3D12ResourcePtr pInstanceDesc;    // Used only for top-level AS
-    };
+    //struct AccelerationStructureBuffers
+    //{
+    //    ID3D12ResourcePtr pScratch;
+    //    ID3D12ResourcePtr pResult;
+    //    ID3D12ResourcePtr pInstanceDesc;    // Used only for top-level AS
+    //};
 
     void onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight) override;
     void onFrameRender(bool *gKeys) override;
@@ -87,20 +88,14 @@ private:
 	// 3 instances: plane, area light and robot
 	// keep in sync with value hard coded in buildTopLevelAS()
 	static const int			mNumInstances = 3; 
-	mat4 mTransforms[mNumInstances];
 	void buildTransforms(float rotation);
 
 #ifdef HYBRID
-	D3D12_VERTEX_BUFFER_VIEW	mVertexBufferView[2];
-	D3D12_INDEX_BUFFER_VIEW		mIndexBufferView[2];
-	ID3D12ResourcePtr			mpTransformBuffer[mNumInstances];
-	void createTransformBuffers();
 	void updateTransformBuffers();
 #endif
 
-	ID3D12ResourcePtr				mpIndexBuffer[2];
-	ID3D12ResourcePtr				mpNormalBuffer[2];
-    ID3D12ResourcePtr				mpBottomLevelAS[2];
+
+    ID3D12ResourcePtr				mpBottomLevelAS[3];
     AccelerationStructureBuffers	mTopLevelBuffers;
     uint64_t						mTlasSize = 0;
 
@@ -207,4 +202,7 @@ private:
 	} mLight;
 
 	#endif // HYBRID
+
+	std::map<std::string, Model> mModels;
+	
 };

@@ -280,99 +280,6 @@ ID3D12ResourcePtr createBuffer(ID3D12Device5Ptr pDevice, uint64_t size, D3D12_RE
     return pBuffer;
 }
 
-
-ID3D12ResourcePtr createPlaneVB(ID3D12Device5Ptr pDevice)
-{
-    const vec3 vertices[] =
-    {
-        vec3(-1, 0,  -1),
-        vec3( 1, 0,  1),
-        vec3(-1, 0,  1),
-        vec3( 1, 0,  -1),
-    };			   
-
-    // For simplicity, we create the vertex buffer on the upload heap, but that's not required
-    ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(vertices), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-    uint8_t* pData;
-    pBuffer->Map(0, nullptr, (void**)&pData);
-    memcpy(pData, vertices, sizeof(vertices));
-    pBuffer->Unmap(0, nullptr);
-    return pBuffer;
-}
-
-ID3D12ResourcePtr createPlaneIB(ID3D12Device5Ptr pDevice)
-{
-	const uint indices[] =
-	{
-		0,
-		2,
-		3,
-		1,
-		3,
-		2
-	};// left hand oriented!
-
-	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
-	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(indices), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-	uint8_t* pData;
-	pBuffer->Map(0, nullptr, (void**)&pData);
-	memcpy(pData, indices, sizeof(indices));
-	pBuffer->Unmap(0, nullptr);
-	return pBuffer;
-}
-
-ID3D12ResourcePtr createPlaneNB(ID3D12Device5Ptr pDevice)
-{
-	const vec3 normals[] =
-	{
-		vec3(0, 1, 0),
-		vec3(0, 1, 0),
-		vec3(0, 1, 0),
-		vec3(0, 1, 0)
-	};
-
-	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
-	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(normals), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-	uint8_t* pData;
-	pBuffer->Map(0, nullptr, (void**)&pData);
-	memcpy(pData, normals, sizeof(normals));
-	pBuffer->Unmap(0, nullptr);
-	return pBuffer;
-}
-
-ID3D12ResourcePtr createModelVB(ID3D12Device5Ptr pDevice, aiVector3D* aiVertecies, int numVertices)
-{
-	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, numVertices*sizeof(vec3), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-	uint8_t* pData;
-	pBuffer->Map(0, nullptr, (void**)&pData);
-		memcpy(pData, aiVertecies, numVertices*sizeof(vec3));
-	pBuffer->Unmap(0, nullptr);
-	return pBuffer;
-}
-
-ID3D12ResourcePtr createModelIB(ID3D12Device5Ptr pDevice, aiFace* aiFaces, int numFaces)
-{
-	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, numFaces * 3 * sizeof(uint), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-	uint8_t* pData;
-	pBuffer->Map(0, nullptr, (void**)&pData);
-		for (int i = 0; i < numFaces; i++)
-		{
-			memcpy(pData + i*3*sizeof(uint), aiFaces[i].mIndices, 3 * sizeof(uint));
-		}
-	pBuffer->Unmap(0, nullptr);
-	return pBuffer;
-}
-
-ID3D12ResourcePtr createModelNB(ID3D12Device5Ptr pDevice, aiVector3D* aiNormals, int numNormals)
-{
-	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, numNormals * sizeof(vec3), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-	uint8_t* pData;
-	pBuffer->Map(0, nullptr, (void**)&pData);
-		memcpy(pData, aiNormals, numNormals * sizeof(vec3));
-	pBuffer->Unmap(0, nullptr);
-	return pBuffer;
-}
-
 void PathTracer::createHDRTextureBuffer()
 {
 	ID3D12ResourcePtr textureUploadHeap;
@@ -452,30 +359,28 @@ void PathTracer::buildTransforms(float rotation)
 {
 	mat4 rotationMat = eulerAngleY(rotation*0.5f);
 	// plane
-	mTransforms[0] = scale(10.0f*vec3(1.0f, 1.0f, 1.0f));
+	mModels["Plane"].setTransform( scale(10.0f*vec3(1.0f, 1.0f, 1.0f)) );
 	// area light
-	mTransforms[1] = translate(mat4(), vec3(0.0, 15, 0.0)) * eulerAngleX(pi<float>()) * scale(5.0f*vec3(0.5f, 0.5f, 0.5f));
+	mModels["Area light"].setTransform( translate(mat4(), vec3(0.0, 15, 0.0)) * eulerAngleX(pi<float>()) * scale(5.0f*vec3(0.5f, 0.5f, 0.5f)) );
 	// robot
-	mTransforms[2] = rotationMat * translate(mat4(), vec3(2, 1.39, 2 * sin(rotation*0.7f))) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f));
-	// room
-	//transformation[3] = scale(100.0f*vec3(1.0f, 1.0f, 1.0f));
+	mModels["Robot"].setTransform( rotationMat * translate(mat4(), vec3(2, 1.39, 2 * sin(rotation*0.7f))) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f)) );
 
 }
 
-#ifdef HYBRID
-void PathTracer::createTransformBuffers()
-{
-	for (int i = 0; i < mNumInstances; i++)
-	{
-		mpTransformBuffer[i] = createBuffer(mpDevice, sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-	}
-	mpTransformBuffer[0]->SetName(L"Plane Transform");
-	mpTransformBuffer[1]->SetName(L"Area Light Transform");
-	mpTransformBuffer[2]->SetName(L"Robot Transform");
-}
-#endif
+//#ifdef HYBRID
+//void PathTracer::createTransformBuffers()
+//{
+//	for (int i = 0; i < mNumInstances; i++)
+//	{
+//		mpTransformBuffer[i] = createBuffer(mpDevice, sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+//	}
+//	mpTransformBuffer[0]->SetName(L"Plane Transform");
+//	mpTransformBuffer[1]->SetName(L"Area Light Transform");
+//	mpTransformBuffer[2]->SetName(L"Robot Transform");
+//}
+//#endif
 
-PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], ID3D12ResourcePtr pIB[], const uint32_t indexCount[], uint32_t geometryCount)
+AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], ID3D12ResourcePtr pIB[], const uint32_t indexCount[], uint32_t geometryCount)
 {
     std::vector<D3D12_RAYTRACING_GEOMETRY_DESC> geomDesc;
     geomDesc.resize(geometryCount);
@@ -505,7 +410,7 @@ PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pD
     pDevice->GetRaytracingAccelerationStructurePrebuildInfo(&inputs, &info);
 
     // Create the buffers. They need to support UAV, and since we are going to immediately use them, we create them with an unordered-access state
-    PathTracer::AccelerationStructureBuffers buffers;
+    AccelerationStructureBuffers buffers;
     buffers.pScratch = createBuffer(pDevice, info.ScratchDataSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COMMON, kDefaultHeapProps);
     buffers.pResult = createBuffer(pDevice, info.ResultDataMaxSizeInBytes, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, kDefaultHeapProps);
 
@@ -526,7 +431,7 @@ PathTracer::AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pD
     return buffers;
 }
 
-void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, mat4 transforms[], PathTracer::AccelerationStructureBuffers& buffers)
+void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, std::map<std::string, Model> models, AccelerationStructureBuffers& buffers)
 {
 	int numInstances = 3; // keep in sync with mNumInstances
 
@@ -571,7 +476,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 0; // hard coded
 		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 		// GLM is column major, the INSTANCE_DESC is row major
-		memcpy(instanceDescs[instanceIdx].Transform, &transpose(transforms[instanceIdx]), sizeof(instanceDescs[instanceIdx].Transform));
+		memcpy(instanceDescs[instanceIdx].Transform, &transpose(models["Plane"].getTransformMatrix()), sizeof(instanceDescs[instanceIdx].Transform));
 		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
 		instanceDescs[instanceIdx].InstanceMask = 0xFF;
 
@@ -583,7 +488,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2; // hard coded
 	instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
 	// GLM is column major, the INSTANCE_DESC is row major
-	memcpy(instanceDescs[instanceIdx].Transform, &transpose(transforms[instanceIdx]), sizeof(instanceDescs[instanceIdx].Transform));
+	memcpy(instanceDescs[instanceIdx].Transform, &transpose(models["Area light"].getTransformMatrix()), sizeof(instanceDescs[instanceIdx].Transform));
 	instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
 	instanceDescs[instanceIdx].InstanceMask = 0xFF;
 
@@ -595,27 +500,13 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 		instanceDescs[instanceIdx].InstanceID = i; // This value will be exposed to the shader via InstanceID()
 		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 4;  // hard coded
 		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		mat4 m = transpose(transforms[instanceIdx]); // GLM is column major, the INSTANCE_DESC is row major
+		mat4 m = transpose(models["Robot"].getTransformMatrix()); // GLM is column major, the INSTANCE_DESC is row major
 		memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
 		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[1]->GetGPUVirtualAddress();
 		instanceDescs[instanceIdx].InstanceMask = 0xFF;
 
 		instanceIdx++;
 	}
-
-	//// Create the desc for the room
-	//for (uint32_t i = 0; i < 8; i++)
-	//{
-	//	instanceDescs[instanceIdx].InstanceID = i; // This value will be exposed to the shader via InstanceID()
-	//	instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 0;  // hard coded
-	//	instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-	//	mat4 m = transpose(transformation[3]); // GLM is column major, the INSTANCE_DESC is row major
-	//	memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
-	//	instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[2+i]->GetGPUVirtualAddress();
-	//	instanceDescs[instanceIdx].InstanceMask = 0xFF;
-
-	//	instanceIdx++;
-	//}
 
 	assert(instanceIdx == numInstances);
 
@@ -647,135 +538,30 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 
 void PathTracer::createAccelerationStructures()
 {
-
-    mpVertexBuffer[0] = createPlaneVB(mpDevice);
-		mpVertexBuffer[0]->SetName(L"Plane Vertex Buffer");
-	mpIndexBuffer[0] = createPlaneIB(mpDevice);
-		mpIndexBuffer[0]->SetName(L"Plane Index Buffer");
-	mpNormalBuffer[0] = createPlaneNB(mpDevice);
-		mpNormalBuffer[0]->SetName(L"Plane Normal Buffer");
-#ifdef HYBRID
-	mVertexBufferView[0].BufferLocation = mpVertexBuffer[0]->GetGPUVirtualAddress();
-	mVertexBufferView[0].StrideInBytes = sizeof(vec3);
-	mVertexBufferView[0].SizeInBytes = 4 * sizeof(vec3);//hard coded
-
-	mIndexBufferView[0].BufferLocation = mpIndexBuffer[0]->GetGPUVirtualAddress();
-	mIndexBufferView[0].Format = DXGI_FORMAT_R32_UINT;
-	mIndexBufferView[0].SizeInBytes = 6 * sizeof(uint);
-#endif
-
+	// Load plane
+	Model plane(L"Plane");
+	mModels["Plane"] = plane;
+	AccelerationStructureBuffers planeAS = mModels["Plane"].loadModelHardCodedPlane(mpDevice, mpCmdList);
+	mpBottomLevelAS[0] = planeAS.pResult;
+		mpBottomLevelAS[0]->SetName(L"BLAS Plane");
 
 	// Load robot
-	const aiScene* robotScene = importer.ReadFile("Data/Models/robot.fbx",
-		aiProcess_CalcTangentSpace		|
-		aiProcess_JoinIdenticalVertices	|
-		aiProcess_Triangulate			|
-		aiProcess_GenNormals			|
-		aiProcess_FixInfacingNormals	|
-		aiProcess_GenUVCoords			|
-		aiProcess_TransformUVCoords		|
-		aiProcess_MakeLeftHanded		|
-		aiProcess_FindInvalidData);
-	aiMesh* robot = robotScene->mMeshes[0];
-	
-	mpVertexBuffer[1] = createModelVB(mpDevice, robot->mVertices, robot->mNumVertices);
-		mpVertexBuffer[1]->SetName(L"Robot Vertex Buffer");
-	mpIndexBuffer[1] = createModelIB(mpDevice, robot->mFaces, robot->mNumFaces);
-		mpIndexBuffer[1]->SetName(L"Robot Index Buffer");
-	mpNormalBuffer[1] = createModelNB(mpDevice, robot->mNormals, robot->mNumVertices);
-		mpNormalBuffer[1]->SetName(L"Robot Normal Buffer");
-#ifdef HYBRID
-	mVertexBufferView[1].BufferLocation = mpVertexBuffer[1]->GetGPUVirtualAddress();
-	mVertexBufferView[1].StrideInBytes = sizeof(vec3);
-	mVertexBufferView[1].SizeInBytes = robot->mNumVertices * sizeof(vec3);
-
-	mIndexBufferView[1].BufferLocation = mpIndexBuffer[1]->GetGPUVirtualAddress();
-	mIndexBufferView[1].Format = DXGI_FORMAT_R32_UINT;
-	mIndexBufferView[1].SizeInBytes = robot->mNumFaces * 3 * sizeof(uint);
-#endif
-
-	
-	//// Load room
-	//const aiScene* roomScene = importer.ReadFile("Data/Models/room_with_window.fbx",
-	//	aiProcess_CalcTangentSpace |
-	//	aiProcess_JoinIdenticalVertices |
-	//	aiProcess_Triangulate |
-	//	aiProcess_GenNormals |
-	//	aiProcess_FixInfacingNormals |
-	//	aiProcess_GenUVCoords |
-	//	aiProcess_TransformUVCoords |
-	//	aiProcess_MakeLeftHanded |
-	//	aiProcess_FindInvalidData);
-	//aiNode** rootNodeChildren = roomScene->mRootNode->mChildren;
-	//aiMesh* room[8];
-	//for (int i = 0; i < 8; i++)
-	//{
-	//	aiNode* child = rootNodeChildren[i];
-
-	//	room[i] = roomScene->mMeshes[0];
-	//	mpVertexBuffer[2+i] = createRoomVB(mpDevice, room[i]->mVertices, room[i]->mNumVertices);
-	//	mpIndexBuffer[2+i] = createRoomIB(mpDevice, room[i]->mFaces, room[i]->mNumFaces);
-	//	mpNormalBuffer[2+i] = createRoomNB(mpDevice, room[i]->mNormals, room[i]->mNumVertices);
-	//}
-	
-	
-    AccelerationStructureBuffers bottomLevelBuffers[2];
-
-    // The first bottom-level buffer is for the plane
-		ID3D12ResourcePtr vertexBufferPlane[] = { mpVertexBuffer[0] };
-		const uint32_t vertexCountPlane[] = { 4 };// Plane has 4
-		ID3D12ResourcePtr indexBufferPlane[] = { mpIndexBuffer[0] };
-		const uint32_t indexCountPlane[] = { 6 };
-		bottomLevelBuffers[0] = createBottomLevelAS(
-													mpDevice, 
-													mpCmdList, 
-													vertexBufferPlane, 
-													vertexCountPlane, 
-													indexBufferPlane, 
-													indexCountPlane, 
-													1
-												   );
-		mpBottomLevelAS[0] = bottomLevelBuffers[0].pResult;
-			mpBottomLevelAS[0]->SetName(L"BLAS Plane");
-
-	// The second bottom-level buffer is for the robot
-		ID3D12ResourcePtr vertexBufferRobot[] = { mpVertexBuffer[1] };
-		const uint32_t vertexCountRobot[] = { robot->mNumVertices };
-		ID3D12ResourcePtr indexBufferRobot[] = { mpIndexBuffer[1] };
-		const uint32_t indexCountRobot[] = { robot->mNumFaces * 3};
-		bottomLevelBuffers[1] = createBottomLevelAS(
-													mpDevice, 
-													mpCmdList, 
-													vertexBufferRobot, 
-													vertexCountRobot, 
-													indexBufferRobot, 
-													indexCountRobot, 
-													1
-												   );
-		mpBottomLevelAS[1] = bottomLevelBuffers[1].pResult;
+	Model robot(L"Robot");
+	mModels["Robot"] = robot;
+	AccelerationStructureBuffers robotAS = mModels["Robot"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/robot.fbx", &importer);
+	mpBottomLevelAS[1] = robotAS.pResult;
 			mpBottomLevelAS[1]->SetName(L"BLAS Robot");
 
-	//// Then set up the Room buffers
-	//	for (int i = 0; i < 8; i++)
-	//	{
-	//		ID3D12ResourcePtr vertexBufferRoom[] = { mpVertexBuffer[2+i] };
-	//		const uint32_t vertexCountRoom[] = { room[i]->mNumVertices };
-	//		ID3D12ResourcePtr indexBufferRoom[] = { mpIndexBuffer[2+i] };
-	//		const uint32_t indexCountRoom[] = { room[i]->mNumFaces * 3 };
-	//		bottomLevelBuffers[2+i] = createBottomLevelAS(
-	//			mpDevice,
-	//			mpCmdList,
-	//			vertexBufferRoom,
-	//			vertexCountRoom,
-	//			indexBufferRoom,
-	//			indexCountRoom,
-	//			1
-	//		);
-	//		mpBottomLevelAS[2+i] = bottomLevelBuffers[2+i].pResult;
-	//	}
+	// Load area light
+	Model areaLight(L"Area light");
+	mModels["Area light"] = areaLight;
+	AccelerationStructureBuffers areaLightAS = mModels["Area light"].loadModelHardCodedPlane(mpDevice, mpCmdList);
+	mpBottomLevelAS[2] = areaLightAS.pResult;
+		mpBottomLevelAS[2]->SetName(L"BLAS Area light");
+
 
     // Create the TLAS
-    buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, false, mTransforms, mTopLevelBuffers);
+    buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, false, mModels, mTopLevelBuffers);
 
     // The tutorial doesn't have any resource lifetime management, so we flush and sync here. 
 	//This is not required by the DXR spec - you can submit the list whenever you like as long as you take care of the resources lifetime.
@@ -1493,7 +1279,7 @@ void PathTracer::createShaderTable()
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry2 = heapStart + heapEntrySize;
 			pEntry2 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
 		// Normal buffer
-			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry2 = mpNormalBuffer[0]->GetGPUVirtualAddress();
+			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry2 = mModels["Plane"].getNormalBufferGPUAdress();
 			pEntry2 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
 		// Shadow maps
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry2 = heapStart + 5 * heapEntrySize;
@@ -1526,10 +1312,10 @@ void PathTracer::createShaderTable()
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry4 = heapStart + heapEntrySize;
 			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
 		// Index buffer
-			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry4 = mpIndexBuffer[1]->GetGPUVirtualAddress();
+			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry4 = mModels["Robot"].getIndexBufferGPUAdress();
 			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
 		// Normal buffer
-			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry4 = mpNormalBuffer[1]->GetGPUVirtualAddress();
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = mModels["Robot"].getNormalBufferGPUAdress();
 			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
 		// Shadow maps
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry4 = heapStart + 5 * heapEntrySize;
@@ -2006,12 +1792,9 @@ void PathTracer::updateLightBuffer()
 
 void PathTracer::updateTransformBuffers()
 {
-	for (int i = 0; i < mNumInstances; i++)
+	for (auto it = mModels.begin(); it != mModels.end(); ++it)
 	{
-		uint8_t* pData;
-		d3d_call(mpTransformBuffer[i]->Map(0, nullptr, (void**)&pData));
-			memcpy(pData, &mTransforms[i], sizeof(mat4));
-		mpTransformBuffer[i]->Unmap(0, nullptr);
+		it->second.updateTransformBuffer();
 	}
 }
 
@@ -2138,41 +1921,40 @@ void PathTracer::renderDepthToTexture()
 	// Render Plane
 
 		// Model to World Transform
-		mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[0]->GetGPUVirtualAddress());
+		mpCmdList->SetGraphicsRootConstantBufferView(1, mModels["Plane"].getTransformBufferGPUAdress());
 		// Normal buffer
-		mpCmdList->SetGraphicsRootShaderResourceView(2, mpNormalBuffer[0]->GetGPUVirtualAddress());
+		mpCmdList->SetGraphicsRootShaderResourceView(2, mModels["Plane"].getNormalBufferGPUAdress());
 		// Vertex and Index buffers
-		mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[0]);
-		mpCmdList->IASetIndexBuffer(&mIndexBufferView[0]);
+		mpCmdList->IASetVertexBuffers(0, 1, mModels["Plane"].getVertexBufferView());
+		mpCmdList->IASetIndexBuffer(mModels["Plane"].getIndexBufferView());
 
 		// Draw
-		mpCmdList->DrawIndexedInstanced(mIndexBufferView[0].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+		mpCmdList->DrawIndexedInstanced(mModels["Plane"].getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
 
 	// render robot
-
 		// Model to World Transform
-		mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[2]->GetGPUVirtualAddress());
+		mpCmdList->SetGraphicsRootConstantBufferView(1, mModels["Robot"].getTransformBufferGPUAdress());
 		// Normal buffer
-		mpCmdList->SetGraphicsRootShaderResourceView(2, mpNormalBuffer[1]->GetGPUVirtualAddress());
+		mpCmdList->SetGraphicsRootShaderResourceView(2, mModels["Robot"].getNormalBufferGPUAdress());
 		// Vertex and Index buffers
-		mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[1]);
-		mpCmdList->IASetIndexBuffer(&mIndexBufferView[1]);
+		mpCmdList->IASetVertexBuffers(0, 1,mModels["Robot"].getVertexBufferView());
+		mpCmdList->IASetIndexBuffer(mModels["Robot"].getIndexBufferView());
 
 		// Draw
-		mpCmdList->DrawIndexedInstanced(mIndexBufferView[1].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+		mpCmdList->DrawIndexedInstanced(mModels["Robot"].getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
 
 	// Render area light
 
 		// Model to World Transform
-		mpCmdList->SetGraphicsRootConstantBufferView(1, mpTransformBuffer[1]->GetGPUVirtualAddress());
+		mpCmdList->SetGraphicsRootConstantBufferView(1, mModels["Area light"].getTransformBufferGPUAdress());
 		// Normal buffer
-		mpCmdList->SetGraphicsRootShaderResourceView(2, mpNormalBuffer[0]->GetGPUVirtualAddress());
+		mpCmdList->SetGraphicsRootShaderResourceView(2, mModels["Area light"].getNormalBufferGPUAdress());
 		// Vertex and Index buffers
-		mpCmdList->IASetVertexBuffers(0, 1, &mVertexBufferView[0]);
-		mpCmdList->IASetIndexBuffer(&mIndexBufferView[0]);
+		mpCmdList->IASetVertexBuffers(0, 1, mModels["Area light"].getVertexBufferView());
+		mpCmdList->IASetIndexBuffer(mModels["Area light"].getIndexBufferView());
 
 		// Draw
-		mpCmdList->DrawIndexedInstanced(mIndexBufferView[0].SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+		mpCmdList->DrawIndexedInstanced(mModels["Area light"].getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
 
 
 	// submit command list and reset
@@ -2194,14 +1976,13 @@ void PathTracer::renderDepthToTexture()
 void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 {
     initDXR(winHandle, winWidth, winHeight);        // Tutorial 02
-	buildTransforms(mRotation);
     createAccelerationStructures();                 // Tutorial 03
+	buildTransforms(mRotation);
     createRtPipelineState();                        // Tutorial 04
 #ifdef HYBRID
 	createRasterPipelineState();
 	createLightBuffer();
 	createShadowMapTextures();
-	createTransformBuffers();
 #endif
 	createCameraBuffer();							// My own
 	createHDRTextureBuffer();
@@ -2246,7 +2027,7 @@ void PathTracer::onFrameRender(bool *gKeys)
 	updateCameraBuffer();
 
     // Refit the top-level acceleration structure
-    buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, true, mTransforms, mTopLevelBuffers);
+    buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, true, mModels, mTopLevelBuffers);
     
 
     // Let's raytrace

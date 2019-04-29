@@ -54,6 +54,7 @@
 #include <chrono>
 #include "Externals/DirectXTex/DirectXTex.h"
 #include <pix.h>
+#include <map>
 
 using namespace glm;
 //using namespace System::Windows::Input;
@@ -125,3 +126,11 @@ std::string convertBlobToString(BlotType* pBlob)
 
 extern float mDeltaTime;
 extern int frameCount;
+
+///////////////////////
+struct AccelerationStructureBuffers
+{
+	ID3D12ResourcePtr pScratch;
+	ID3D12ResourcePtr pResult;
+	ID3D12ResourcePtr pInstanceDesc;    // Used only for top-level AS
+};
