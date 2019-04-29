@@ -934,7 +934,7 @@ RootSignatureDesc createRayGenRootDesc()
 RootSignatureDesc createPlaneHitRootDesc()
 {
     RootSignatureDesc desc;
-    desc.range.resize(5);
+    desc.range.resize(6);
 
 	// gRtScene
     desc.range[0].BaseShaderRegister = 0; //t0
@@ -943,33 +943,40 @@ RootSignatureDesc createPlaneHitRootDesc()
     desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
     desc.range[0].OffsetInDescriptorsFromTableStart = 0;
 
-	// Shadow map Depth
-	desc.range[1].BaseShaderRegister = 0; //t0
+	// Light Position
+	desc.range[1].BaseShaderRegister = 0; //b0
 	desc.range[1].NumDescriptors = 1;
 	desc.range[1].RegisterSpace = 1;
-	desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 	desc.range[1].OffsetInDescriptorsFromTableStart = 0;
 
-	// Shadow map Position
-	desc.range[2].BaseShaderRegister = 1; //t1
+	// Shadow map Depth
+	desc.range[2].BaseShaderRegister = 0; //t0
 	desc.range[2].NumDescriptors = 1;
 	desc.range[2].RegisterSpace = 1;
 	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[2].OffsetInDescriptorsFromTableStart = 1;
 
-	// Shadow map Normal
-	desc.range[3].BaseShaderRegister = 2; //t2
+	// Shadow map Position
+	desc.range[3].BaseShaderRegister = 1; //t1
 	desc.range[3].NumDescriptors = 1;
 	desc.range[3].RegisterSpace = 1;
 	desc.range[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[3].OffsetInDescriptorsFromTableStart = 2;
 
-	// Shadow map Flux
-	desc.range[4].BaseShaderRegister = 3; //t3
+	// Shadow map Normal
+	desc.range[4].BaseShaderRegister = 2; //t2
 	desc.range[4].NumDescriptors = 1;
 	desc.range[4].RegisterSpace = 1;
 	desc.range[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[4].OffsetInDescriptorsFromTableStart = 3;
+
+	// Shadow map Flux
+	desc.range[5].BaseShaderRegister = 3; //t3
+	desc.range[5].NumDescriptors = 1;
+	desc.range[5].RegisterSpace = 1;
+	desc.range[5].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[5].OffsetInDescriptorsFromTableStart = 4;
 
     desc.rootParams.resize(3);
     desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
@@ -983,7 +990,7 @@ RootSignatureDesc createPlaneHitRootDesc()
 
 	// Shadow maps
 	desc.rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	desc.rootParams[2].DescriptorTable.NumDescriptorRanges = 4;
+	desc.rootParams[2].DescriptorTable.NumDescriptorRanges = 5;
 	desc.rootParams[2].DescriptorTable.pDescriptorRanges = desc.range.data() + 1;
 
     desc.desc.NumParameters = 3;
@@ -996,7 +1003,7 @@ RootSignatureDesc createPlaneHitRootDesc()
 RootSignatureDesc createRobotHitRootDesc()
 {
 	RootSignatureDesc desc;
-	desc.range.resize(5);
+	desc.range.resize(6);
 
 	// gRtScene
 	desc.range[0].BaseShaderRegister = 0; //t0
@@ -1005,33 +1012,40 @@ RootSignatureDesc createRobotHitRootDesc()
 	desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[0].OffsetInDescriptorsFromTableStart = 0;
 
-	// Shadow map Depth
-	desc.range[1].BaseShaderRegister = 0; //t0
+	// Light Position
+	desc.range[1].BaseShaderRegister = 0; //b0
 	desc.range[1].NumDescriptors = 1;
 	desc.range[1].RegisterSpace = 1;
-	desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 	desc.range[1].OffsetInDescriptorsFromTableStart = 0;
 
-	// Shadow map Position
-	desc.range[2].BaseShaderRegister = 1; //t1
+	// Shadow map Depth
+	desc.range[2].BaseShaderRegister = 0; //t0
 	desc.range[2].NumDescriptors = 1;
 	desc.range[2].RegisterSpace = 1;
 	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[2].OffsetInDescriptorsFromTableStart = 1;
 
-	// Shadow map Normal
-	desc.range[3].BaseShaderRegister = 2; //t2
+	// Shadow map Position
+	desc.range[3].BaseShaderRegister = 1; //t1
 	desc.range[3].NumDescriptors = 1;
 	desc.range[3].RegisterSpace = 1;
 	desc.range[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[3].OffsetInDescriptorsFromTableStart = 2;
 
-	// Shadow map Flux
-	desc.range[4].BaseShaderRegister = 3; //t3
+	// Shadow map Normal
+	desc.range[4].BaseShaderRegister = 2; //t2
 	desc.range[4].NumDescriptors = 1;
 	desc.range[4].RegisterSpace = 1;
 	desc.range[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[4].OffsetInDescriptorsFromTableStart = 3;
+
+	// Shadow map Flux
+	desc.range[5].BaseShaderRegister = 3; //t3
+	desc.range[5].NumDescriptors = 1;
+	desc.range[5].RegisterSpace = 1;
+	desc.range[5].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[5].OffsetInDescriptorsFromTableStart = 4;
 
 	desc.rootParams.resize(4);
 	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
@@ -1050,7 +1064,7 @@ RootSignatureDesc createRobotHitRootDesc()
 
 	// Shadow maps
 	desc.rootParams[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	desc.rootParams[3].DescriptorTable.NumDescriptorRanges = 4;
+	desc.rootParams[3].DescriptorTable.NumDescriptorRanges = 5;
 	desc.rootParams[3].DescriptorTable.pDescriptorRanges = desc.range.data() + 1;
 
 	desc.desc.NumParameters = 4;
@@ -1453,7 +1467,7 @@ void PathTracer::createShaderTable()
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry0 = heapStart;
 			pEntry0 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
 		// Shadow maps
-			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry0 = heapStart + 5 * heapEntrySize;
+			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry0 = heapStart + 6 * heapEntrySize;
 		entryIndex++;
 
     // Entry 1 - primary ray miss
@@ -1562,7 +1576,7 @@ void PathTracer::createShaderResources()
 	//  - 1 for the light buffer
 	//  - 4 for the Shadow map (depth, position, normal, flux)
 
-	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 9, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 10, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #else
     mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 4, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #endif
@@ -1623,6 +1637,16 @@ void PathTracer::createShaderResources()
 		mpDevice->CreateConstantBufferView(&cbvLightDesc, cbvLightHandle);
 		mLightBufferView = cbvLightHandle;
 
+	// Create the CBV for the Light Position buffer
+		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvLightPositionDesc = {};
+		cbvLightPositionDesc.BufferLocation = mpLightPositionBuffer->GetGPUVirtualAddress();
+		cbvLightPositionDesc.SizeInBytes = (mLightPositionBufferSize + 255) & ~255; // align to 256
+
+		D3D12_CPU_DESCRIPTOR_HANDLE cbvLightPositionHandle = cbvSrvHeapStart;
+		cbvLightPositionHandle.ptr += 5 * cbvSrvDescriptorSize;
+
+		mpDevice->CreateConstantBufferView(&cbvLightPositionDesc, cbvLightPositionHandle);
+
 	// Create the SRV for the Shadow map Depth
 		D3D12_SHADER_RESOURCE_VIEW_DESC shadowMapSrvDesc = {};
 		shadowMapSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
@@ -1631,7 +1655,7 @@ void PathTracer::createShaderResources()
 		shadowMapSrvDesc.Texture2D.MipLevels = 1;
 
 		D3D12_CPU_DESCRIPTOR_HANDLE srvShadowMapDepthHandle = cbvSrvHeapStart;
-		srvShadowMapDepthHandle.ptr += 5 * cbvSrvDescriptorSize;
+		srvShadowMapDepthHandle.ptr += 6 * cbvSrvDescriptorSize;
 
 		mpDevice->CreateShaderResourceView(mpShadowMapTexture_Depth, &shadowMapSrvDesc, srvShadowMapDepthHandle);
 
@@ -1639,19 +1663,19 @@ void PathTracer::createShaderResources()
 		shadowMapSrvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 
 		D3D12_CPU_DESCRIPTOR_HANDLE srvShadowMapPositionHandle = cbvSrvHeapStart;
-		srvShadowMapPositionHandle.ptr += 6 * cbvSrvDescriptorSize;
+		srvShadowMapPositionHandle.ptr += 7 * cbvSrvDescriptorSize;
 
 		mpDevice->CreateShaderResourceView(mpShadowMapTexture_Position, &shadowMapSrvDesc, srvShadowMapPositionHandle);
 
 	// Create the SRV for the Shadow map Normal
 		D3D12_CPU_DESCRIPTOR_HANDLE srvShadowMapNormalHandle = cbvSrvHeapStart;
-		srvShadowMapNormalHandle.ptr += 7 * cbvSrvDescriptorSize;
+		srvShadowMapNormalHandle.ptr += 8 * cbvSrvDescriptorSize;
 
 		mpDevice->CreateShaderResourceView(mpShadowMapTexture_Normal, &shadowMapSrvDesc, srvShadowMapNormalHandle);
 
 	// Create the SRV for the Shadow map Normal
 		D3D12_CPU_DESCRIPTOR_HANDLE srvShadowMapFluxHandle = cbvSrvHeapStart;
-		srvShadowMapFluxHandle.ptr += 8 * cbvSrvDescriptorSize;
+		srvShadowMapFluxHandle.ptr += 9 * cbvSrvDescriptorSize;
 
 		mpDevice->CreateShaderResourceView(mpShadowMapTexture_Flux, &shadowMapSrvDesc, srvShadowMapFluxHandle);
 
@@ -1940,9 +1964,13 @@ void PathTracer::createLightBuffer()
 	// Left-hand system, depth from 0 to 1
 	float fFar = 40.0f;
 	mLight.projMat = glm::perspectiveFovLH_ZO(fovAngle, (float) kShadowMapWidth, (float) kShadowMapHeight, 0.1f, fFar);
-	// Make depth linear
-	/*mLight.projMat[2][2] /= fFar;
-	mLight.projMat[3][2] /= fFar;*/
+	
+
+
+	// Light position buffer
+	mpLightPositionBuffer = createBuffer(mpDevice, mLightPositionBufferSize, D3D12_RESOURCE_FLAG_NONE,
+		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	mpLightBuffer->SetName(L"Light Position Buffer");
 }
 
 void PathTracer::updateLightBuffer()
@@ -1964,6 +1992,16 @@ void PathTracer::updateLightBuffer()
 		&mLight.projMat,
 		sizeof(mLight.projMat));
 	mpLightBuffer->Unmap(0, nullptr);
+
+
+	// Light position buffer
+	uint8_t* pDataPosition;
+	d3d_call(mpLightPositionBuffer->Map(0, nullptr, (void**)&pDataPosition));
+	memcpy(pDataPosition,
+		&mLight.position,
+		sizeof(mLight.position));
+	mpLightPositionBuffer->Unmap(0, nullptr);
+
 }
 
 void PathTracer::updateTransformBuffers()

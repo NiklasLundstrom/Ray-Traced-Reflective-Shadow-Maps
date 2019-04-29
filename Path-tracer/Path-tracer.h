@@ -170,6 +170,9 @@ private:
 	ID3D12ResourcePtr			mpLightBuffer;
 	uint32_t					mLightBufferSize = 2 * sizeof(mat4); // view and projection
 	D3D12_CPU_DESCRIPTOR_HANDLE mLightBufferView;
+	ID3D12ResourcePtr			mpLightPositionBuffer;
+	uint32_t					mLightPositionBufferSize = sizeof(float3);
+
 
 	ID3D12DescriptorHeapPtr		mpShadowMapDsvHeap;
 	ID3D12DescriptorHeapPtr		mpShadowMapRtvHeap;
