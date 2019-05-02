@@ -53,7 +53,7 @@ PS_OUTPUT PSMain(PSInput input) : SV_TARGET
 
     output.Position = input.worldPosition;
     output.Normal = float4(input.normal, 1.0);
-    output.Flux = float4(0.0, 0.0, 1.0, 1.0);
+    output.Flux = float4(1.0, 1.0, 1.0, 1.0);
 
     return output;
 

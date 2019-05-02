@@ -24,7 +24,7 @@ Texture2D<float4> gShadowMap_Flux : register(t3, space1);
 
 
 [shader("closesthit")]
-void robotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
+void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
     if (payload.depth <= 0)
     {
@@ -44,23 +44,19 @@ void robotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
         float3 n1 = normals[indices[vertIndex + 1]];
         float3 n2 = normals[indices[vertIndex + 2]];
         float3 normal = n0 * (1 - attribs.barycentrics.x - attribs.barycentrics.y)
-					+ n1 * attribs.barycentrics.x
-					+ n2 * attribs.barycentrics.y;
+				+ n1 * attribs.barycentrics.x
+				+ n2 * attribs.barycentrics.y;
         normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
-        //normal = faceforward(normal, rayDirW, normal);
-
-
+       
 	// get material color
         float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.5f;
 
-	#ifdef HYBRID
+#ifdef HYBRID
         float3 directColor = sampleDirectLight(hitPoint, normal);
-		float3 indirectColor = sampleIndirectLight(hitPoint, normal);
-        
-
+        float3 indirectColor = sampleIndirectLight(hitPoint, normal);
 
         float3 incomingColor = directColor + indirectColor;
-	#else
+#else
 
 
         if (nextRand(payload.seed) < 0.2)
@@ -78,61 +74,9 @@ void robotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 	
 #endif
 
-        payload.color = materialColor * incomingColor;
-    }
-}
-
-[shader("closesthit")]
-void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
-{
-    if (payload.depth <= 0)
-    {
-        payload.color = float3(0.0, 0.0, 0.0);
-    }
-    else
-    {
-		// get hit point
-        float hitT = RayTCurrent();
-        float3 rayDirW = WorldRayDirection();
-        float3 rayOriginW = WorldRayOrigin();
-        float3 hitPoint = rayOriginW + rayDirW * hitT;
-
-		// get normal
-        float3 normal = normals[0];
-        normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
-        //normal = faceforward(normal, rayDirW, normal);
-
-		// get material color
-        float3 materialColor;// = float3(1.0f, 1.0f, 1.0f);
-        int id = InstanceID();
-        if (id <=1 )
-        {
-            materialColor = float3(1.0f, 1.0f, 1.0f);// * 0.5f;
+            payload.color = materialColor * incomingColor;
         }
-        
-		// reflection direction
-        //float3 reflectDir = normalize(normalize(rayDirW) - 2 * dot(normal, normalize(rayDirW)) * normal);
-        
-		
-
-        
-	#ifdef HYBRID
-        float3 directColor = sampleDirectLight(hitPoint, normal);
-		float3 indirectColor = sampleIndirectLight(hitPoint, normal);
-        
-
-        float3 incomingColor = directColor + indirectColor;
-	#else
-		sampleDiffuseLight(hitPoint, normal, payload);
-        float3 incomingColor = payload.color;
-
-	#endif
-
-
-        payload.color = materialColor * incomingColor;
-
     }
-}
 
 [shader("closesthit")]
 void areaLightChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
@@ -158,9 +102,9 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal)
     rayShadow.TMin = 0.0001;
 
     int numSamples = 0;
-    for (int i = 0; i < shadowWidth; i += 2)
+    for (int i = 0; i < shadowWidth; i += 5)
     {
-        for (int j = 0; j < shadowHeight; j += 2)
+        for (int j = 0; j < shadowHeight; j += 5)
         {
 			// sample shadow map
             float4 lightPosData = gShadowMap_Position[uint2(i, j)];
@@ -261,7 +205,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal)
     if (shadowPayload.hit == false) // no occlusion
     {
         
-        outColor = angle * float3(1.0, 0.0, 0.0);
+        outColor = angle * float3(1.0, 1.0, 1.0);
     }
     else // shadow
     {

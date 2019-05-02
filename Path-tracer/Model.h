@@ -5,8 +5,11 @@ class Model
 {
 
 public:
-	Model(LPCWSTR name);
-	Model() { mName = L"unnamed model"; };
+	Model(LPCWSTR name, uint8_t idx);
+	Model() { mName = L"unnamed model"; mModelIndex = 0; };
+
+	LPCWSTR getName() { return mName; }
+	uint8_t getModelIndex() { return mModelIndex; }
 
 	D3D12_VERTEX_BUFFER_VIEW* getVertexBufferView() { return &mVertexBufferView; }
 	D3D12_INDEX_BUFFER_VIEW* getIndexBufferView() { return &mIndexBufferView; }
@@ -15,16 +18,17 @@ public:
 	D3D12_GPU_VIRTUAL_ADDRESS getNormalBufferGPUAdress() { return mpNormalBuffer->GetGPUVirtualAddress(); }
 	D3D12_GPU_VIRTUAL_ADDRESS getTransformBufferGPUAdress() { return mpTransformBuffer->GetGPUVirtualAddress(); }
 
-	AccelerationStructureBuffers loadModelFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter);
+	AccelerationStructureBuffers loadModelFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter, bool loadTransform);
 	AccelerationStructureBuffers loadModelHardCodedPlane(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList);
 
-	void setTransform(mat4 transform) { mModelToWorld = transform; }
+	void setTransform(mat4 transform) { mModelToWorld = transform * mVertexToModel; }
 	void updateTransformBuffer();
 
 protected:
 	
 
 	LPCWSTR mName;
+	uint8_t mModelIndex;
 
 	// Mesh
 	ID3D12ResourcePtr mpVertexBuffer;
@@ -47,6 +51,7 @@ protected:
 
 
 	// transform
+	mat4 mVertexToModel;
 	mat4 mModelToWorld;
 	ID3D12ResourcePtr mpTransformBuffer;
 

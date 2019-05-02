@@ -358,12 +358,15 @@ void PathTracer::createHDRTextureBuffer()
 void PathTracer::buildTransforms(float rotation)
 {
 	mat4 rotationMat = eulerAngleY(rotation*0.5f);
-	// plane
-	mModels["Plane"].setTransform( scale(10.0f*vec3(1.0f, 1.0f, 1.0f)) );
-	// area light
-	mModels["Area light"].setTransform( translate(mat4(), vec3(0.0, 15, 0.0)) * eulerAngleX(pi<float>()) * scale(5.0f*vec3(0.5f, 0.5f, 0.5f)) );
+	// floor
+	mModels["Floor"].setTransform( scale(5.0f*vec3(1.0f, 1.0f, 1.0f)) );
+	mModels["Back wall"].setTransform(scale(5.0f*vec3(1.0f, 1.0f, 1.0f)));
+	mModels["Ceiling"].setTransform(scale(5.0f*vec3(1.0f, 1.0f, 1.0f)));
+	mModels["Window"].setTransform(translate(mat4(), vec3(0.0, -2.5f, 0.0)) * scale(1.0f*vec3(10.0f, 1.0f, 1.0f)));
+	mModels["Left wall outside"].setTransform(scale(5.0f*vec3(1.0f, 1.0f, 1.0f)));
+
 	// robot
-	mModels["Robot"].setTransform( rotationMat * translate(mat4(), vec3(2, 1.39, 2 * sin(rotation*0.7f))) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f)) );
+	mModels["Robot"].setTransform( rotationMat * translate(mat4(), vec3(2+5, 1.39, 2 * sin(rotation*0.7f))) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f)) );
 
 }
 
@@ -433,7 +436,7 @@ AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D1
 
 void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, std::map<std::string, Model> models, AccelerationStructureBuffers& buffers)
 {
-	int numInstances = 3; // keep in sync with mNumInstances
+	int numInstances = 6; // keep in sync with mNumInstances
 
 	// First, get the size of the TLAS buffers and create them
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
@@ -469,40 +472,16 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 
 	// The InstanceContributionToHitGroupIndex is set based on the shader-table layout specified in createShaderTable()
 	int instanceIdx = 0;
-	// Create the desc for the planes
-	for (uint32_t i = 0; i < 1; i++)
+
+	// Create the desc for the models
+	for (auto it = models.begin(); it != models.end(); ++it)
 	{
-		instanceDescs[instanceIdx].InstanceID = i;// This value will be exposed to the shader via InstanceID()
-		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 0; // hard coded
+		instanceDescs[instanceIdx].InstanceID = it->second.getModelIndex(); // This value will be exposed to the shader via InstanceID()
+		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2 * instanceIdx;  // hard coded
 		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		// GLM is column major, the INSTANCE_DESC is row major
-		memcpy(instanceDescs[instanceIdx].Transform, &transpose(models["Plane"].getTransformMatrix()), sizeof(instanceDescs[instanceIdx].Transform));
-		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
-		instanceDescs[instanceIdx].InstanceMask = 0xFF;
-
-		instanceIdx++;
-	}
-
-	// Create the desc for the Area Light
-	instanceDescs[instanceIdx].InstanceID = 0;// This value will be exposed to the shader via InstanceID()
-	instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2; // hard coded
-	instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-	// GLM is column major, the INSTANCE_DESC is row major
-	memcpy(instanceDescs[instanceIdx].Transform, &transpose(models["Area light"].getTransformMatrix()), sizeof(instanceDescs[instanceIdx].Transform));
-	instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[0]->GetGPUVirtualAddress();
-	instanceDescs[instanceIdx].InstanceMask = 0xFF;
-
-	instanceIdx++;
-
-	// Create the desc for the robots
-	for (uint32_t i = 0; i < 1; i++)
-	{
-		instanceDescs[instanceIdx].InstanceID = i; // This value will be exposed to the shader via InstanceID()
-		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 4;  // hard coded
-		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-		mat4 m = transpose(models["Robot"].getTransformMatrix()); // GLM is column major, the INSTANCE_DESC is row major
+		mat4 m = transpose(it->second.getTransformMatrix()); // GLM is column major, the INSTANCE_DESC is row major
 		memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
-		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[1]->GetGPUVirtualAddress();
+		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[it->second.getModelIndex()]->GetGPUVirtualAddress();
 		instanceDescs[instanceIdx].InstanceMask = 0xFF;
 
 		instanceIdx++;
@@ -538,26 +517,55 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 
 void PathTracer::createAccelerationStructures()
 {
-	// Load plane
-	Model plane(L"Plane");
-	mModels["Plane"] = plane;
-	AccelerationStructureBuffers planeAS = mModels["Plane"].loadModelHardCodedPlane(mpDevice, mpCmdList);
-	mpBottomLevelAS[0] = planeAS.pResult;
-		mpBottomLevelAS[0]->SetName(L"BLAS Plane");
+	uint8_t modelIndex = 0;
 
 	// Load robot
-	Model robot(L"Robot");
+	Model robot(L"Robot", modelIndex);
 	mModels["Robot"] = robot;
-	AccelerationStructureBuffers robotAS = mModels["Robot"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/robot.fbx", &importer);
-	mpBottomLevelAS[1] = robotAS.pResult;
-			mpBottomLevelAS[1]->SetName(L"BLAS Robot");
+	AccelerationStructureBuffers robotAS = mModels["Robot"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/robot.fbx", &importer, false);
+	mpBottomLevelAS[modelIndex] = robotAS.pResult;
+			mpBottomLevelAS[modelIndex]->SetName(L"BLAS Robot");
+	modelIndex++;
 
-	// Load area light
-	Model areaLight(L"Area light");
-	mModels["Area light"] = areaLight;
-	AccelerationStructureBuffers areaLightAS = mModels["Area light"].loadModelHardCodedPlane(mpDevice, mpCmdList);
-	mpBottomLevelAS[2] = areaLightAS.pResult;
-		mpBottomLevelAS[2]->SetName(L"BLAS Area light");
+	// Load floor
+	Model floor(L"Floor", modelIndex);
+	mModels["Floor"] = floor;
+	AccelerationStructureBuffers floorAS = mModels["Floor"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/floor.fbx", &importer, true);
+	mpBottomLevelAS[modelIndex] = floorAS.pResult;
+		mpBottomLevelAS[modelIndex]->SetName(L"BLAS Floor");
+	modelIndex++;
+
+	// Load back wall
+	Model backWall(L"Back wall", modelIndex);
+	mModels["Back wall"] = backWall;
+	AccelerationStructureBuffers backWallAS = mModels["Back wall"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/back_wall.fbx", &importer, true);
+	mpBottomLevelAS[modelIndex] = backWallAS.pResult;
+	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Back wall");
+	modelIndex++;
+
+	// Load ceiling
+	Model ceiling(L"Ceiling", modelIndex);
+	mModels["Ceiling"] = ceiling;
+	AccelerationStructureBuffers ceilingAS = mModels["Ceiling"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/ceiling.fbx", &importer, true);
+	mpBottomLevelAS[modelIndex] = ceilingAS.pResult;
+	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Ceiling");
+	modelIndex++;
+
+	// Load window
+	Model window(L"Window", modelIndex);
+	mModels["Window"] = window;
+	AccelerationStructureBuffers windowAS = mModels["Window"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/wall_window.fbx", &importer, true);
+	mpBottomLevelAS[modelIndex] = windowAS.pResult;
+	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Window");
+	modelIndex++;
+
+	// Load left wall outside
+	Model leftWallOutside(L"Left wall outside", modelIndex);
+	mModels["Left wall outside"] = leftWallOutside;
+	AccelerationStructureBuffers leftWallOutsideAS = mModels["Left wall outside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/left_wall_outside.fbx", &importer, true);
+	mpBottomLevelAS[modelIndex] = leftWallOutsideAS.pResult;
+	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Left wall outside");
+	modelIndex++;
 
 
     // Create the TLAS
@@ -716,77 +724,7 @@ RootSignatureDesc createRayGenRootDesc()
     return desc;
 }
 
-
-RootSignatureDesc createPlaneHitRootDesc()
-{
-    RootSignatureDesc desc;
-    desc.range.resize(6);
-
-	// gRtScene
-    desc.range[0].BaseShaderRegister = 0; //t0
-    desc.range[0].NumDescriptors = 1;
-    desc.range[0].RegisterSpace = 0;
-    desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-    desc.range[0].OffsetInDescriptorsFromTableStart = 0;
-
-	// Light Position
-	desc.range[1].BaseShaderRegister = 0; //b0
-	desc.range[1].NumDescriptors = 1;
-	desc.range[1].RegisterSpace = 1;
-	desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
-	desc.range[1].OffsetInDescriptorsFromTableStart = 0;
-
-	// Shadow map Depth
-	desc.range[2].BaseShaderRegister = 0; //t0
-	desc.range[2].NumDescriptors = 1;
-	desc.range[2].RegisterSpace = 1;
-	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	desc.range[2].OffsetInDescriptorsFromTableStart = 1;
-
-	// Shadow map Position
-	desc.range[3].BaseShaderRegister = 1; //t1
-	desc.range[3].NumDescriptors = 1;
-	desc.range[3].RegisterSpace = 1;
-	desc.range[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	desc.range[3].OffsetInDescriptorsFromTableStart = 2;
-
-	// Shadow map Normal
-	desc.range[4].BaseShaderRegister = 2; //t2
-	desc.range[4].NumDescriptors = 1;
-	desc.range[4].RegisterSpace = 1;
-	desc.range[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	desc.range[4].OffsetInDescriptorsFromTableStart = 3;
-
-	// Shadow map Flux
-	desc.range[5].BaseShaderRegister = 3; //t3
-	desc.range[5].NumDescriptors = 1;
-	desc.range[5].RegisterSpace = 1;
-	desc.range[5].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	desc.range[5].OffsetInDescriptorsFromTableStart = 4;
-
-    desc.rootParams.resize(3);
-    desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-    desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
-    desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
-	
-	// normals
-	desc.rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
-	desc.rootParams[1].Descriptor.RegisterSpace = 0;
-	desc.rootParams[1].Descriptor.ShaderRegister = 2;//t2
-
-	// Shadow maps
-	desc.rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	desc.rootParams[2].DescriptorTable.NumDescriptorRanges = 5;
-	desc.rootParams[2].DescriptorTable.pDescriptorRanges = desc.range.data() + 1;
-
-    desc.desc.NumParameters = 3;
-    desc.desc.pParameters = desc.rootParams.data();
-    desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
-
-    return desc;
-}
-
-RootSignatureDesc createRobotHitRootDesc()
+RootSignatureDesc createModelHitRootDesc()
 {
 	RootSignatureDesc desc;
 	desc.range.resize(6);
@@ -942,11 +880,9 @@ struct DxilLibrary
 
 static const WCHAR* kRayGenShader = L"rayGen";
 static const WCHAR* kMissShader = L"miss";
-static const WCHAR* kPlaneChs = L"planeChs";
 static const WCHAR* kAreaLightChs = L"areaLightChs";
-static const WCHAR* kRobotChs = L"robotChs";
-static const WCHAR* kPlaneHitGroup = L"PlaneHitGroup";
-static const WCHAR* kRobotHitGroup = L"RobotHitGroup";
+static const WCHAR* kModelChs = L"modelChs";
+static const WCHAR* kModelHitGroup = L"ModelHitGroup";
 static const WCHAR* kAreaLightHitGroup = L"AreaLightHitGroup";
 static const WCHAR* kShadowMissShader = L"shadowMiss";
 static const WCHAR* kShadowChs = L"shadowChs";
@@ -1057,9 +993,9 @@ void PathTracer::createRtPipelineState()
     //  1 for pipeline config
     //  1 for the global root signature
 #ifdef HYBRID
-	const int numSubobjects = 22;
+	const int numSubobjects = 18;
 #else
-	const int numSubobjects = 20;
+	const int numSubobjects = 14;
 #endif
     std::array<D3D12_STATE_SUBOBJECT, numSubobjects> subobjects;
     uint32_t index = 0;
@@ -1074,7 +1010,7 @@ void PathTracer::createRtPipelineState()
 		DxilLibrary missLib = DxilLibrary(compileLibrary(L"Data/Miss.hlsl", L"", L"lib_6_3"), entryPointsMiss, arraysize(entryPointsMiss));
 		subobjects[index++] = missLib.stateSubobject; // Miss Library
 
-		const WCHAR* entryPointsHit[] = { kRobotChs, kPlaneChs, kAreaLightChs };
+		const WCHAR* entryPointsHit[] = { kModelChs };
 		DxilLibrary hitLib = DxilLibrary(compileLibrary(L"Data/Hit.hlsl", L"", L"lib_6_3"), entryPointsHit, arraysize(entryPointsHit));
 		subobjects[index++] = hitLib.stateSubobject; // Hit Library
 
@@ -1089,17 +1025,10 @@ void PathTracer::createRtPipelineState()
 	
 	//----- Create Hit Programs -----//
 	#pragma region
-		// Create the plane HitProgram
-			HitProgram planeHitProgram(nullptr, kPlaneChs, kPlaneHitGroup);
-			subobjects[index++] = planeHitProgram.subObject; // Plane Hit Group
-
-		// Create the area light HitProgram
-			HitProgram areaLightHitProgram(nullptr, kAreaLightChs, kAreaLightHitGroup);
-			subobjects[index++] = areaLightHitProgram.subObject; // Area Light Hit Group
 		
-		// Create the robot HitProgram
-			HitProgram robotHitProgram(nullptr, kRobotChs, kRobotHitGroup);
-			subobjects[index++] = robotHitProgram.subObject; // Robot Hit Group
+		// Create the model HitProgram
+			HitProgram modelHitProgram(nullptr, kModelChs, kModelHitGroup);
+			subobjects[index++] = modelHitProgram.subObject; // Model Hit Group
 
 #ifdef HYBRID
 		// Create the Shadow-ray HitProgram
@@ -1120,21 +1049,13 @@ void PathTracer::createRtPipelineState()
 			ExportAssociation rgsRootAssociation(&kRayGenShader, 1, &(subobjects[rgsRootIndex]));
 			subobjects[index++] = rgsRootAssociation.subobject; // Associate Root Sig to RGS
 
-		// Create the plane hit root-signature and association
-			LocalRootSignature planeHitRootSignature(mpDevice, createPlaneHitRootDesc().desc);
-			subobjects[index] = planeHitRootSignature.subobject; // Plane Hit Root Sig
+		// Create the model hit root-signature and association
+			LocalRootSignature modelHitRootSignature(mpDevice, createModelHitRootDesc().desc);
+			subobjects[index] = modelHitRootSignature.subobject; // Robot Hit Root Sig
 
-			uint32_t planeHitRootIndex = index++;
-			ExportAssociation planeHitRootAssociation(&kPlaneHitGroup, 1, &(subobjects[planeHitRootIndex]));
-			subobjects[index++] = planeHitRootAssociation.subobject; // Associate Plane Hit Root Sig to Plane Hit Group
-
-		// Create the robot hit root-signature and association
-			LocalRootSignature robotHitRootSignature(mpDevice, createRobotHitRootDesc().desc);
-			subobjects[index] = robotHitRootSignature.subobject; // Robot Hit Root Sig
-
-			uint32_t robotHitRootIndex = index++;
-			ExportAssociation robotHitRootAssociation(&kRobotHitGroup, 1, &(subobjects[robotHitRootIndex]));
-			subobjects[index++] = robotHitRootAssociation.subobject; // Associate Robot Hit Root Sig to Robot Hit Group
+			uint32_t modelHitRootIndex = index++;
+			ExportAssociation modelHitRootAssociation(&kModelHitGroup, 1, &(subobjects[modelHitRootIndex]));
+			subobjects[index++] = modelHitRootAssociation.subobject; // Associate Robot Hit Root Sig to Robot Hit Group
 
 		// Create the miss root-signature and association
 			D3D12_STATIC_SAMPLER_DESC sampler = {};
@@ -1145,20 +1066,18 @@ void PathTracer::createRtPipelineState()
 			ExportAssociation missRootAssociation(&kMissShader, 1, &(subobjects[missRootIndex]));
 			subobjects[index++] = missRootAssociation.subobject; // Associate Miss Root Sig to Miss shader
 
-		// Create the empty root-signature and associate it with the area light
+#ifdef HYBRID
+		// Create the empty root-signature and associate it with the shadow rays
 			D3D12_ROOT_SIGNATURE_DESC emptyDesc = {};
 			emptyDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 			LocalRootSignature emptyRootSignature(mpDevice, emptyDesc);
 			subobjects[index] = emptyRootSignature.subobject; // Empty Root Sig for Area light
 
 			uint32_t emptyRootIndex = index++;
-#ifdef HYBRID
-			const WCHAR* emptyRootExport[] = { kAreaLightChs, kShadowChs, kShadowMissShader };
-#else
-			const WCHAR* emptyRootExport[] = { kAreaLightChs};
-#endif
+			const WCHAR* emptyRootExport[] = { kShadowChs, kShadowMissShader };
 			ExportAssociation emptyRootAssociation(emptyRootExport, arraysize(emptyRootExport), &(subobjects[emptyRootIndex]));
 			subobjects[index++] = emptyRootAssociation.subobject; // Associate empty root sig to Area light and Shadow ray
+#endif
 	#pragma endregion
 
 	//---- Create Shader config, Pipeline config and Global Root-Signature----//
@@ -1170,9 +1089,9 @@ void PathTracer::createRtPipelineState()
 
 		uint32_t primaryShaderConfigIndex = index++;
 #ifdef HYBRID
-		const WCHAR* primaryShaderExports[] = { kRayGenShader, kMissShader, kPlaneChs, kAreaLightChs, kRobotChs, kShadowMissShader, kShadowChs};
+		const WCHAR* primaryShaderExports[] = { kRayGenShader, kMissShader, kModelChs, kShadowMissShader, kShadowChs};
 #else
-		const WCHAR* primaryShaderExports[] = { kRayGenShader, kMissShader, kPlaneChs, kAreaLightChs, kRobotChs};
+		const WCHAR* primaryShaderExports[] = { kRayGenShader, kMissShader, kModelChs};
 #endif
 		ExportAssociation primaryConfigAssociation(primaryShaderExports, arraysize(primaryShaderExports), &(subobjects[primaryShaderConfigIndex]));
 		subobjects[index++] = primaryConfigAssociation.subobject; // Associate shader config to all programs
@@ -1217,9 +1136,9 @@ void PathTracer::createShaderTable()
         The entry size must be aligned up to D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT
     */
 #ifdef HYBRID
-	const int numShaderTableEntries = 9;
+	const int numShaderTableEntries = 3 + 2 * mNumInstances;
 #else
-	const int numShaderTableEntries = 5;
+	const int numShaderTableEntries = 2 + mNumInstances;
 #endif
 
     // Calculate the size and create the buffer
@@ -1271,62 +1190,32 @@ void PathTracer::createShaderTable()
 		entryIndex++;
 #endif
 
-    // Entry 2/3 - Plane, primary ray. ProgramID, TLAS SRV and Normal buffer
-		uint8_t* pEntry2 = pData + mShaderTableEntrySize * entryIndex;
-		memcpy(pEntry2, pRtsoProps->GetShaderIdentifier(kPlaneHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-			pEntry2 += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-		// TLAS
-			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry2 = heapStart + heapEntrySize;
-			pEntry2 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
-		// Normal buffer
-			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry2 = mModels["Plane"].getNormalBufferGPUAdress();
-			pEntry2 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
-		// Shadow maps
-			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry2 = heapStart + 5 * heapEntrySize;
-		entryIndex++;
-
-#ifdef HYBRID
-		// Entry /4 - Plane, shadow ray
-		uint8_t* pEntryPlaneShadow = pData + mShaderTableEntrySize * entryIndex;
-		memcpy(pEntryPlaneShadow, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		entryIndex++;
-#endif
-
-	// Entry 3/5 - Area Light, primary ray.
-		uint8_t* pEntry3 = pData + mShaderTableEntrySize * entryIndex;
-		memcpy(pEntry3, pRtsoProps->GetShaderIdentifier(kAreaLightHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		entryIndex++;
-
-#ifdef HYBRID
-		// Entry /6 - Area Light, shadow ray
-		uint8_t* pEntryAreaLightShadow = pData + mShaderTableEntrySize * entryIndex;
-		memcpy(pEntryAreaLightShadow, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		entryIndex++;
-#endif
-
-	// Entry 4/7 - Robot, primary ray. ProgramID and index-buffer
-		uint8_t* pEntry4 = pData + mShaderTableEntrySize * entryIndex;
-		memcpy(pEntry4, pRtsoProps->GetShaderIdentifier(kRobotHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+	// Entry 2/3 - Model, primary ray. ProgramID and index-buffer
+		for (auto it = mModels.begin(); it != mModels.end(); ++it)
+		{
+			uint8_t* pEntry4 = pData + mShaderTableEntrySize * entryIndex;
+			memcpy(pEntry4, pRtsoProps->GetShaderIdentifier(kModelHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 			pEntry4 += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-		// TLAS
-			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry4 = heapStart + heapEntrySize;
+			// TLAS
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + heapEntrySize;
 			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
-		// Index buffer
-			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry4 = mModels["Robot"].getIndexBufferGPUAdress();
+			// Index buffer
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = it->second.getIndexBufferGPUAdress();
 			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
-		// Normal buffer
-			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = mModels["Robot"].getNormalBufferGPUAdress();
+			// Normal buffer
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = it->second.getNormalBufferGPUAdress();
 			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
-		// Shadow maps
-			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry4 = heapStart + 5 * heapEntrySize;
-		entryIndex++;
+			// Shadow maps
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + 5 * heapEntrySize;
+			entryIndex++;
 		
 #ifdef HYBRID
-		// Entry /8 - Robot, shadow ray
-		uint8_t* pEntryRobotShadow = pData + mShaderTableEntrySize * entryIndex;
-		memcpy(pEntryRobotShadow, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		entryIndex++;
+			// Entry /4 - Model, shadow ray
+			uint8_t* pEntryModelShadow = pData + mShaderTableEntrySize * entryIndex;
+			memcpy(pEntryModelShadow, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+			entryIndex++;
 #endif
+		}
 
     // Unmap
 	assert(entryIndex == numShaderTableEntries);
@@ -1748,7 +1637,7 @@ void PathTracer::createLightBuffer()
 	float fovAngle = glm::quarter_pi<float>();
 	
 	// Left-hand system, depth from 0 to 1
-	float fFar = 40.0f;
+	float fFar = 100.0f;
 	mLight.projMat = glm::perspectiveFovLH_ZO(fovAngle, (float) kShadowMapWidth, (float) kShadowMapHeight, 0.1f, fFar);
 	
 
@@ -1813,17 +1702,17 @@ void PathTracer::createShadowMapTextures()
 	shadowTexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 	shadowTexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
 
-	D3D12_CLEAR_VALUE clearValue;
-	clearValue.Format = DXGI_FORMAT_D32_FLOAT;
-	clearValue.DepthStencil.Depth = 1.0f;
-	clearValue.DepthStencil.Stencil = 0;
+	D3D12_CLEAR_VALUE depthClearValue;
+	depthClearValue.Format = DXGI_FORMAT_D32_FLOAT;
+	depthClearValue.DepthStencil.Depth = 1.0f;
+	depthClearValue.DepthStencil.Stencil = 0;
 
 	d3d_call(mpDevice->CreateCommittedResource(
 		&kDefaultHeapProps,
 		D3D12_HEAP_FLAG_NONE,
 		&shadowTexDesc,
 		D3D12_RESOURCE_STATE_DEPTH_WRITE,
-		&clearValue,
+		&depthClearValue,
 		IID_PPV_ARGS(&mpShadowMapTexture_Depth)
 	));
 	mpShadowMapTexture_Depth->SetName(L"RSM Depth");
@@ -1832,9 +1721,19 @@ void PathTracer::createShadowMapTextures()
 		shadowTexDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		shadowTexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 
-		/*D3D12_CLEAR_VALUE rgbClearValue;
-		rgbClearValue.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		rgbClearValue.Color = 1.0f;*/
+		D3D12_CLEAR_VALUE colorClearValue;
+		colorClearValue.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		colorClearValue.Color[0] = 0.0f;
+		colorClearValue.Color[1] = 0.0f;
+		colorClearValue.Color[2] = 0.0f;
+		colorClearValue.Color[3] = 0.0f;
+
+		D3D12_CLEAR_VALUE normalClearValue;
+		normalClearValue.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		normalClearValue.Color[0] = 0.5f;
+		normalClearValue.Color[1] = 0.5f;
+		normalClearValue.Color[2] = 1.0f;
+		normalClearValue.Color[3] = 0.0f;
 		
 		// position
 
@@ -1843,7 +1742,7 @@ void PathTracer::createShadowMapTextures()
 				D3D12_HEAP_FLAG_NONE,
 				&shadowTexDesc,
 				D3D12_RESOURCE_STATE_RENDER_TARGET,
-				nullptr,
+				&colorClearValue,
 				IID_PPV_ARGS(&mpShadowMapTexture_Position)
 			));
 			mpShadowMapTexture_Position->SetName(L"RSM Position");
@@ -1854,7 +1753,7 @@ void PathTracer::createShadowMapTextures()
 				D3D12_HEAP_FLAG_NONE,
 				&shadowTexDesc,
 				D3D12_RESOURCE_STATE_RENDER_TARGET,
-				nullptr,
+				&normalClearValue,
 				IID_PPV_ARGS(&mpShadowMapTexture_Normal)
 			));
 			mpShadowMapTexture_Normal->SetName(L"RSM Normal");
@@ -1865,7 +1764,7 @@ void PathTracer::createShadowMapTextures()
 				D3D12_HEAP_FLAG_NONE,
 				&shadowTexDesc,
 				D3D12_RESOURCE_STATE_RENDER_TARGET,
-				nullptr,
+				&colorClearValue,
 				IID_PPV_ARGS(&mpShadowMapTexture_Flux)
 			));
 			mpShadowMapTexture_Flux->SetName(L"RSM Flux");
@@ -1910,51 +1809,28 @@ void PathTracer::renderDepthToTexture()
 	// set render target
 	// TODO: fix
 	mpCmdList->OMSetRenderTargets(
-								3,
-								mShadowMapRTVs,
-								false,
-								&mShadowMapDsv_Depth
-								);
+		3,
+		mShadowMapRTVs,
+		false,
+		&mShadowMapDsv_Depth
+	);
 
 	mpCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	
-	// Render Plane
 
+	// render models
+	for (auto it = mModels.begin(); it != mModels.end(); ++it)
+	{
 		// Model to World Transform
-		mpCmdList->SetGraphicsRootConstantBufferView(1, mModels["Plane"].getTransformBufferGPUAdress());
+		mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
 		// Normal buffer
-		mpCmdList->SetGraphicsRootShaderResourceView(2, mModels["Plane"].getNormalBufferGPUAdress());
+		mpCmdList->SetGraphicsRootShaderResourceView(2, it->second.getNormalBufferGPUAdress());
 		// Vertex and Index buffers
-		mpCmdList->IASetVertexBuffers(0, 1, mModels["Plane"].getVertexBufferView());
-		mpCmdList->IASetIndexBuffer(mModels["Plane"].getIndexBufferView());
+		mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView());
+		mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView());
 
 		// Draw
-		mpCmdList->DrawIndexedInstanced(mModels["Plane"].getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
-
-	// render robot
-		// Model to World Transform
-		mpCmdList->SetGraphicsRootConstantBufferView(1, mModels["Robot"].getTransformBufferGPUAdress());
-		// Normal buffer
-		mpCmdList->SetGraphicsRootShaderResourceView(2, mModels["Robot"].getNormalBufferGPUAdress());
-		// Vertex and Index buffers
-		mpCmdList->IASetVertexBuffers(0, 1,mModels["Robot"].getVertexBufferView());
-		mpCmdList->IASetIndexBuffer(mModels["Robot"].getIndexBufferView());
-
-		// Draw
-		mpCmdList->DrawIndexedInstanced(mModels["Robot"].getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
-
-	// Render area light
-
-		// Model to World Transform
-		mpCmdList->SetGraphicsRootConstantBufferView(1, mModels["Area light"].getTransformBufferGPUAdress());
-		// Normal buffer
-		mpCmdList->SetGraphicsRootShaderResourceView(2, mModels["Area light"].getNormalBufferGPUAdress());
-		// Vertex and Index buffers
-		mpCmdList->IASetVertexBuffers(0, 1, mModels["Area light"].getVertexBufferView());
-		mpCmdList->IASetIndexBuffer(mModels["Area light"].getIndexBufferView());
-
-		// Draw
-		mpCmdList->DrawIndexedInstanced(mModels["Area light"].getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+		mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+	}
 
 
 	// submit command list and reset
@@ -2058,13 +1934,13 @@ void PathTracer::onFrameRender(bool *gKeys)
 	size_t hitOffset = 3 * mShaderTableEntrySize;
 	raytraceDesc.HitGroupTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + hitOffset;
 	raytraceDesc.HitGroupTable.StrideInBytes = mShaderTableEntrySize;
-	raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 6;    // 6 hit-entries
+	raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 2 * mNumInstances;    // 6 hit-entries
 #else
     // Hit is the third entry in the shader-table
     size_t hitOffset = 2 * mShaderTableEntrySize;
     raytraceDesc.HitGroupTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + hitOffset;
     raytraceDesc.HitGroupTable.StrideInBytes = mShaderTableEntrySize;
-    raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 3;    // 3 hit-entries
+    raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 1 * mNumInstances;    // 3 hit-entries
 #endif
 
 

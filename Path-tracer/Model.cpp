@@ -183,6 +183,19 @@ AccelerationStructureBuffers Model::createBottomLevelAS(ID3D12Device5Ptr pDevice
 	return buffers;
 }
 
+inline glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4* from)
+{
+	// from: https://stackoverflow.com/questions/29184311/how-to-rotate-a-skinned-models-bones-in-c-using-assimp
+	glm::mat4 to;
+
+
+	to[0][0] = (f32)from->a1; to[0][1] = (f32)from->b1;  to[0][2] = (f32)from->c1; to[0][3] = (f32)from->d1;
+	to[1][0] = (f32)from->a2; to[1][1] = (f32)from->b2;  to[1][2] = (f32)from->c2; to[1][3] = (f32)from->d2;
+	to[2][0] = (f32)from->a3; to[2][1] = (f32)from->b3;  to[2][2] = (f32)from->c3; to[2][3] = (f32)from->d3;
+	to[3][0] = (f32)from->a4; to[3][1] = (f32)from->b4;  to[3][2] = (f32)from->c4; to[3][3] = (f32)from->d4;
+
+	return to;
+}
 
 ///////////////////////////////////////////
 // Callbacks
@@ -227,7 +240,7 @@ AccelerationStructureBuffers Model::loadModelHardCodedPlane(ID3D12Device5Ptr pDe
 
 }
 
-AccelerationStructureBuffers Model::loadModelFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter)
+AccelerationStructureBuffers Model::loadModelFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter, bool loadTransform)
 {
 	const aiScene* scene = pImporter->ReadFile(pFileName,
 		aiProcess_CalcTangentSpace |
@@ -262,7 +275,11 @@ AccelerationStructureBuffers Model::loadModelFromFile(ID3D12Device5Ptr pDevice, 
 	// create transform buffer
 	mpTransformBuffer = createBuffer(pDevice, sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
 	mpTransformBuffer->SetName((std::wstring(mName) + L" Transform").c_str());
-
+	if (loadTransform)
+	{
+		aiMatrix4x4 transform = scene->mRootNode->mChildren[0]->mTransformation;
+		mVertexToModel = aiMatrix4x4ToGlm(&transform);
+	}
 	// BLAS
 	AccelerationStructureBuffers bottomLevelBuffer = createBottomLevelAS(
 																pDevice,
@@ -284,8 +301,8 @@ void Model::updateTransformBuffer()
 	mpTransformBuffer->Unmap(0, nullptr);
 }
 
-Model::Model(LPCWSTR name)
+Model::Model(LPCWSTR name, uint8_t idx)
 {
 	mName = name;
-
+	mModelIndex = idx;
 }
