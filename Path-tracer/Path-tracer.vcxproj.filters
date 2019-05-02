@@ -40,6 +40,8 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="Data\RasterShaders.hlsl" />
+    <CustomBuild Include="Data\RasterShaders.hlsl">
+      <Filter>Data</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>

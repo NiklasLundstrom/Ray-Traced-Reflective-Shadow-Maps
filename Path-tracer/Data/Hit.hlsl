@@ -54,8 +54,9 @@ void robotChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
         float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.5f;
 
 	#ifdef HYBRID
-        float3 indirectColor = sampleIndirectLight(hitPoint, normal);
         float3 directColor = sampleDirectLight(hitPoint, normal);
+		float3 indirectColor = sampleIndirectLight(hitPoint, normal);
+        
 
 
         float3 incomingColor = directColor + indirectColor;
@@ -116,8 +117,9 @@ void planeChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 
         
 	#ifdef HYBRID
-        float3 indirectColor = sampleIndirectLight(hitPoint, normal);
         float3 directColor = sampleDirectLight(hitPoint, normal);
+		float3 indirectColor = sampleIndirectLight(hitPoint, normal);
+        
 
         float3 incomingColor = directColor + indirectColor;
 	#else
@@ -166,39 +168,62 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal)
             {
                 continue;
             }
-			//else 
-            numSamples++;
+			
 
             float3 lightPos = lightPosData.xyz;
             float3 direction = lightPos - hitPoint;
             float distance = length(direction);
             direction = normalize(direction);
 
+			// do not sample if light is below the surface or
+			// on the same plane as the hit point 
+            float angleHitPoint = saturate(dot(direction, hitPointNormal));
+            if (angleHitPoint < 0.0001)
+            {
+                continue;
+            }
+			// do not sample if hit point is below the pixel light's surface,
+			// or on the same plane
+            float3 pixelLightNormal = gShadowMap_Normal[uint2(i, j)].rgb;
+            pixelLightNormal = pixelLightNormal * 2 - 1;
+
+            float angleLightPoint = saturate(dot(-direction, pixelLightNormal));
+            if (angleLightPoint < 0.0001)
+            {
+                continue;
+            }
+
+			//else 
+            numSamples++;
+
 			// set up ray
             rayShadow.TMax = distance - 0.0001; // minus 0.0001?
             rayShadow.Direction = direction;
 
             TraceRay(
-						gRtScene,
-						0 /*rayFlags*/,
-						0xFF, /* ray mask*/
-						1 /* ray index*/,
-						2 /* total nbr of hitgroups*/,
-						1 /*miss shader index*/,
-						rayShadow,
-						shadowPayload
-					);
+					gRtScene,
+					0 /*rayFlags*/,
+					0xFF, /* ray mask*/
+					1 /* ray index*/,
+					2 /* total nbr of hitgroups*/,
+					1 /*miss shader index*/,
+					rayShadow,
+					shadowPayload
+				);
 
-            if (shadowPayload.hit == false)// we reached the light point
-            {
-                float angleHitPoint = dot(direction, hitPointNormal);
-                indirectColor += angleHitPoint * gShadowMap_Flux[uint2(i, j)].rgb;
-            }
+                if (shadowPayload.hit == false)// we reached the light point
+                {
+                    indirectColor += angleHitPoint
+								 * angleLightPoint
+								 * gShadowMap_Flux[uint2(i, j)].rgb; // / (distance * distance);
+                }
         }
     }
 
-    indirectColor /= numSamples;
-
+    if (numSamples > 0)
+    {
+        indirectColor /= numSamples;
+    }
     return indirectColor;
 
 }
@@ -212,6 +237,11 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal)
     float3 direction = lightPosition - hitPoint;
     float distance = length(direction);
 	direction = normalize(direction);
+	float angle = saturate( dot(direction, hitPointNormal));
+    if (angle < 0.0001)
+    {
+        return float3(0.0, 0.0, 0.0);
+    }
     rayShadow.Direction = direction;
     rayShadow.TMin = 0.0001;
     rayShadow.TMax = distance - 0.0001;
@@ -230,7 +260,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal)
     float3 outColor;
     if (shadowPayload.hit == false) // no occlusion
     {
-        float angle = saturate( dot(direction, hitPointNormal));
+        
         outColor = angle * float3(1.0, 0.0, 0.0);
     }
     else // shadow
