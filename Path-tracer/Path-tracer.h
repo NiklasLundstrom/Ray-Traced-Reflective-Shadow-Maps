@@ -87,7 +87,7 @@ private:
     ID3D12ResourcePtr			mpVertexBuffer[2];
 	// 3 instances: plane, area light and robot
 	// keep in sync with value hard coded in buildTopLevelAS()
-	static const int			mNumInstances = 6; 
+	static const int			mNumInstances = 7; 
 	void buildTransforms(float rotation);
 
 #ifdef HYBRID
@@ -133,9 +133,9 @@ private:
 	void readKeyboardInput(bool *gKeys);
 
 	struct {
-		vec3	cameraPosition = vec3(0, 0, 0);
-		vec3	cameraDirection = vec3(0, 0, 1);// direction is left_handed
-		float	cameraAngle = 0.0f;// glm::pi<float>();// angle is right-handed
+		vec3	cameraPosition = vec3(23.5, 8.06, 18.2);
+		float	cameraAngle = -3.73f;// glm::pi<float>();// angle is right-handed
+		vec3	cameraDirection = vec3(sin(cameraAngle), 0, cos(cameraAngle));// direction is left_handed
 	}mCamera;
 	
 	void createCameraBuffer();
@@ -190,8 +190,8 @@ private:
 
 	struct
 	{
-		vec3 position = vec3(0.0, 0.0, 0.0);
-		vec3 direction = vec3(0.0, 0.0, 1.0);
+		vec3 position = vec3(-12.68, 8.63, 11.62);
+		vec3 direction = vec3(sin(2.65), 0.0, cos(2.65));
 
 		vec3 eye;
 		vec3 at;

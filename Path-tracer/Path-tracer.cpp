@@ -364,6 +364,7 @@ void PathTracer::buildTransforms(float rotation)
 	mModels["Ceiling"].setTransform(scale(5.0f*vec3(1.0f, 1.0f, 1.0f)));
 	mModels["Window"].setTransform(translate(mat4(), vec3(0.0, -2.5f, 0.0)) * scale(1.0f*vec3(10.0f, 1.0f, 1.0f)));
 	mModels["Left wall outside"].setTransform(scale(5.0f*vec3(1.0f, 1.0f, 1.0f)));
+	mModels["Left wall inside"].setTransform(scale(5.0f*vec3(1.0f, 1.0f, 1.0f)));
 
 	// robot
 	mModels["Robot"].setTransform( rotationMat * translate(mat4(), vec3(2+5, 1.39, 2 * sin(rotation*0.7f))) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f)) );
@@ -436,7 +437,7 @@ AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D1
 
 void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, std::map<std::string, Model> models, AccelerationStructureBuffers& buffers)
 {
-	int numInstances = 6; // keep in sync with mNumInstances
+	int numInstances = 7; // keep in sync with mNumInstances
 
 	// First, get the size of the TLAS buffers and create them
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
@@ -565,6 +566,14 @@ void PathTracer::createAccelerationStructures()
 	AccelerationStructureBuffers leftWallOutsideAS = mModels["Left wall outside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/left_wall_outside.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = leftWallOutsideAS.pResult;
 	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Left wall outside");
+	modelIndex++;
+
+	// Load left wall outside
+	Model leftWallInside(L"Left wall inside", modelIndex);
+	mModels["Left wall inside"] = leftWallInside;
+	AccelerationStructureBuffers leftWallInsideAS = mModels["Left wall inside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/left_wall_inside.fbx", &importer, true);
+	mpBottomLevelAS[modelIndex] = leftWallInsideAS.pResult;
+	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Left wall inside");
 	modelIndex++;
 
 
@@ -1634,7 +1643,7 @@ void PathTracer::createLightBuffer()
 	mpLightBuffer->SetName(L"Light Buffer");
 
 	// Set up Light values
-	float fovAngle = glm::quarter_pi<float>();
+	float fovAngle = glm::half_pi<float>();
 	
 	// Left-hand system, depth from 0 to 1
 	float fFar = 100.0f;
@@ -1645,7 +1654,7 @@ void PathTracer::createLightBuffer()
 	// Light position buffer
 	mpLightPositionBuffer = createBuffer(mpDevice, mLightPositionBufferSize, D3D12_RESOURCE_FLAG_NONE,
 		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-	mpLightBuffer->SetName(L"Light Position Buffer");
+	mpLightPositionBuffer->SetName(L"Light Position Buffer");
 }
 
 void PathTracer::updateLightBuffer()
@@ -1728,15 +1737,7 @@ void PathTracer::createShadowMapTextures()
 		colorClearValue.Color[2] = 0.0f;
 		colorClearValue.Color[3] = 0.0f;
 
-		D3D12_CLEAR_VALUE normalClearValue;
-		normalClearValue.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-		normalClearValue.Color[0] = 0.5f;
-		normalClearValue.Color[1] = 0.5f;
-		normalClearValue.Color[2] = 1.0f;
-		normalClearValue.Color[3] = 0.0f;
-		
 		// position
-
 			d3d_call(mpDevice->CreateCommittedResource(
 				&kDefaultHeapProps,
 				D3D12_HEAP_FLAG_NONE,
@@ -1753,7 +1754,7 @@ void PathTracer::createShadowMapTextures()
 				D3D12_HEAP_FLAG_NONE,
 				&shadowTexDesc,
 				D3D12_RESOURCE_STATE_RENDER_TARGET,
-				&normalClearValue,
+				&colorClearValue,
 				IID_PPV_ARGS(&mpShadowMapTexture_Normal)
 			));
 			mpShadowMapTexture_Normal->SetName(L"RSM Normal");
@@ -1803,8 +1804,7 @@ void PathTracer::renderDepthToTexture()
 	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	mpCmdList->ClearRenderTargetView(mShadowMapRtv_Position, clearColor, 0, nullptr);
 	mpCmdList->ClearRenderTargetView(mShadowMapRtv_Flux, clearColor, 0, nullptr);
-	float clearNormal[4] = { 0.5f, 0.5f, 1.0f, 0.0f };
-	mpCmdList->ClearRenderTargetView(mShadowMapRtv_Normal, clearNormal, 0, nullptr);
+	mpCmdList->ClearRenderTargetView(mShadowMapRtv_Normal, clearColor, 0, nullptr);
 
 	// set render target
 	// TODO: fix
