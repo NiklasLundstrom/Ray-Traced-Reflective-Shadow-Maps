@@ -13,10 +13,17 @@ RaytracingAccelerationStructure gRtScene : register(t0);
 StructuredBuffer<uint> indices : register(t1);
 StructuredBuffer<float3> normals : register(t2);
 
-cbuffer lightPosition : register(b0, space1)
+cbuffer LightBuffer : register(b0, space1)
+{
+    float4x4 worldToView;
+    float4x4 projection;
+};
+
+cbuffer lightPosition : register(b1, space1)
 {
     float3 lightPosition;
 };
+
 Texture2D<float> gShadowMap_Depth : register(t0, space1);
 Texture2D<float4> gShadowMap_Position : register(t1, space1);
 Texture2D<float4> gShadowMap_Normal : register(t2, space1);
@@ -88,12 +95,35 @@ void areaLightChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttrib
 
 float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload)
 {
-	
     uint shadowWidth;
     uint shadowHeight;
     gShadowMap_Position.GetDimensions(shadowWidth, shadowHeight);
 
-		// set up shadow rays
+	// Project hit point into the light
+    float4 newPosition = float4(hitPoint, 1.0);
+    newPosition = mul(worldToView, newPosition);
+    newPosition = mul(projection, newPosition);
+    newPosition /= newPosition.w;
+    float px = newPosition.x / newPosition.z;
+    float py = newPosition.y / newPosition.z;
+    px = px * 0.5f + 0.5f;
+    py = py * 0.5f + 0.5f;
+    if (px > 1.0f || px < 0.0f || py > 1.0f || py < 0.0f)
+    {
+        return float3(0.0f, 0.0f, 0.0f);
+    }
+    px = px * shadowWidth;
+    py = (1 - py) * shadowHeight;
+    uint2 crd;
+    crd.x = floor(px);
+    crd.y = floor(py);
+
+    //return gShadowMap_Normal[crd].rgb; //float3(px, py, 0.0f);
+
+	
+    
+
+	// set up shadow rays
     ShadowPayload shadowPayload;
     float3 indirectColor = float3(0.0, 0.0, 0.0);
 
@@ -106,19 +136,19 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
     //while(numRaySamples < 40 && numTotSamples < 400)
     //{
 
-    for (int i = 0; i < shadowWidth; i += 5)
+    for (int i = -25; i <= 25; i += 1)
     {
-        for (int j = 0; j < shadowHeight; j += 5)
+        for (int j = -25; j <= 25; j += 1)
         {
 
-        numTotSamples++;
 		// pick random sample
     //int i = round(nextRand(payload.seed) * shadowWidth);
     //int j = round(nextRand(payload.seed) * shadowHeight);
+        numTotSamples++;
 
 
 			// sample shadow map
-                float4 lightPosData = gShadowMap_Position[uint2(i, j)];
+                float4 lightPosData = gShadowMap_Position[crd + uint2(i, j)];
                 if (lightPosData.w == 0)
                 {
                     continue;
@@ -139,7 +169,7 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
                 }
 			// do not sample if hit point is below the pixel light's surface,
 			// or on the same plane
-                float3 pixelLightNormal = gShadowMap_Normal[uint2(i, j)].rgb;
+                float3 pixelLightNormal = gShadowMap_Normal[crd + uint2(i, j)].rgb;
                 pixelLightNormal = pixelLightNormal * 2 - 1;
 
                 float angleLightPoint = saturate(dot(-direction, pixelLightNormal));
@@ -170,7 +200,7 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
                 {
                     indirectColor += angleHitPoint
 								 * angleLightPoint
-								 * gShadowMap_Flux[uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.0f);
+								 * gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.0f);
         }
     }
 }
@@ -180,8 +210,7 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
     {
         indirectColor /= numTotSamples;// (shadowWidth * shadowHeight / 25); //numSamples;
     }
-    return
-indirectColor;
+    return indirectColor;
 
 }
 

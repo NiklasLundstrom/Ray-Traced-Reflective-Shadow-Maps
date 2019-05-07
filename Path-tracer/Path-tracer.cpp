@@ -568,7 +568,7 @@ void PathTracer::createAccelerationStructures()
 	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Left wall outside");
 	modelIndex++;
 
-	// Load left wall outside
+	// Load left wall inside
 	Model leftWallInside(L"Left wall inside", modelIndex);
 	mModels["Left wall inside"] = leftWallInside;
 	AccelerationStructureBuffers leftWallInsideAS = mModels["Left wall inside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/left_wall_inside.fbx", &importer, true);
@@ -736,7 +736,7 @@ RootSignatureDesc createRayGenRootDesc()
 RootSignatureDesc createModelHitRootDesc()
 {
 	RootSignatureDesc desc;
-	desc.range.resize(6);
+	desc.range.resize(7);
 
 	// gRtScene
 	desc.range[0].BaseShaderRegister = 0; //t0
@@ -752,35 +752,43 @@ RootSignatureDesc createModelHitRootDesc()
 	desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 	desc.range[1].OffsetInDescriptorsFromTableStart = 0;
 
-	// Shadow map Depth
-	desc.range[2].BaseShaderRegister = 0; //t0
+	// Light Position
+	desc.range[2].BaseShaderRegister = 1; //b1
 	desc.range[2].NumDescriptors = 1;
 	desc.range[2].RegisterSpace = 1;
-	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 	desc.range[2].OffsetInDescriptorsFromTableStart = 1;
 
-	// Shadow map Position
-	desc.range[3].BaseShaderRegister = 1; //t1
+	// Shadow map Depth
+	desc.range[3].BaseShaderRegister = 0; //t0
 	desc.range[3].NumDescriptors = 1;
 	desc.range[3].RegisterSpace = 1;
 	desc.range[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[3].OffsetInDescriptorsFromTableStart = 2;
 
-	// Shadow map Normal
-	desc.range[4].BaseShaderRegister = 2; //t2
+	// Shadow map Position
+	desc.range[4].BaseShaderRegister = 1; //t1
 	desc.range[4].NumDescriptors = 1;
 	desc.range[4].RegisterSpace = 1;
 	desc.range[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[4].OffsetInDescriptorsFromTableStart = 3;
 
-	// Shadow map Flux
-	desc.range[5].BaseShaderRegister = 3; //t3
+	// Shadow map Normal
+	desc.range[5].BaseShaderRegister = 2; //t2
 	desc.range[5].NumDescriptors = 1;
 	desc.range[5].RegisterSpace = 1;
 	desc.range[5].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[5].OffsetInDescriptorsFromTableStart = 4;
 
+	// Shadow map Flux
+	desc.range[6].BaseShaderRegister = 3; //t3
+	desc.range[6].NumDescriptors = 1;
+	desc.range[6].RegisterSpace = 1;
+	desc.range[6].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[6].OffsetInDescriptorsFromTableStart = 5;
+
 	desc.rootParams.resize(4);
+	// TLAS
 	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
 	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
@@ -795,9 +803,9 @@ RootSignatureDesc createModelHitRootDesc()
 	desc.rootParams[2].Descriptor.RegisterSpace = 0;
 	desc.rootParams[2].Descriptor.ShaderRegister = 2;//t2
 
-	// Shadow maps
+	// Light and Shadow maps
 	desc.rootParams[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	desc.rootParams[3].DescriptorTable.NumDescriptorRanges = 5;
+	desc.rootParams[3].DescriptorTable.NumDescriptorRanges = 6;
 	desc.rootParams[3].DescriptorTable.pDescriptorRanges = desc.range.data() + 1;
 
 	desc.desc.NumParameters = 4;
@@ -1215,7 +1223,7 @@ void PathTracer::createShaderTable()
 			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = it->second.getNormalBufferGPUAdress();
 			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
 			// Shadow maps
-			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + 5 * heapEntrySize;
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + 4 * heapEntrySize;
 			entryIndex++;
 		
 #ifdef HYBRID
@@ -1357,7 +1365,7 @@ void PathTracer::createShaderResources()
 
 		mpDevice->CreateShaderResourceView(mpShadowMapTexture_Normal, &shadowMapSrvDesc, srvShadowMapNormalHandle);
 
-	// Create the SRV for the Shadow map Normal
+	// Create the SRV for the Shadow map Flux
 		D3D12_CPU_DESCRIPTOR_HANDLE srvShadowMapFluxHandle = cbvSrvHeapStart;
 		srvShadowMapFluxHandle.ptr += 9 * cbvSrvDescriptorSize;
 
