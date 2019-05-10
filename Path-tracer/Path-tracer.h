@@ -146,8 +146,9 @@ private:
 	Assimp::Importer	importer;
 	float				mCameraSpeed = 1.0f;
 
-	void createHDRTextureBuffer();
-	ID3D12ResourcePtr	mpHDRTextureBuffer;
+	void createEnvironmentMapBuffer();
+	ID3D12ResourcePtr	mpEnvironmentMapBuffer;
+	uint8_t				mEnvironmentMapHeapIndex;
 	
 	//////////////////////////////////////////////////////////////////////////
 	// Hybrid stuff
@@ -164,7 +165,7 @@ private:
 
 	ID3D12ResourcePtr			mpLightBuffer;
 	uint32_t					mLightBufferSize = 2 * sizeof(mat4); // view and projection
-	D3D12_CPU_DESCRIPTOR_HANDLE mLightBufferView;
+	uint8_t						mLightBufferHeapIndex;
 	ID3D12ResourcePtr			mpLightPositionBuffer;
 	uint32_t					mLightPositionBufferSize = sizeof(float3);
 
@@ -179,6 +180,7 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE	mShadowMapRtv_Position;
 	D3D12_CPU_DESCRIPTOR_HANDLE	mShadowMapRtv_Normal;
 	D3D12_CPU_DESCRIPTOR_HANDLE	mShadowMapRtv_Flux;
+	uint8_t						mShadowMapsHeapIndex;
 
 	D3D12_CPU_DESCRIPTOR_HANDLE mShadowMapRTVs[3];
 
@@ -205,6 +207,8 @@ private:
 
 	ID3D12RootSignaturePtr mpComputeRootSig;
 	ID3D12PipelineStatePtr mpComputeState;
+
+	uint8_t					mRTOutputSrvHeapIndex;
 
 	void createComputePipeline();
 
