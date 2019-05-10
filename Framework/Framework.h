@@ -55,6 +55,7 @@
 #include "Externals/DirectXTex/DirectXTex.h"
 #include <pix.h>
 #include <map>
+#include <d3dcompiler.h>
 
 using namespace glm;
 //using namespace System::Windows::Input;

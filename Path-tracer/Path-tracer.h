@@ -154,8 +154,8 @@ private:
 	//////////////////////////////////////////////////////////////////////////
 	#ifdef HYBRID
 	
-	const UINT kShadowMapWidth = 200;
-	const UINT kShadowMapHeight = 200;
+	const UINT kShadowMapWidth = 512;
+	const UINT kShadowMapHeight = 512;
 
 	D3D12_VIEWPORT			mRasterViewPort;
 	D3D12_RECT				mRasterScissorRect;
@@ -202,6 +202,11 @@ private:
 	} mLight;
 
 	#endif // HYBRID
+
+	ID3D12RootSignaturePtr mpComputeRootSig;
+	ID3D12PipelineStatePtr mpComputeState;
+
+	void createComputePipeline();
 
 	std::map<std::string, Model> mModels;
 	

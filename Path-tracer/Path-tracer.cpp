@@ -1780,6 +1780,49 @@ void PathTracer::createShadowMapTextures()
 
 }
 
+void PathTracer::createComputePipeline()
+{
+	// Create compute root signature
+
+	//D3D12_ROOT_PARAMETER rootParameters[1];
+	
+	RootSignatureDesc desc;
+	desc.desc.NumParameters = 0;
+	desc.desc.pParameters = nullptr;
+	desc.desc.NumStaticSamplers = 0;
+	desc.desc.pStaticSamplers = nullptr;
+	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
+
+	mpComputeRootSig = createRootSignature(mpDevice, desc.desc);
+	
+	// Compile compute shader
+	//V_RETURN(pd3dDevice->CreateComputeShader(pBlob->GetBufferPointer(), pBlob->GetBufferSize(), nullptr, &g_pReduceTo1DCS));
+
+	ID3DBlobPtr computeShaderBlob = nullptr;
+	ID3DBlobPtr errorBlob = nullptr;
+	HRESULT hr = (D3DCompileFromFile(L"Data/PostProcessing.hlsl", NULL, NULL, "main", "cs_5_0", 0, 0, &computeShaderBlob, &errorBlob));
+	if (FAILED(hr))
+	{
+		if (errorBlob)
+		{
+			OutputDebugStringA((char*)errorBlob->GetBufferPointer());
+			errorBlob->Release();
+		}
+
+		if (computeShaderBlob)
+			computeShaderBlob->Release();
+
+		return;
+	}
+
+	// Create compute pipeline state object (PSO)
+	D3D12_COMPUTE_PIPELINE_STATE_DESC psoDesc = {};
+	psoDesc.pRootSignature = mpComputeRootSig.GetInterfacePtr();
+	psoDesc.CS = CD3DX12_SHADER_BYTECODE(computeShaderBlob.GetInterfacePtr());
+
+	d3d_call(mpDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&mpComputeState)));
+}
+
 void PathTracer::renderDepthToTexture()
 {
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Rasterize shadow map");
@@ -1868,6 +1911,7 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 	createLightBuffer();
 	createShadowMapTextures();
 #endif
+	createComputePipeline();
 	createCameraBuffer();							// My own
 	createHDRTextureBuffer();
     createShaderResources();                        // Tutorial 06
@@ -1959,10 +2003,20 @@ void PathTracer::onFrameRender(bool *gKeys)
     mpCmdList->SetPipelineState1(mpRtPipelineState.GetInterfacePtr());
     mpCmdList->DispatchRays(&raytraceDesc);
 
+
+
+
+	// resource barriers
+	// set up for compute
+	// dispatch
+
+
+
+
     // Copy the results to the back-buffer
     resourceBarrier(mpCmdList, mpOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
     resourceBarrier(mpCmdList, mFrameObjects[rtvIndex].pSwapChainBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
-	mpCmdList->CopyResource(mFrameObjects[rtvIndex].pSwapChainBuffer, mpOutputResource);//mpShadowMapTexture); 
+	mpCmdList->CopyResource(mFrameObjects[rtvIndex].pSwapChainBuffer, mpOutputResource);
 
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 

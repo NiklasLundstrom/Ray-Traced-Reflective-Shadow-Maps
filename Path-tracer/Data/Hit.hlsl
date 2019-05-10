@@ -62,7 +62,7 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
         float3 directColor = sampleDirectLight(hitPoint, normal);
         float3 indirectColor = sampleIndirectLight(hitPoint, normal, payload);
 
-        float3 incomingColor = directColor + indirectColor;
+        float3 incomingColor = /*directColor +*/ indirectColor;
 #else
 
 
@@ -108,9 +108,13 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
     float py = newPosition.y / newPosition.z;
     px = px * 0.5f + 0.5f;
     py = py * 0.5f + 0.5f;
+	// if outside range, clamp it
     if (px > 1.0f || px < 0.0f || py > 1.0f || py < 0.0f)
     {
-        return float3(0.0f, 0.0f, 0.0f);
+        px = saturate(px);
+        py = saturate(py);
+		
+		//return float3(0.0f, 0.0f, 1.0f);
     }
     px = px * shadowWidth;
     py = (1 - py) * shadowHeight;
@@ -133,19 +137,31 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
     int numRaySamples = 0;
     int numTotSamples = 0;
-    //while(numRaySamples < 40 && numTotSamples < 400)
-    //{
-
-    for (int i = -25; i <= 25; i += 1)
+    while (numRaySamples < 10 && numTotSamples < 400)
     {
-        for (int j = -25; j <= 25; j += 1)
-        {
+
+    //for (int i = -100; i <= 100; i += 4)
+    //{
+    //    for (int j = -100; j <= 100; j += 4)
+    //    {
 
 		// pick random sample
-    //int i = round(nextRand(payload.seed) * shadowWidth);
-    //int j = round(nextRand(payload.seed) * shadowHeight);
+        float xi1 = nextRand(payload.seed);
+        float xi2 = nextRand(payload.seed);
+        float rMax = 400.0f;
+        int i = floor(rMax * xi1 * sin(2 * PI * xi2));
+        int j = floor(rMax * xi1 * cos(2 * PI * xi2));
+        //int i = xi1 * shadowWidth;
+        //int j = xi2 * shadowHeight;
+
         numTotSamples++;
 
+			// outside shadow map texture
+        if ((crd.x + i) < 0 || (crd.y + j) < 0 || (crd.x + i) >= shadowWidth || (crd.y + j) >= shadowHeight)
+        {
+               //return float3(0.0, 1.0, 0.0);
+            continue;
+        }
 
 			// sample shadow map
                 float4 lightPosData = gShadowMap_Position[crd + uint2(i, j)];
@@ -198,13 +214,13 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
                 if (shadowPayload.hit == false)// we reached the light point
                 {
-                    indirectColor += angleHitPoint
+            indirectColor += angleHitPoint
 								 * angleLightPoint
-								 * gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.0f);
+								 * gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.0f) * xi1 * xi1 * 20;
         }
+        //    }
+        //}
     }
-}
-    //}
 
     if (numRaySamples > 0)
     {

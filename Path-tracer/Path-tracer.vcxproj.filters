@@ -29,6 +29,9 @@
     <FxCompile Include="Data\ShadowRay.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
+    <FxCompile Include="Data\PostProcessing.hlsl">
+      <Filter>Data</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
