@@ -1,3 +1,4 @@
+// taken from https://github.com/d3dcoder/d3d12book/blob/master/Chapter%2013%20The%20Compute%20Shader/Blur
 //=============================================================================
 // Performs a separable Guassian blur with a blur radius up to 5 pixels.
 //=============================================================================
@@ -7,7 +8,6 @@ cbuffer cbSettings : register(b0)
 	// root constants, so list each element.  	
 
     int gBlurRadius;
-
 	// Support up to 11 blur weights.
     float w0;
     float w1;
@@ -21,6 +21,7 @@ cbuffer cbSettings : register(b0)
     float w9;
     float w10;
 };
+    //static const int gBlurRadius = 5;
 
 static const int gMaxBlurRadius = 5;
 
@@ -40,7 +41,7 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
     gInput.GetDimensions(width, height);
 
 	// Put in an array for each indexing.
-    float weights[11] = { w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10 };
+    float weights[11] =  { w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10 };
 
 	//
 	// Fill local thread storage to reduce bandwidth.  To blur 
@@ -93,7 +94,7 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
     gInput.GetDimensions(width, height);
 
 	// Put in an array for each indexing.
-    float weights[11] = { w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10 };
+    float weights[11] = {w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10};
 
 	//
 	// Fill local thread storage to reduce bandwidth.  To blur 

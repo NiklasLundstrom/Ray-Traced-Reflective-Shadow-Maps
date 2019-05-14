@@ -1255,7 +1255,7 @@ void PathTracer::createShaderResources()
     resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     resDesc.MipLevels = 1;
     resDesc.SampleDesc.Count = 1;
-    d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&mpRtOutputResource))); // Starting as copy-source to simplify onFrameRender()
+    d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&mpRtOutputResource))); // Starting as copy-source to simplify onFrameRender()
 		mpRtOutputResource->SetName(L"RT Output resource");
 	
     // Create an SRV/UAV/CBV descriptor heap. 
@@ -1271,9 +1271,9 @@ void PathTracer::createShaderResources()
 	//  - 1 for the light position buffer
 	//  - 4 for the Shadow map (depth, position, normal, flux)
 
-	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 14, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 15, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #else
-    mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 8, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+    mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 9, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #endif
 
 	// Step size
@@ -1336,7 +1336,7 @@ void PathTracer::createShaderResources()
 		mRTOutputSrvHeapIndex = handleIndex;
 
 		// Create the UAV for the Blur1 output
-		d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&mpBlurPass1Output))); // Starting as copy-source to simplify onFrameRender()
+		d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, nullptr, IID_PPV_ARGS(&mpBlurPass1Output))); // Starting as copy-source to simplify onFrameRender()
 		mpBlurPass1Output->SetName(L"Blur1 Output resource");
 		handle.ptr += cbvSrvDescriptorSize;
 		handleIndex++;
@@ -1357,6 +1357,13 @@ void PathTracer::createShaderResources()
 		handleIndex++;
 		mpDevice->CreateUnorderedAccessView(mpBlurPass2Output, nullptr, &uavDesc, handle);
 		mBlur2OutputUavHeapIndex = handleIndex;
+		
+		// Create the SRV for the Blur2 output
+		handle.ptr += cbvSrvDescriptorSize;
+		handleIndex++;
+
+		mpDevice->CreateShaderResourceView(mpBlurPass2Output, &rtOutputSrvDesc, handle);
+		mBlur2OutputSrvHeapIndex = handleIndex;
 
 #ifdef HYBRID
 	// Create the CBV for the light buffer
@@ -1483,17 +1490,17 @@ void PathTracer::createShaderResources()
 //////////////////////////////////////////////////////////////////////////
 void PathTracer::readKeyboardInput(bool *gKeys)
 {
-	mCameraSpeed = 0.05f * 60.0f*mDeltaTime*0.001f;
+	mCameraSpeed = 0.1f * 60.0f*mDeltaTime*0.001f;
 
 	if (gKeys[VK_LEFT])
 	{
-		float angle = mCamera.cameraAngle + 0.5f * mCameraSpeed;
+		float angle = mCamera.cameraAngle + 0.25f * mCameraSpeed;
 		mCamera.cameraDirection = vec3(eulerAngleY(-angle) * vec4(0,0,1,1)); 
 		mCamera.cameraAngle = angle;
 	}
 	else if (gKeys[VK_RIGHT])
 	{
-		float angle = mCamera.cameraAngle - 0.5f * mCameraSpeed;
+		float angle = mCamera.cameraAngle - 0.25f * mCameraSpeed;
 		mCamera.cameraDirection = vec3(eulerAngleY(-angle) * vec4(0, 0, 1, 1));
 		mCamera.cameraAngle = angle;
 	}
@@ -1526,12 +1533,12 @@ void PathTracer::readKeyboardInput(bool *gKeys)
 	// Light
 	if (gKeys['F'])
 	{
-		float angle = 0.5f * mCameraSpeed;
+		float angle = 0.25f * mCameraSpeed;
 		mLight.direction = vec3(eulerAngleY(-angle) * vec4(mLight.direction, 1));	
 	}
 	else if (gKeys['K'])
 	{
-		float angle = -0.5f * mCameraSpeed;
+		float angle = -0.25f * mCameraSpeed;
 		mLight.direction = vec3(eulerAngleY(-angle) * vec4(mLight.direction, 1));
 	}
 	if (gKeys['Y'])
@@ -1822,6 +1829,35 @@ void PathTracer::createShadowMapTextures()
 
 }
 
+std::vector<float> calcGaussWeights(float sigma)
+{
+	// taken from https://github.com/d3dcoder/d3d12book/blob/master/Chapter%2013%20The%20Compute%20Shader/Blur
+
+	int maxBlurRadius = 5;
+
+	float twoSigma2 = 2.0f*sigma*sigma;
+	// Estimate the blur radius based on sigma since sigma controls the "width" of the bell curve.
+	// For example, for sigma = 3, the width of the bell curve is 
+	int blurRadius = (int)ceil(2.0f * sigma);
+	assert(blurRadius <= maxBlurRadius);
+
+	std::vector<float> weights;
+	weights.resize(2 * blurRadius + 1);
+	float weightSum = 0.0f;
+	for (int i = -blurRadius; i <= blurRadius; ++i)
+	{
+		float x = (float)i;
+		weights[i + blurRadius] = expf(-x * x / twoSigma2);
+		weightSum += weights[i + blurRadius];
+	}
+	// Divide by the sum so all the weights add up to 1.0.
+	for (int i = 0; i < weights.size(); ++i)
+	{
+		weights[i] /= weightSum;
+	}
+	return weights;
+}
+
 void PathTracer::createComputePipeline()
 {
 	// Create compute root signature
@@ -1839,24 +1875,31 @@ void PathTracer::createComputePipeline()
 	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 	ranges[1].OffsetInDescriptorsFromTableStart = 0;
 	
-	D3D12_ROOT_PARAMETER parameters[2];
-	parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	D3D12_ROOT_PARAMETER parameters[3];
+
+	parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 	parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	parameters[0].DescriptorTable.NumDescriptorRanges = 1;
-	parameters[0].DescriptorTable.pDescriptorRanges = ranges;
+	parameters[0].Constants.Num32BitValues = 12;
+	parameters[0].Constants.RegisterSpace = 0;
+	parameters[0].Constants.ShaderRegister = 0; // b0
 
 	parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 	parameters[1].DescriptorTable.NumDescriptorRanges = 1;
-	parameters[1].DescriptorTable.pDescriptorRanges = &ranges[1];
+	parameters[1].DescriptorTable.pDescriptorRanges = ranges;
+
+	parameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	parameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	parameters[2].DescriptorTable.NumDescriptorRanges = 1;
+	parameters[2].DescriptorTable.pDescriptorRanges = &ranges[1];
 	
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 2;
+	desc.desc.NumParameters = 3;
 	desc.desc.pParameters = parameters;
 	desc.desc.NumStaticSamplers = 0;
 	desc.desc.pStaticSamplers = nullptr;
 	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_NONE;
-
+	
 	mpComputeRootSig = createRootSignature(mpDevice, desc.desc);
 	
 	// Compile compute shader
@@ -1885,6 +1928,25 @@ void PathTracer::createComputePipeline()
 	psoDesc.CS = CD3DX12_SHADER_BYTECODE(computeShaderBlob.GetInterfacePtr());
 
 	d3d_call(mpDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&mpComputeState)));
+
+	// horz
+	ID3DBlobPtr computeShaderHorzBlob = nullptr;
+	ID3DBlobPtr errorHorzBlob = nullptr;
+	d3d_call(D3DCompileFromFile(L"Data/Blur.hlsl", NULL, NULL, "HorzBlurCS", "cs_5_0", 0, 0, &computeShaderHorzBlob, &errorHorzBlob));
+	psoDesc.CS = CD3DX12_SHADER_BYTECODE(computeShaderHorzBlob.GetInterfacePtr());
+	d3d_call(mpDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&mpComputeStateHorz)));
+
+	// vert
+	ID3DBlobPtr computeShaderVertBlob = nullptr;
+	ID3DBlobPtr errorVertBlob = nullptr;
+	d3d_call(D3DCompileFromFile(L"Data/Blur.hlsl", NULL, NULL, "VertBlurCS", "cs_5_0", 0, 0, &computeShaderVertBlob, &errorVertBlob));
+	psoDesc.CS = CD3DX12_SHADER_BYTECODE(computeShaderVertBlob.GetInterfacePtr());
+	d3d_call(mpDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&mpComputeStateVert)));
+
+
+	// Calculate Gauss weights
+	mGaussWeights = calcGaussWeights(2.5f);
+	mBlurRadius = (int) mGaussWeights.size() / 2;
 }
 
 void PathTracer::renderDepthToTexture()
@@ -1973,7 +2035,7 @@ void PathTracer::rayTrace()
 
 
 	// Let's raytrace
-	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	D3D12_DISPATCH_RAYS_DESC raytraceDesc = {};
 	raytraceDesc.Width = mSwapChainSize.x;
 	raytraceDesc.Height = mSwapChainSize.y;
@@ -2027,50 +2089,80 @@ void PathTracer::postProcess()
 
 	// resource barriers
 	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-
+	
 	// Set pipeline state
-	mpCmdList->SetPipelineState(mpComputeState);
+	//mpCmdList->SetPipelineState(mpComputeState);
 	// Set Root signature
 	mpCmdList->SetComputeRootSignature(mpComputeRootSig.GetInterfacePtr());
 	// Set descriptor heaps
 	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
 	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+	// Set constants
+	mpCmdList->SetComputeRoot32BitConstants(0, 1, &mBlurRadius, 0);
+	mpCmdList->SetComputeRoot32BitConstants(0, (UINT)mGaussWeights.size(), mGaussWeights.data(), 1);
 
-	//////////////
-	// Pass 1
-	//////////////
+	for (int i = 0; i < 12; i++)
+	{
+		//////////////
+		// Pass 1
+		//////////////
+		mpCmdList->SetPipelineState(mpComputeStateHorz);
 
-	auto heapStart = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
-	auto heapEntrySize = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+		auto heapStart = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+		auto heapEntrySize = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-	// set "Shader Table", i.e. resources for root signature
-	D3D12_GPU_DESCRIPTOR_HANDLE handle = heapStart;
-	handle.ptr += mRTOutputSrvHeapIndex * heapEntrySize;
-	mpCmdList->SetComputeRootDescriptorTable(0, handle); // t0
-	handle = heapStart;
-	handle.ptr += mBlur1OutputUavHeapIndex * heapEntrySize;
-	mpCmdList->SetComputeRootDescriptorTable(1, handle); // u0
+		// set "Shader Table", i.e. resources for root signature
+		D3D12_GPU_DESCRIPTOR_HANDLE handle = heapStart;
+		if (i == 0) {
+			handle.ptr += mRTOutputSrvHeapIndex * heapEntrySize;
+		}else 
+		{
+			handle.ptr += mBlur2OutputSrvHeapIndex * heapEntrySize;
+		}
+		mpCmdList->SetComputeRootDescriptorTable(1, handle); // t0
+		handle = heapStart;
+		handle.ptr += mBlur1OutputUavHeapIndex * heapEntrySize;
+		mpCmdList->SetComputeRootDescriptorTable(2, handle); // u0
 
-	// dispatch
-	//UINT numGroupsX = (UINT)ceilf(mSwapChainSize[0] / 256.0f);
-	mpCmdList->Dispatch(mSwapChainSize[0], mSwapChainSize[1], 1);
+		// dispatch
+		UINT numGroupsX = (UINT)ceilf(mSwapChainSize[0] / 256.0f);
+		mpCmdList->Dispatch(numGroupsX, mSwapChainSize[1], 1);
 
-	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		if (i == 0)
+		{
+			//resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			resourceBarrier(mpCmdList, mpBlurPass2Output, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		}
+		else
+		{
+			resourceBarrier(mpCmdList, mpBlurPass2Output, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		}
+		resourceBarrier(mpCmdList, mpBlurPass1Output, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-	//////////////
-	// Pass 2
-	//////////////
 
-	// set "Shader Table", i.e. resources for root signature
-	handle = heapStart;
-	handle.ptr += mBlur1OutputSrvHeapIndex * heapEntrySize;
-	mpCmdList->SetComputeRootDescriptorTable(0, handle); // t0
-	handle = heapStart;
-	handle.ptr += mBlur2OutputUavHeapIndex * heapEntrySize;
-	mpCmdList->SetComputeRootDescriptorTable(1, handle); // u0
+		//////////////
+		// Pass 2
+		//////////////
 
-	// dispatch
-	mpCmdList->Dispatch(mSwapChainSize[0], mSwapChainSize[1], 1);
+		mpCmdList->SetPipelineState(mpComputeStateVert);
+
+		// set "Shader Table", i.e. resources for root signature
+		handle = heapStart;
+		handle.ptr += mBlur1OutputSrvHeapIndex * heapEntrySize;
+		mpCmdList->SetComputeRootDescriptorTable(1, handle); // t0
+		handle = heapStart;
+		handle.ptr += mBlur2OutputUavHeapIndex * heapEntrySize;
+		mpCmdList->SetComputeRootDescriptorTable(2, handle); // u0
+
+		// dispatch
+		UINT numGroupsY = (UINT)ceilf(mSwapChainSize[1] / 256.0f);
+		mpCmdList->Dispatch(mSwapChainSize[0], numGroupsY, 1);
+
+		resourceBarrier(mpCmdList, mpBlurPass1Output, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		resourceBarrier(mpCmdList, mpBlurPass2Output, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+	}
+	resourceBarrier(mpCmdList, mpBlurPass2Output, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
 
 }
 

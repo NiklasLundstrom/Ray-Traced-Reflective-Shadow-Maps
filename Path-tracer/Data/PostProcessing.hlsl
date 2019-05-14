@@ -34,16 +34,5 @@ void main( uint3 DTid : SV_DispatchThreadID )
 
 
 
-    //for (int y2 = kernelSide; y2 < height - kernelSide; y2++)
-    //{
-    //    for (int x2 = kernelSide; x2 < width - kernelSide; x2++)
-    //    {
-    //        gRtOutput[uint2(x2, y2)] = tempTexture[y2][x2];
-
-    //    }
-    //}
-    
-
-
 
     }

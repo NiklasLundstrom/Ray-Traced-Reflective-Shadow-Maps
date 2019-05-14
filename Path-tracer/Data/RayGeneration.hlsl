@@ -50,7 +50,7 @@ void rayGen()
     ray.TMin = 0;
     ray.TMax = 100000;
 
-    uint randSeed = initRand(launchIndex.x + launchIndex.y * launchDim.x, 37 /*frameCount*/, 16);
+    uint randSeed = initRand(launchIndex.x + launchIndex.y * launchDim.x, frameCount, 16);
             
     RayPayload payload;
     float3 color = float3(0.0, 0.0, 0.0);

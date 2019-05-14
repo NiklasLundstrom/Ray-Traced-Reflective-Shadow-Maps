@@ -56,13 +56,13 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
         normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
        
 	// get material color
-        float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.5f;
+        float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.75f;
 
 #ifdef HYBRID
         float3 directColor = sampleDirectLight(hitPoint, normal);
         float3 indirectColor = sampleIndirectLight(hitPoint, normal, payload);
 
-        float3 incomingColor = /*directColor +*/ indirectColor;
+        float3 incomingColor = directColor + indirectColor;
 #else
 
 
@@ -259,7 +259,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal)
     if (shadowPayload.hit == false) // no occlusion
     {
         
-        outColor = angle * float3(1.0, 0.0, 0.0);
+        outColor = angle * float3(1.0, 1.0, 1.0) * 0.15f;
     }
     else // shadow
     {

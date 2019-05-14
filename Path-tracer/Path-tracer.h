@@ -212,17 +212,22 @@ private:
 	//////////////////////////////////////////////////////////////////////////
 	ID3D12RootSignaturePtr	mpComputeRootSig;
 	ID3D12PipelineStatePtr	mpComputeState;
+	ID3D12PipelineStatePtr	mpComputeStateHorz;
+	ID3D12PipelineStatePtr	mpComputeStateVert;
 
 	uint8_t					mRTOutputSrvHeapIndex;
 	uint8_t					mBlur1OutputUavHeapIndex;
 	uint8_t					mBlur1OutputSrvHeapIndex;
 	uint8_t					mBlur2OutputUavHeapIndex;
+	uint8_t					mBlur2OutputSrvHeapIndex;
 
 	ID3D12ResourcePtr		mpBlurPass1Output;
 	ID3D12ResourcePtr		mpBlurPass2Output;
 
 	void createComputePipeline();
 	void postProcess();
+	std::vector<float>		mGaussWeights;
+	int						mBlurRadius;
 
 	std::map<std::string, Model> mModels;
 	
