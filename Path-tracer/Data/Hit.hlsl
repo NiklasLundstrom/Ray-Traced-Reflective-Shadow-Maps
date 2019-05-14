@@ -114,7 +114,7 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         px = saturate(px);
         py = saturate(py);
 		
-		//return float3(0.0f, 0.0f, 1.0f);
+		return float3(0.0f, 0.0f, 1.0f);
     }
     px = px * shadowWidth;
     py = (1 - py) * shadowHeight;
@@ -122,9 +122,6 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
     crd.x = floor(px);
     crd.y = floor(py);
 
-    //return gShadowMap_Normal[crd].rgb; //float3(px, py, 0.0f);
-
-	
     
 
 	// set up shadow rays
@@ -139,88 +136,87 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
     int numTotSamples = 0;
     while (numRaySamples < 10 && numTotSamples < 400)
     {
+        if (numTotSamples > 100 && numRaySamples == 0)
+        {
+            break;
+        }
 
-    //for (int i = -100; i <= 100; i += 4)
-    //{
-    //    for (int j = -100; j <= 100; j += 4)
-    //    {
 
 		// pick random sample
         float xi1 = nextRand(payload.seed);
         float xi2 = nextRand(payload.seed);
-        float rMax = 400.0f;
+		float rMax = 400.0f;
         int i = floor(rMax * xi1 * sin(2 * PI * xi2));
         int j = floor(rMax * xi1 * cos(2 * PI * xi2));
-        //int i = xi1 * shadowWidth;
-        //int j = xi2 * shadowHeight;
+			//int i = xi1 * shadowWidth;
+			//int j = xi2 * shadowHeight;
 
-        numTotSamples++;
 
-			// outside shadow map texture
+		// outside shadow map texture
         if ((crd.x + i) < 0 || (crd.y + j) < 0 || (crd.x + i) >= shadowWidth || (crd.y + j) >= shadowHeight)
         {
-               //return float3(0.0, 1.0, 0.0);
+            //return float3(0.0, 1.0, 0.0);
             continue;
         }
+		numTotSamples++;
 
-			// sample shadow map
-                float4 lightPosData = gShadowMap_Position[crd + uint2(i, j)];
-                if (lightPosData.w == 0)
-                {
-                    continue;
-                }
+		// sample shadow map
+        float4 lightPosData = gShadowMap_Position[crd + uint2(i, j)];
+            if (lightPosData.w == 0)
+            {
+                continue;
+            }
 			
 
-                float3 lightPos = lightPosData.xyz;
-                float3 direction = lightPos - hitPoint;
-                float distance = length(direction);
-                direction = normalize(direction);
+            float3 lightPos = lightPosData.xyz;
+            float3 direction = lightPos - hitPoint;
+            float distance = length(direction);
+            direction = normalize(direction);
 
-			// do not sample if light is below the surface or
-			// on the same plane as the hit point 
-                float angleHitPoint = saturate(dot(direction, hitPointNormal));
-                if (angleHitPoint < 0.0001)
-                {
-                    continue;
-                }
-			// do not sample if hit point is below the pixel light's surface,
-			// or on the same plane
-                float3 pixelLightNormal = gShadowMap_Normal[crd + uint2(i, j)].rgb;
-                pixelLightNormal = pixelLightNormal * 2 - 1;
+		// do not sample if light is below the surface or
+		// on the same plane as the hit point 
+            float angleHitPoint = saturate(dot(direction, hitPointNormal));
+            if (angleHitPoint < 0.0001)
+            {
+                continue;
+            }
+		// do not sample if hit point is below the pixel light's surface,
+		// or on the same plane
+        float3 pixelLightNormal = gShadowMap_Normal[crd + uint2(i, j)].rgb;
+            pixelLightNormal = pixelLightNormal * 2 - 1;
 
-                float angleLightPoint = saturate(dot(-direction, pixelLightNormal));
-                if (angleLightPoint < 0.0001)
-                {
-                    continue;
-                }
+            float angleLightPoint = saturate(dot(-direction, pixelLightNormal));
+            if (angleLightPoint < 0.0001)
+            {
+                continue;
+            }
 
-			//else 
-                numRaySamples++;
+		//else 
+            numRaySamples++;
 
-			// set up ray
-                rayShadow.TMax = distance - 0.0001; // minus 0.0001?
-                rayShadow.Direction = direction;
+		// set up ray
+            rayShadow.TMax = distance - 0.0001; // minus 0.0001?
+            rayShadow.Direction = direction;
 
-                TraceRay(
-					gRtScene,
-					0 /*rayFlags*/,
-					0xFF, /* ray mask*/
-					1 /* ray index*/,
-					2 /* total nbr of hitgroups*/,
-					1 /*miss shader index*/,
-					rayShadow,
-					shadowPayload
-				);
+            TraceRay(
+				gRtScene,
+				0 /*rayFlags*/,
+				0xFF, /* ray mask*/
+				1 /* ray index*/,
+				2 /* total nbr of hitgroups*/,
+				1 /*miss shader index*/,
+				rayShadow,
+				shadowPayload
+			);
 
-                if (shadowPayload.hit == false)// we reached the light point
-                {
-            indirectColor += angleHitPoint
-								 * angleLightPoint
-								 * gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.0f) * xi1 * xi1 * 20;
+            if (shadowPayload.hit == false)// we reached the light point
+            {
+                indirectColor += angleHitPoint
+								* angleLightPoint
+								* gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.0f) * xi1 * xi1 * 20.0f;
         }
-        //    }
-        //}
-    }
+
+        }
 
     if (numRaySamples > 0)
     {

@@ -1248,31 +1248,32 @@ void PathTracer::createShaderResources()
     D3D12_RESOURCE_DESC resDesc = {};
     resDesc.DepthOrArraySize = 1;
     resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+    resDesc.Width = mSwapChainSize.x;
+    resDesc.Height = mSwapChainSize.y;
     resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // The backbuffer is actually DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, but sRGB formats can't be used with UAVs. We will convert to sRGB ourselves in the shader
     resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-    resDesc.Height = mSwapChainSize.y;
     resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     resDesc.MipLevels = 1;
     resDesc.SampleDesc.Count = 1;
-    resDesc.Width = mSwapChainSize.x;
-    d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&mpOutputResource))); // Starting as copy-source to simplify onFrameRender()
-		mpOutputResource->SetName(L"RT Output resource");
+    d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&mpRtOutputResource))); // Starting as copy-source to simplify onFrameRender()
+		mpRtOutputResource->SetName(L"RT Output resource");
 	
     // Create an SRV/UAV/CBV descriptor heap. 
 	// Need 4 entries 
-	//	- 1 UAV for the output
+	//	- 1 UAV for the ray tracing output
 	//	- 1 SRV for the scene
 	//	- 1 for the camera
 	//	- 1 for the environment map
 	//	- 1 SRV for the RT output
+	//  - 1 for the post proccesing output
 #ifdef HYBRID
 	//  - 1 for the light buffer
 	//  - 1 for the light position buffer
 	//  - 4 for the Shadow map (depth, position, normal, flux)
 
-	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 11, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 14, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #else
-    mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 5, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+    mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 8, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #endif
 
 	// Step size
@@ -1280,10 +1281,10 @@ void PathTracer::createShaderResources()
 	D3D12_CPU_DESCRIPTOR_HANDLE handle = mpCbvSrvUavHeap->GetCPUDescriptorHandleForHeapStart();
 	uint8_t handleIndex = 0;
 
-    // Create the UAV. Based on the root signature we created it should be the first entry
+    // Create the UAV for the RT output. Based on the root signature we created it should be the first entry
 		D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};
 		uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-		mpDevice->CreateUnorderedAccessView(mpOutputResource, nullptr, &uavDesc, handle);
+		mpDevice->CreateUnorderedAccessView(mpRtOutputResource, nullptr, &uavDesc, handle);
 
     // Create the TLAS SRV right after the UAV. Note that we are using a different SRV desc here
 		D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
@@ -1331,8 +1332,31 @@ void PathTracer::createShaderResources()
 		handle.ptr += cbvSrvDescriptorSize;
 		handleIndex++;
 
-		mpDevice->CreateShaderResourceView(mpOutputResource, &rtOutputSrvDesc, handle);
+		mpDevice->CreateShaderResourceView(mpRtOutputResource, &rtOutputSrvDesc, handle);
 		mRTOutputSrvHeapIndex = handleIndex;
+
+		// Create the UAV for the Blur1 output
+		d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&mpBlurPass1Output))); // Starting as copy-source to simplify onFrameRender()
+		mpBlurPass1Output->SetName(L"Blur1 Output resource");
+		handle.ptr += cbvSrvDescriptorSize;
+		handleIndex++;
+		mpDevice->CreateUnorderedAccessView(mpBlurPass1Output, nullptr, &uavDesc, handle);
+		mBlur1OutputUavHeapIndex = handleIndex;
+
+		// Create the SRV for the Blur1 output
+		handle.ptr += cbvSrvDescriptorSize;
+		handleIndex++;
+
+		mpDevice->CreateShaderResourceView(mpBlurPass1Output, &rtOutputSrvDesc, handle);
+		mBlur1OutputSrvHeapIndex = handleIndex;
+
+		// Create the UAV for the Blur2 output
+		d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&mpBlurPass2Output))); // Starting as copy-source to simplify onFrameRender()
+		mpBlurPass2Output->SetName(L"Blur2 Output resource");
+		handle.ptr += cbvSrvDescriptorSize;
+		handleIndex++;
+		mpDevice->CreateUnorderedAccessView(mpBlurPass2Output, nullptr, &uavDesc, handle);
+		mBlur2OutputUavHeapIndex = handleIndex;
 
 #ifdef HYBRID
 	// Create the CBV for the light buffer
@@ -1801,22 +1825,33 @@ void PathTracer::createShadowMapTextures()
 void PathTracer::createComputePipeline()
 {
 	// Create compute root signature
-	D3D12_DESCRIPTOR_RANGE ranges[1];
+	D3D12_DESCRIPTOR_RANGE ranges[2];
 
 	ranges[0].BaseShaderRegister = 0;//t0
 	ranges[0].NumDescriptors = 1;
 	ranges[0].RegisterSpace = 0;
-	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	ranges[0].OffsetInDescriptorsFromTableStart = 0;
+
+	ranges[1].BaseShaderRegister = 0;//u0
+	ranges[1].NumDescriptors = 1;
+	ranges[1].RegisterSpace = 0;
+	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+	ranges[1].OffsetInDescriptorsFromTableStart = 0;
 	
-	D3D12_ROOT_PARAMETER parameters[1];
+	D3D12_ROOT_PARAMETER parameters[2];
 	parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 	parameters[0].DescriptorTable.NumDescriptorRanges = 1;
 	parameters[0].DescriptorTable.pDescriptorRanges = ranges;
+
+	parameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	parameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	parameters[1].DescriptorTable.NumDescriptorRanges = 1;
+	parameters[1].DescriptorTable.pDescriptorRanges = &ranges[1];
 	
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 1;
+	desc.desc.NumParameters = 2;
 	desc.desc.pParameters = parameters;
 	desc.desc.NumStaticSamplers = 0;
 	desc.desc.pStaticSamplers = nullptr;
@@ -1926,6 +1961,119 @@ void PathTracer::renderDepthToTexture()
 
 #endif
 
+void PathTracer::rayTrace()
+{
+	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Raytrace");
+
+	// Update camera
+	updateCameraBuffer();
+
+	// Refit the top-level acceleration structure
+	buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, true, mModels, mTopLevelBuffers);
+
+
+	// Let's raytrace
+	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	D3D12_DISPATCH_RAYS_DESC raytraceDesc = {};
+	raytraceDesc.Width = mSwapChainSize.x;
+	raytraceDesc.Height = mSwapChainSize.y;
+	raytraceDesc.Depth = 1;
+
+	// RayGen is the first entry in the shader-table
+	raytraceDesc.RayGenerationShaderRecord.StartAddress = mpShaderTable->GetGPUVirtualAddress() + 0 * mShaderTableEntrySize;
+	raytraceDesc.RayGenerationShaderRecord.SizeInBytes = mShaderTableEntrySize;
+
+	// Miss is the second entry in the shader-table
+	size_t missOffset = 1 * mShaderTableEntrySize;
+#ifdef HYBRID
+	raytraceDesc.MissShaderTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + missOffset;
+	raytraceDesc.MissShaderTable.StrideInBytes = mShaderTableEntrySize;
+	raytraceDesc.MissShaderTable.SizeInBytes = mShaderTableEntrySize * 2;   // 2 miss-entries
+#else
+	raytraceDesc.MissShaderTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + missOffset;
+	raytraceDesc.MissShaderTable.StrideInBytes = mShaderTableEntrySize;
+	raytraceDesc.MissShaderTable.SizeInBytes = mShaderTableEntrySize * 1;   // 1 miss-entries
+#endif
+
+#ifdef HYBRID
+	// Hit is the fourth entry in the shader-table
+	size_t hitOffset = 3 * mShaderTableEntrySize;
+	raytraceDesc.HitGroupTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + hitOffset;
+	raytraceDesc.HitGroupTable.StrideInBytes = mShaderTableEntrySize;
+	raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 2 * mNumInstances;    // 6 hit-entries
+#else
+	// Hit is the third entry in the shader-table
+	size_t hitOffset = 2 * mShaderTableEntrySize;
+	raytraceDesc.HitGroupTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + hitOffset;
+	raytraceDesc.HitGroupTable.StrideInBytes = mShaderTableEntrySize;
+	raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 1 * mNumInstances;    // 3 hit-entries
+#endif
+
+
+	// Bind the empty root signature
+	mpCmdList->SetComputeRootSignature(mpEmptyRootSig);
+
+	// Dispatch
+	mpCmdList->SetPipelineState1(mpRtPipelineState.GetInterfacePtr());
+	mpCmdList->DispatchRays(&raytraceDesc);
+	PIXEndEvent(mpCmdList.GetInterfacePtr());
+}
+
+void PathTracer::postProcess()
+{
+
+	// Post processing
+	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Post Processing");
+
+	// resource barriers
+	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+	// Set pipeline state
+	mpCmdList->SetPipelineState(mpComputeState);
+	// Set Root signature
+	mpCmdList->SetComputeRootSignature(mpComputeRootSig.GetInterfacePtr());
+	// Set descriptor heaps
+	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
+	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+	//////////////
+	// Pass 1
+	//////////////
+
+	auto heapStart = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+	auto heapEntrySize = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+	// set "Shader Table", i.e. resources for root signature
+	D3D12_GPU_DESCRIPTOR_HANDLE handle = heapStart;
+	handle.ptr += mRTOutputSrvHeapIndex * heapEntrySize;
+	mpCmdList->SetComputeRootDescriptorTable(0, handle); // t0
+	handle = heapStart;
+	handle.ptr += mBlur1OutputUavHeapIndex * heapEntrySize;
+	mpCmdList->SetComputeRootDescriptorTable(1, handle); // u0
+
+	// dispatch
+	//UINT numGroupsX = (UINT)ceilf(mSwapChainSize[0] / 256.0f);
+	mpCmdList->Dispatch(mSwapChainSize[0], mSwapChainSize[1], 1);
+
+	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+	//////////////
+	// Pass 2
+	//////////////
+
+	// set "Shader Table", i.e. resources for root signature
+	handle = heapStart;
+	handle.ptr += mBlur1OutputSrvHeapIndex * heapEntrySize;
+	mpCmdList->SetComputeRootDescriptorTable(0, handle); // t0
+	handle = heapStart;
+	handle.ptr += mBlur2OutputUavHeapIndex * heapEntrySize;
+	mpCmdList->SetComputeRootDescriptorTable(1, handle); // u0
+
+	// dispatch
+	mpCmdList->Dispatch(mSwapChainSize[0], mSwapChainSize[1], 1);
+
+}
+
 //////////////////////////////////////////////////////////////////////////
 // Callbacks
 //////////////////////////////////////////////////////////////////////////
@@ -1971,100 +2119,30 @@ void PathTracer::onFrameRender(bool *gKeys)
 	// Update light buffer
 	updateLightBuffer();
 
+	//////////////////////
 	// Rasterize
+	//////////////////////
 	renderDepthToTexture();
 
 #endif
 
     uint32_t rtvIndex = beginFrame();
 
-	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Raytrace");
+	//////////////////////
+	// ray-trace
+	//////////////////////
+	rayTrace();
 
-	// Update camera
-	updateCameraBuffer();
-
-    // Refit the top-level acceleration structure
-    buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, true, mModels, mTopLevelBuffers);
-    
-
-    // Let's raytrace
-    resourceBarrier(mpCmdList, mpOutputResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    D3D12_DISPATCH_RAYS_DESC raytraceDesc = {};
-    raytraceDesc.Width = mSwapChainSize.x;
-    raytraceDesc.Height = mSwapChainSize.y;
-    raytraceDesc.Depth = 1;
-
-    // RayGen is the first entry in the shader-table
-    raytraceDesc.RayGenerationShaderRecord.StartAddress = mpShaderTable->GetGPUVirtualAddress() + 0 * mShaderTableEntrySize;
-    raytraceDesc.RayGenerationShaderRecord.SizeInBytes = mShaderTableEntrySize;
-
-    // Miss is the second entry in the shader-table
-    size_t missOffset = 1 * mShaderTableEntrySize;
-#ifdef HYBRID
-	raytraceDesc.MissShaderTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + missOffset;
-	raytraceDesc.MissShaderTable.StrideInBytes = mShaderTableEntrySize;
-	raytraceDesc.MissShaderTable.SizeInBytes = mShaderTableEntrySize * 2;   // 2 miss-entries
-#else
-    raytraceDesc.MissShaderTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + missOffset;
-    raytraceDesc.MissShaderTable.StrideInBytes = mShaderTableEntrySize;
-    raytraceDesc.MissShaderTable.SizeInBytes = mShaderTableEntrySize * 1;   // 1 miss-entries
-#endif
-
-#ifdef HYBRID
-	// Hit is the fourth entry in the shader-table
-	size_t hitOffset = 3 * mShaderTableEntrySize;
-	raytraceDesc.HitGroupTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + hitOffset;
-	raytraceDesc.HitGroupTable.StrideInBytes = mShaderTableEntrySize;
-	raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 2 * mNumInstances;    // 6 hit-entries
-#else
-    // Hit is the third entry in the shader-table
-    size_t hitOffset = 2 * mShaderTableEntrySize;
-    raytraceDesc.HitGroupTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + hitOffset;
-    raytraceDesc.HitGroupTable.StrideInBytes = mShaderTableEntrySize;
-    raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 1 * mNumInstances;    // 3 hit-entries
-#endif
-
-
-    // Bind the empty root signature
-    mpCmdList->SetComputeRootSignature(mpEmptyRootSig);
-
-    // Dispatch
-    mpCmdList->SetPipelineState1(mpRtPipelineState.GetInterfacePtr());
-    mpCmdList->DispatchRays(&raytraceDesc);
-	PIXEndEvent(mpCmdList.GetInterfacePtr());
-
-
-
-
-	// Post processing
-	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Post Processing");
-
-	// resource barriers
-	resourceBarrier(mpCmdList, mpOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-
-	// Set pipeline state
-	mpCmdList->SetPipelineState(mpComputeState);
-	// Set Root signature
-	mpCmdList->SetComputeRootSignature(mpComputeRootSig.GetInterfacePtr());
-	// Set descriptor heaps
-	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
-	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-	// set "Shader Table", i.e. resources for root signature
-	D3D12_GPU_DESCRIPTOR_HANDLE rtOutputSrvHandle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
-	rtOutputSrvHandle.ptr += mRTOutputSrvHeapIndex * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	mpCmdList->SetComputeRootDescriptorTable(0, rtOutputSrvHandle); // t0
-
-	// dispatch
-	mpCmdList->Dispatch(1, 1, 1);
-
-	resourceBarrier(mpCmdList, mpOutputResource, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
-
+	//////////////////////
+	// Blur
+	//////////////////////
+	postProcess();
 
 
     // Copy the results to the back-buffer
     //resourceBarrier(mpCmdList, mpOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
     resourceBarrier(mpCmdList, mFrameObjects[rtvIndex].pSwapChainBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
-	mpCmdList->CopyResource(mFrameObjects[rtvIndex].pSwapChainBuffer, mpOutputResource);
+	mpCmdList->CopyResource(mFrameObjects[rtvIndex].pSwapChainBuffer, mpBlurPass2Output);
 
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 

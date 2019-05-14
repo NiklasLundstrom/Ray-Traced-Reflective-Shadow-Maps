@@ -118,9 +118,11 @@ private:
     // Tutorial 06
     //////////////////////////////////////////////////////////////////////////
     void createShaderResources();
-    ID3D12ResourcePtr		mpOutputResource;
+    ID3D12ResourcePtr		mpRtOutputResource;
     ID3D12DescriptorHeapPtr mpCbvSrvUavHeap;
     static const uint32_t	kSrvUavHeapSize = 2;
+
+	void rayTrace();
 
     //////////////////////////////////////////////////////////////////////////
     // Tutorial 14
@@ -153,7 +155,7 @@ private:
 	//////////////////////////////////////////////////////////////////////////
 	// Hybrid stuff
 	//////////////////////////////////////////////////////////////////////////
-	#ifdef HYBRID
+#ifdef HYBRID
 	
 	const UINT kShadowMapWidth = 512;
 	const UINT kShadowMapHeight = 512;
@@ -192,8 +194,8 @@ private:
 
 	struct
 	{
-		vec3 position = vec3(-12.68, 8.63, 11.62);
-		vec3 direction = vec3(sin(2.65), 0.0, cos(2.65));
+		vec3 position = vec3(-27.0/*12.68*/, 8.63, 12.5/*11.62*/);
+		vec3 direction = vec3(sin(2.354), 0.0, cos(2.354));//.65
 
 		vec3 eye;
 		vec3 at;
@@ -203,14 +205,24 @@ private:
 		mat4 projMat;
 	} mLight;
 
-	#endif // HYBRID
+#endif // HYBRID
 
-	ID3D12RootSignaturePtr mpComputeRootSig;
-	ID3D12PipelineStatePtr mpComputeState;
+	//////////////////////////////////////////////////////////////////////////
+	// Post processing stuff
+	//////////////////////////////////////////////////////////////////////////
+	ID3D12RootSignaturePtr	mpComputeRootSig;
+	ID3D12PipelineStatePtr	mpComputeState;
 
 	uint8_t					mRTOutputSrvHeapIndex;
+	uint8_t					mBlur1OutputUavHeapIndex;
+	uint8_t					mBlur1OutputSrvHeapIndex;
+	uint8_t					mBlur2OutputUavHeapIndex;
+
+	ID3D12ResourcePtr		mpBlurPass1Output;
+	ID3D12ResourcePtr		mpBlurPass2Output;
 
 	void createComputePipeline();
+	void postProcess();
 
 	std::map<std::string, Model> mModels;
 	

@@ -1,4 +1,5 @@
-RWTexture2D<float4> gRtOutput : register(u0);
+Texture2D<float4> gRtOutput : register(t0);
+RWTexture2D<float4> gPpOutput : register(u0);
 
 
 [numthreads(1, 1, 1)]
@@ -7,26 +8,20 @@ void main( uint3 DTid : SV_DispatchThreadID )
     uint width;
     uint height;
     gRtOutput.GetDimensions(width, height);
-    float4 tempTexture[512][512];
 
-    int kernelWidth = 3;
-    int kernelSide = (kernelWidth - 1) / 2;
-    float4 window[9];
-    
+    uint2 centerCrd = (DTid.xy );
 
-    for (int y = kernelSide; y < height - kernelSide; y++)
-    {
-        for (int x = kernelSide; x < width - kernelSide; x++)
-        {
-            int count = 0;
+    int kernelWidth = 1;
+    int kernelSide = (kernelWidth - 1) / 2; 
+
+ 
             float4 sum = float4(0.0, 0.0, 0.0, 0.0);
-            for (int i = -kernelSide; i < kernelSide; i++)
+            for (int i = -kernelSide; i <= kernelSide; i++)
             {
-                for (int j = -kernelSide; j < kernelSide; j++)
+                for (int j = -kernelSide; j <= kernelSide; j++)
                 {
-                    window[count] = gRtOutput[uint2(x + i, y + j)];
-                    sum += window[count];
-                    count++;
+                    sum += gRtOutput[centerCrd + uint2(i, j)];
+
                 }
 
             }
@@ -35,20 +30,18 @@ void main( uint3 DTid : SV_DispatchThreadID )
           
 
 
-            tempTexture[y][x] = sum / 9.0f;
+    gPpOutput[centerCrd] = /* gRtOutput[centerCrd];*/sum / ( kernelWidth * kernelWidth);
 
-            }
 
-    }
 
-    for (int y2 = kernelSide; y2 < height - kernelSide; y2++)
-    {
-        for (int x2 = kernelSide; x2 < width - kernelSide; x2++)
-        {
-            gRtOutput[uint2(x2, y2)] = tempTexture[y2][x2];
+    //for (int y2 = kernelSide; y2 < height - kernelSide; y2++)
+    //{
+    //    for (int x2 = kernelSide; x2 < width - kernelSide; x2++)
+    //    {
+    //        gRtOutput[uint2(x2, y2)] = tempTexture[y2][x2];
 
-        }
-    }
+    //    }
+    //}
     
 
 
