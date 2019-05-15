@@ -229,6 +229,24 @@ private:
 	std::vector<float>		mGaussWeights;
 	int						mBlurRadius;
 
+	// tone mapping
+	void createToneMappingPipeline();
+	void applyToneMapping();
+
+	ID3D12RootSignaturePtr	mpToneMappingRootSig;
+	ID3D12PipelineStatePtr	mpToneMappingState;
+
+	D3D12_VIEWPORT			mPostProcessingViewPort;
+	D3D12_RECT				mPostProcessingScissorRect;
+
+	Model					mScreenModel;
+	ID3D12ResourcePtr		mpToneMappingOutput;
+	D3D12_CPU_DESCRIPTOR_HANDLE mToneMappingRtv;
+	uint8_t					mToneMappingOutputRtvHeapIndex;
+
+
+
+
 	std::map<std::string, Model> mModels;
 	
 };

@@ -19,7 +19,7 @@ public:
 	D3D12_GPU_VIRTUAL_ADDRESS getTransformBufferGPUAdress() { return mpTransformBuffer->GetGPUVirtualAddress(); }
 
 	AccelerationStructureBuffers loadModelFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter, bool loadTransform);
-	AccelerationStructureBuffers loadModelHardCodedPlane(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList);
+	void loadModelHardCodedPlane(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList);
 
 	void setTransform(mat4 transform) { mModelToWorld = transform * mVertexToModel; }
 	void updateTransformBuffer();
@@ -60,7 +60,12 @@ protected:
 	vec3 mColor;
 
 
-
+	// for plane only
+	struct VertexType
+	{
+		vec3 position;
+		vec2 uv;
+	};
 
 
 

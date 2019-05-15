@@ -198,6 +198,19 @@ void PathTracer::initDXR(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 
 #endif
 
+		// Set up viewPort
+		mPostProcessingViewPort.Width = (float)winWidth;
+		mPostProcessingViewPort.Height = (float)winHeight;
+		mPostProcessingViewPort.MinDepth = 0.0f;
+		mPostProcessingViewPort.MaxDepth = 1.0f;
+		mPostProcessingViewPort.TopLeftX = 0.0f;
+		mPostProcessingViewPort.TopLeftY = 0.0f;
+		// Set up Scissor rectangle
+		mPostProcessingScissorRect.left = 0;
+		mPostProcessingScissorRect.top = 0;
+		mPostProcessingScissorRect.right = winWidth;
+		mPostProcessingScissorRect.bottom = winHeight;
+
     // Create the per-frame objects
     for (uint32_t i = 0; i < arraysize(mFrameObjects); i++)
     {
@@ -1351,7 +1364,7 @@ void PathTracer::createShaderResources()
 		mBlur1OutputSrvHeapIndex = handleIndex;
 
 		// Create the UAV for the Blur2 output
-		d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_COPY_SOURCE, nullptr, IID_PPV_ARGS(&mpBlurPass2Output))); // Starting as copy-source to simplify onFrameRender()
+		d3d_call(mpDevice->CreateCommittedResource(&kDefaultHeapProps, D3D12_HEAP_FLAG_NONE, &resDesc, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, nullptr, IID_PPV_ARGS(&mpBlurPass2Output))); // Starting as copy-source to simplify onFrameRender()
 		mpBlurPass2Output->SetName(L"Blur2 Output resource");
 		handle.ptr += cbvSrvDescriptorSize;
 		handleIndex++;
@@ -1448,7 +1461,7 @@ void PathTracer::createShaderResources()
 	// - 1 RTV for Flux
 
 	// create a RTV descriptor heap
-		mpShadowMapRtvHeap = createDescriptorHeap(mpDevice, 3, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
+		mpShadowMapRtvHeap = createDescriptorHeap(mpDevice, 4, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
 
 		// Description
 			D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {};
@@ -1480,6 +1493,15 @@ void PathTracer::createShaderResources()
 			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Flux, &renderTargetViewDesc, rtvFluxHandle);
 			mShadowMapRtv_Flux = rtvFluxHandle;
 			mShadowMapRTVs[2] = mShadowMapRtv_Flux;
+
+		// Tone Mapping view
+			renderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;// _sRGB?
+
+			D3D12_CPU_DESCRIPTOR_HANDLE rtvToneMappingHandle = rtvFluxHandle;
+			rtvToneMappingHandle.ptr += rtvDescriptorSize;
+			mpDevice->CreateRenderTargetView(mpToneMappingOutput, &renderTargetViewDesc, rtvToneMappingHandle);
+			mToneMappingRtv = rtvToneMappingHandle;
+
 
 #endif
 }
@@ -1949,6 +1971,110 @@ void PathTracer::createComputePipeline()
 	mBlurRadius = (int) mGaussWeights.size() / 2;
 }
 
+void PathTracer::createToneMappingPipeline()
+{
+	// create quad
+	mScreenModel = Model(L"Screen", 0);
+	mScreenModel.loadModelHardCodedPlane(mpDevice, mpCmdList);
+
+	// root signature
+	D3D12_DESCRIPTOR_RANGE ranges[1];
+	ranges[0].BaseShaderRegister = 0;//t0
+	ranges[0].NumDescriptors = 1;
+	ranges[0].RegisterSpace = 0;
+	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[0].OffsetInDescriptorsFromTableStart = 0;
+
+	D3D12_ROOT_PARAMETER rootParameters[1];
+	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
+	rootParameters[0].DescriptorTable.pDescriptorRanges = ranges;
+
+	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
+
+	RootSignatureDesc desc;
+	desc.desc.NumParameters = 1;
+	desc.desc.pParameters = rootParameters;
+	desc.desc.NumStaticSamplers = 0;
+	desc.desc.pStaticSamplers = nullptr;
+	desc.desc.Flags = rootSignatureFlags;
+
+	mpToneMappingRootSig = createRootSignature(mpDevice, desc.desc);
+
+	// compile shaders
+	ID3DBlobPtr vertexShader = compileLibrary(L"Data/ToneMapping.hlsl", L"VSMain", L"vs_6_3");
+	ID3DBlobPtr pixelShader = compileLibrary(L"Data/ToneMapping.hlsl", L"PSMain", L"ps_6_3");
+
+	// create the pipeline state object (PSO)
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+	psoDesc.InputLayout = { nullptr, 0 };
+	psoDesc.pRootSignature = mpToneMappingRootSig.GetInterfacePtr();
+	psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.GetInterfacePtr());
+	psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.GetInterfacePtr());
+
+	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+
+	psoDesc.DepthStencilState.DepthEnable = FALSE;
+	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	psoDesc.DepthStencilState.StencilEnable = FALSE;
+	psoDesc.DepthStencilState.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+	psoDesc.DepthStencilState.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+	const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
+	{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+	psoDesc.DepthStencilState.FrontFace = defaultStencilOp;
+	psoDesc.DepthStencilState.BackFace = defaultStencilOp;
+
+	psoDesc.SampleMask = UINT_MAX;
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;//_sRGB?
+	psoDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
+	psoDesc.SampleDesc.Count = 1;
+	psoDesc.SampleDesc.Quality = 0;
+
+	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpToneMappingState)));
+
+	// create output resource
+	D3D12_RESOURCE_DESC toneMappingTexDesc;
+	toneMappingTexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	toneMappingTexDesc.Alignment = 0;
+	toneMappingTexDesc.Width = mSwapChainSize[0];
+	toneMappingTexDesc.Height = mSwapChainSize[1];
+	toneMappingTexDesc.DepthOrArraySize = 1;
+	toneMappingTexDesc.MipLevels = 1;
+	toneMappingTexDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	toneMappingTexDesc.SampleDesc.Count = 1;
+	toneMappingTexDesc.SampleDesc.Quality = 0;
+	toneMappingTexDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	toneMappingTexDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+	D3D12_CLEAR_VALUE colorClearValue;
+	colorClearValue.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+	colorClearValue.Color[0] = 0.0f;
+	colorClearValue.Color[1] = 0.0f;
+	colorClearValue.Color[2] = 0.0f;
+	colorClearValue.Color[3] = 0.0f;
+
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kDefaultHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&toneMappingTexDesc,
+		D3D12_RESOURCE_STATE_COPY_SOURCE,
+		&colorClearValue,
+		IID_PPV_ARGS(&mpToneMappingOutput)
+	));
+	mpToneMappingOutput->SetName(L"Tone Mapping RTV");
+}
+
 void PathTracer::renderDepthToTexture()
 {
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Rasterize shadow map");
@@ -2101,7 +2227,7 @@ void PathTracer::postProcess()
 	mpCmdList->SetComputeRoot32BitConstants(0, 1, &mBlurRadius, 0);
 	mpCmdList->SetComputeRoot32BitConstants(0, (UINT)mGaussWeights.size(), mGaussWeights.data(), 1);
 
-	for (int i = 0; i < 12; i++)
+	for (int i = 0; i < 8; i++)
 	{
 		//////////////
 		// Pass 1
@@ -2131,7 +2257,7 @@ void PathTracer::postProcess()
 		if (i == 0)
 		{
 			//resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			resourceBarrier(mpCmdList, mpBlurPass2Output, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			resourceBarrier(mpCmdList, mpBlurPass2Output, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		}
 		else
 		{
@@ -2162,8 +2288,59 @@ void PathTracer::postProcess()
 		resourceBarrier(mpCmdList, mpBlurPass2Output, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 	}
-	resourceBarrier(mpCmdList, mpBlurPass2Output, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	resourceBarrier(mpCmdList, mpBlurPass2Output, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
+}
+
+void PathTracer::applyToneMapping()
+{
+	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Tone Mapping");
+
+	resourceBarrier(mpCmdList, mpToneMappingOutput, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET );
+
+
+	// Set pipeline state
+	mpCmdList->SetPipelineState(mpToneMappingState);
+
+	// Set Root signature
+	mpCmdList->SetGraphicsRootSignature(mpToneMappingRootSig.GetInterfacePtr());
+
+	// Set descriptor heaps
+	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
+	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+	// set "Shader Table", i.e. resources for root signature
+	D3D12_GPU_DESCRIPTOR_HANDLE handle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+	handle.ptr += mBlur2OutputSrvHeapIndex * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mpCmdList->SetGraphicsRootDescriptorTable(0, handle); // t0, input texture SRV
+
+	// viewport
+	mpCmdList->RSSetViewports(1, &mPostProcessingViewPort);
+	mpCmdList->RSSetScissorRects(1, &mPostProcessingScissorRect);
+
+	// clear render target
+	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	mpCmdList->ClearRenderTargetView(mToneMappingRtv, clearColor, 0, nullptr);
+
+	// set render target
+	mpCmdList->OMSetRenderTargets(
+		1,
+		&mToneMappingRtv,
+		false,
+		nullptr
+	);
+
+	mpCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	// draw
+	mpCmdList->IASetVertexBuffers(0, 0, nullptr);
+	mpCmdList->IASetIndexBuffer(nullptr);
+	mpCmdList->DrawInstanced(6, 1, 0, 0);
+
+	resourceBarrier(mpCmdList, mpToneMappingOutput, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+
+	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -2181,6 +2358,7 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 	createShadowMapTextures();
 #endif
 	createComputePipeline();
+	createToneMappingPipeline();
 	createCameraBuffer();							// My own
 	createEnvironmentMapBuffer();
     createShaderResources();                        // Tutorial 06
@@ -2230,11 +2408,13 @@ void PathTracer::onFrameRender(bool *gKeys)
 	//////////////////////
 	postProcess();
 
+	applyToneMapping();
+
 
     // Copy the results to the back-buffer
     //resourceBarrier(mpCmdList, mpOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_COPY_SOURCE);
     resourceBarrier(mpCmdList, mFrameObjects[rtvIndex].pSwapChainBuffer, D3D12_RESOURCE_STATE_PRESENT, D3D12_RESOURCE_STATE_COPY_DEST);
-	mpCmdList->CopyResource(mFrameObjects[rtvIndex].pSwapChainBuffer, mpBlurPass2Output);
+	mpCmdList->CopyResource(mFrameObjects[rtvIndex].pSwapChainBuffer, mpToneMappingOutput);
 
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 

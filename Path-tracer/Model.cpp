@@ -45,13 +45,15 @@ ID3D12ResourcePtr Model::createBuffer(ID3D12Device5Ptr pDevice, uint64_t size, D
 
 ID3D12ResourcePtr Model::createPlaneVB(ID3D12Device5Ptr pDevice)
 {
-	const vec3 vertices[] =
-	{
-		vec3(-1, 0,  -1),
-		vec3(1, 0,  1),
-		vec3(-1, 0,  1),
-		vec3(1, 0,  -1),
-	};
+	VertexType vertices[4];
+	vertices[0].position = vec3(0, 0, 0);
+	vertices[0].uv = vec2(0, 0);
+	vertices[1].position = vec3(1, 1, 0);
+	vertices[1].uv = vec2(1, 1);
+	vertices[2].position = vec3(0, 1, 0);
+	vertices[2].uv = vec2(0, 1);
+	vertices[3].position = vec3(1, 0, 0);
+	vertices[3].uv = vec2(1, 0);
 
 	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
 	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, sizeof(vertices), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
@@ -67,11 +69,11 @@ ID3D12ResourcePtr Model::createPlaneIB(ID3D12Device5Ptr pDevice)
 	const uint indices[] =
 	{
 		0,
-		2,
-		3,
 		1,
+		2,
+		0,
 		3,
-		2
+		1
 	};// left hand oriented!
 
 	// For simplicity, we create the vertex buffer on the upload heap, but that's not required
@@ -201,42 +203,42 @@ inline glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4* from)
 // Callbacks
 ///////////////////////////////////////////
 
-AccelerationStructureBuffers Model::loadModelHardCodedPlane(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList)
+void Model::loadModelHardCodedPlane(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList)
 {
 	// create and set up VB, IB and NB
 	mpVertexBuffer = createPlaneVB(pDevice);
 	mpVertexBuffer->SetName((std::wstring(mName) + L" Vertex Buffer").c_str());
 	mpIndexBuffer = createPlaneIB(pDevice);
 	mpIndexBuffer->SetName((std::wstring(mName) + L" Index Buffer").c_str());
-	mpNormalBuffer = createPlaneNB(pDevice);
-	mpNormalBuffer->SetName((std::wstring(mName) + L" Normal Buffer").c_str());
+	//mpNormalBuffer = createPlaneNB(pDevice);
+	//mpNormalBuffer->SetName((std::wstring(mName) + L" Normal Buffer").c_str());
 
 	// VB view
 	mVertexBufferView.BufferLocation = mpVertexBuffer->GetGPUVirtualAddress();
-	mVertexBufferView.StrideInBytes = sizeof(vec3);
-	mVertexBufferView.SizeInBytes = 4 * sizeof(vec3);
+	mVertexBufferView.StrideInBytes = sizeof(VertexType);
+	mVertexBufferView.SizeInBytes = 4 * sizeof(VertexType);
 
 	// IB view
 	mIndexBufferView.BufferLocation = mpIndexBuffer->GetGPUVirtualAddress();
 	mIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
 	mIndexBufferView.SizeInBytes = 6 * sizeof(uint);
 
-	// create transform buffer
-	mpTransformBuffer = createBuffer(pDevice, sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
-	mpTransformBuffer->SetName((std::wstring(mName) + L" Transform").c_str());
+	//// create transform buffer
+	//mpTransformBuffer = createBuffer(pDevice, sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	//mpTransformBuffer->SetName((std::wstring(mName) + L" Transform").c_str());
 
 
-	// BLAS
-	AccelerationStructureBuffers bottomLevelBuffer = createBottomLevelAS(
-																pDevice,
-																pCmdList,
-																mpVertexBuffer,
-																4,
-																mpIndexBuffer,
-																6
-															);
+	//// BLAS
+	//AccelerationStructureBuffers bottomLevelBuffer = createBottomLevelAS(
+	//															pDevice,
+	//															pCmdList,
+	//															mpVertexBuffer,
+	//															4,
+	//															mpIndexBuffer,
+	//															6
+	//														);
 
-	return bottomLevelBuffer;
+	return;// bottomLevelBuffer;
 
 }
 
