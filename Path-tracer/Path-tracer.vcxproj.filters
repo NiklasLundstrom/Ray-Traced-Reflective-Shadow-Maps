@@ -38,6 +38,9 @@
     <FxCompile Include="Data\ToneMapping.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
+    <FxCompile Include="Data\TemporalFilter.hlsl">
+      <Filter>Data</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />

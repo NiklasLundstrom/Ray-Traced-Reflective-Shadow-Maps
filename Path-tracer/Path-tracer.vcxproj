@@ -106,6 +106,9 @@
     <CustomBuild Include="Data\ToneMapping.hlsl">
       <FileType>Document</FileType>
     </CustomBuild>
+    <CustomBuild Include="Data\TemporalFilter.hlsl">
+      <FileType>Document</FileType>
+    </CustomBuild>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Framework\Framework.vcxproj">

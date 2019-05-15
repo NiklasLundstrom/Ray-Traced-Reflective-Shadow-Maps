@@ -107,6 +107,8 @@ private:
     ID3D12StateObjectPtr	mpRtPipelineState;
     ID3D12RootSignaturePtr	mpEmptyRootSig;
     
+	void rayTrace();
+
     //////////////////////////////////////////////////////////////////////////
     // Tutorial 05
     //////////////////////////////////////////////////////////////////////////
@@ -121,8 +123,6 @@ private:
     ID3D12ResourcePtr		mpRtOutputResource;
     ID3D12DescriptorHeapPtr mpCbvSrvUavHeap;
     static const uint32_t	kSrvUavHeapSize = 2;
-
-	void rayTrace();
 
     //////////////////////////////////////////////////////////////////////////
     // Tutorial 14
@@ -225,7 +225,7 @@ private:
 	ID3D12ResourcePtr		mpBlurPass2Output;
 
 	void createComputePipeline();
-	void postProcess();
+	void applySpatialFilter();
 	std::vector<float>		mGaussWeights;
 	int						mBlurRadius;
 
@@ -239,14 +239,26 @@ private:
 	D3D12_VIEWPORT			mPostProcessingViewPort;
 	D3D12_RECT				mPostProcessingScissorRect;
 
-	Model					mScreenModel;
 	ID3D12ResourcePtr		mpToneMappingOutput;
 	D3D12_CPU_DESCRIPTOR_HANDLE mToneMappingRtv;
-	uint8_t					mToneMappingOutputRtvHeapIndex;
+
+	// temporal filter
+	void createTemporalFilterPipeline();
+	void applyTemporalFilter();
+	ID3D12RootSignaturePtr	mpTemporalFilterRootSig;
+	ID3D12PipelineStatePtr	mpTemporalFilterState;
+
+	ID3D12ResourcePtr		mpPreviousRtOutput;
+	ID3D12ResourcePtr		mpTemproalFilterOutput;
+	D3D12_CPU_DESCRIPTOR_HANDLE mTemporalFilterRtv;
+	uint8_t					mPreviousRtOutputSrvHeapIndex;
+	uint8_t					mTemporalFilterOutputSrvHeapIndex;
 
 
 
 
+
+	// models
 	std::map<std::string, Model> mModels;
 	
 };

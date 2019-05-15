@@ -1251,9 +1251,9 @@ void PathTracer::createShaderResources()
 	//  - 1 for the light position buffer
 	//  - 4 for the Shadow map (depth, position, normal, flux)
 
-	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 15, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 17, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #else
-    mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 9, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+    mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 11, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #endif
 
 	// Step size
@@ -1345,6 +1345,20 @@ void PathTracer::createShaderResources()
 		mpDevice->CreateShaderResourceView(mpBlurPass2Output, &rtOutputSrvDesc, handle);
 		mBlur2OutputSrvHeapIndex = handleIndex;
 
+		// Create the SRV for the previous RT output
+		handle.ptr += cbvSrvDescriptorSize;
+		handleIndex++;
+
+		mpDevice->CreateShaderResourceView(mpPreviousRtOutput, &rtOutputSrvDesc, handle);
+		mPreviousRtOutputSrvHeapIndex = handleIndex;
+
+		// Create the SRV for the temporal filter output
+		handle.ptr += cbvSrvDescriptorSize;
+		handleIndex++;
+
+		mpDevice->CreateShaderResourceView(mpTemproalFilterOutput, &rtOutputSrvDesc, handle);
+		mTemporalFilterOutputSrvHeapIndex = handleIndex;
+
 #ifdef HYBRID
 	// Create the CBV for the light buffer
 		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvLightDesc = {};
@@ -1428,7 +1442,7 @@ void PathTracer::createShaderResources()
 	// - 1 RTV for Flux
 
 	// create a RTV descriptor heap
-		mpShadowMapRtvHeap = createDescriptorHeap(mpDevice, 4, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
+		mpShadowMapRtvHeap = createDescriptorHeap(mpDevice, 5, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
 
 		// Description
 			D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {};
@@ -1437,37 +1451,37 @@ void PathTracer::createShaderResources()
 			renderTargetViewDesc.Texture2D.MipSlice = 0;
 
 		// start handle and size
-			D3D12_CPU_DESCRIPTOR_HANDLE rtvHeapStart = mpShadowMapRtvHeap->GetCPUDescriptorHandleForHeapStart();
+			D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = mpShadowMapRtvHeap->GetCPUDescriptorHandleForHeapStart();
 			const UINT rtvDescriptorSize = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 		// Position view
-			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Position, &renderTargetViewDesc, rtvHeapStart);
-			mShadowMapRtv_Position = rtvHeapStart;
+			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Position, &renderTargetViewDesc, rtvHandle);
+			mShadowMapRtv_Position = rtvHandle;
 			mShadowMapRTVs[0] = mShadowMapRtv_Position;
 
 		// Normal view
-			D3D12_CPU_DESCRIPTOR_HANDLE rtvNormalHandle = rtvHeapStart;
-			rtvNormalHandle.ptr += rtvDescriptorSize;
-
-			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Normal, &renderTargetViewDesc, rtvNormalHandle);
-			mShadowMapRtv_Normal = rtvNormalHandle;
+			rtvHandle.ptr += rtvDescriptorSize;
+			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Normal, &renderTargetViewDesc, rtvHandle);
+			mShadowMapRtv_Normal = rtvHandle;
 			mShadowMapRTVs[1] = mShadowMapRtv_Normal;
 
 		// Flux view
-			D3D12_CPU_DESCRIPTOR_HANDLE rtvFluxHandle = rtvNormalHandle;
-			rtvFluxHandle.ptr += rtvDescriptorSize;
-
-			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Flux, &renderTargetViewDesc, rtvFluxHandle);
-			mShadowMapRtv_Flux = rtvFluxHandle;
+			rtvHandle.ptr += rtvDescriptorSize;
+			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Flux, &renderTargetViewDesc, rtvHandle);
+			mShadowMapRtv_Flux = rtvHandle;
 			mShadowMapRTVs[2] = mShadowMapRtv_Flux;
+
+		// Temporal filter view
+			rtvHandle.ptr += rtvDescriptorSize;
+			mpDevice->CreateRenderTargetView(mpTemproalFilterOutput, &renderTargetViewDesc, rtvHandle);
+			mTemporalFilterRtv = rtvHandle;
 
 		// Tone Mapping view
 			renderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;// _sRGB?
 
-			D3D12_CPU_DESCRIPTOR_HANDLE rtvToneMappingHandle = rtvFluxHandle;
-			rtvToneMappingHandle.ptr += rtvDescriptorSize;
-			mpDevice->CreateRenderTargetView(mpToneMappingOutput, &renderTargetViewDesc, rtvToneMappingHandle);
-			mToneMappingRtv = rtvToneMappingHandle;
+			rtvHandle.ptr += rtvDescriptorSize;
+			mpDevice->CreateRenderTargetView(mpToneMappingOutput, &renderTargetViewDesc, rtvHandle);
+			mToneMappingRtv = rtvHandle;
 
 
 #endif
@@ -1940,12 +1954,10 @@ void PathTracer::createComputePipeline()
 
 void PathTracer::createToneMappingPipeline()
 {
-	// create quad
-	mScreenModel = Model(L"Screen", 0);
-	mScreenModel.loadModelHardCodedPlane(mpDevice, mpCmdList);
 
 	// root signature
 	D3D12_DESCRIPTOR_RANGE ranges[5];
+
 	// Blur output
 	ranges[0].BaseShaderRegister = 0;//t0
 	ranges[0].NumDescriptors = 1;
@@ -2048,8 +2060,8 @@ void PathTracer::createToneMappingPipeline()
 	D3D12_RESOURCE_DESC toneMappingTexDesc;
 	toneMappingTexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	toneMappingTexDesc.Alignment = 0;
-	toneMappingTexDesc.Width = mSwapChainSize[0];
-	toneMappingTexDesc.Height = mSwapChainSize[1];
+	toneMappingTexDesc.Width = mSwapChainSize.x;
+	toneMappingTexDesc.Height = mSwapChainSize.y;
 	toneMappingTexDesc.DepthOrArraySize = 1;
 	toneMappingTexDesc.MipLevels = 1;
 	toneMappingTexDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -2074,6 +2086,135 @@ void PathTracer::createToneMappingPipeline()
 		IID_PPV_ARGS(&mpToneMappingOutput)
 	));
 	mpToneMappingOutput->SetName(L"Tone Mapping RTV");
+}
+
+void PathTracer::createTemporalFilterPipeline()
+{
+	// root signature
+	D3D12_DESCRIPTOR_RANGE ranges[2];
+
+	// Current RT output
+	ranges[0].BaseShaderRegister = 0;//t0
+	ranges[0].NumDescriptors = 1;
+	ranges[0].RegisterSpace = 0;
+	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[0].OffsetInDescriptorsFromTableStart = 0;
+
+	// Previous RT Output
+	ranges[1].BaseShaderRegister = 1; //t1
+	ranges[1].NumDescriptors = 1;
+	ranges[1].RegisterSpace = 0;
+	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[1].OffsetInDescriptorsFromTableStart = 0;
+
+	D3D12_ROOT_PARAMETER rootParameters[2];
+	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
+	rootParameters[0].DescriptorTable.pDescriptorRanges = ranges;
+
+	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rootParameters[1].DescriptorTable.NumDescriptorRanges = 1;
+	rootParameters[1].DescriptorTable.pDescriptorRanges = &ranges[1];
+
+	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
+
+	RootSignatureDesc desc;
+	desc.desc.NumParameters = 2;
+	desc.desc.pParameters = rootParameters;
+	desc.desc.NumStaticSamplers = 0;
+	desc.desc.pStaticSamplers = nullptr;
+	desc.desc.Flags = rootSignatureFlags;
+
+	mpTemporalFilterRootSig = createRootSignature(mpDevice, desc.desc);
+
+	// compile shaders
+	ID3DBlobPtr vertexShader = compileLibrary(L"Data/TemporalFilter.hlsl", L"VSMain", L"vs_6_3");
+	ID3DBlobPtr pixelShader = compileLibrary(L"Data/TemporalFilter.hlsl", L"PSMain", L"ps_6_3");
+
+	// create the pipeline state object (PSO)
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
+	psoDesc.InputLayout = { nullptr, 0 };
+	psoDesc.pRootSignature = mpTemporalFilterRootSig.GetInterfacePtr();
+	psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.GetInterfacePtr());
+	psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.GetInterfacePtr());
+
+	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+
+	psoDesc.DepthStencilState.DepthEnable = FALSE;
+	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+	psoDesc.DepthStencilState.StencilEnable = FALSE;
+	psoDesc.DepthStencilState.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+	psoDesc.DepthStencilState.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+	const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
+	{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+	psoDesc.DepthStencilState.FrontFace = defaultStencilOp;
+	psoDesc.DepthStencilState.BackFace = defaultStencilOp;
+
+	psoDesc.SampleMask = UINT_MAX;
+	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.RTVFormats[0] = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	psoDesc.DSVFormat = DXGI_FORMAT_UNKNOWN;
+	psoDesc.SampleDesc.Count = 1;
+	psoDesc.SampleDesc.Quality = 0;
+
+	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpTemporalFilterState)));
+
+	// create output resource
+	D3D12_RESOURCE_DESC texDesc;
+	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+	texDesc.Alignment = 0;
+	texDesc.Width = mSwapChainSize.x;
+	texDesc.Height = mSwapChainSize.y;
+	texDesc.DepthOrArraySize = 1;
+	texDesc.MipLevels = 1;
+	texDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.SampleDesc.Quality = 0;
+	texDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+	texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+
+	D3D12_CLEAR_VALUE colorClearValue;
+	colorClearValue.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	colorClearValue.Color[0] = 0.0f;
+	colorClearValue.Color[1] = 0.0f;
+	colorClearValue.Color[2] = 0.0f;
+	colorClearValue.Color[3] = 0.0f;
+
+	// render target
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kDefaultHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&texDesc,
+		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		&colorClearValue,
+		IID_PPV_ARGS(&mpTemproalFilterOutput)
+	));
+	mpTemproalFilterOutput->SetName(L"Temporal Filter RTV");
+
+	// previous RT output
+	texDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kDefaultHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&texDesc,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		nullptr,
+		IID_PPV_ARGS(&mpPreviousRtOutput)
+	));
+	mpPreviousRtOutput->SetName(L"Previous RT Output");
+
 }
 
 void PathTracer::renderDepthToTexture()
@@ -2208,17 +2349,78 @@ void PathTracer::rayTrace()
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
-void PathTracer::postProcess()
+void PathTracer::applyTemporalFilter()
+{
+	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Temporal Filtering");
+
+	// resource barriers
+	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	resourceBarrier(mpCmdList, mpTemproalFilterOutput, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+	// Set pipeline state
+	mpCmdList->SetPipelineState(mpTemporalFilterState);
+
+	// Set Root signature
+	mpCmdList->SetGraphicsRootSignature(mpTemporalFilterRootSig.GetInterfacePtr());
+
+	// Set descriptor heaps
+	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
+	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+	// set "Shader Table", i.e. resources for root signature
+	D3D12_GPU_DESCRIPTOR_HANDLE handle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+	handle.ptr += mRTOutputSrvHeapIndex * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mpCmdList->SetGraphicsRootDescriptorTable(0, handle); // t0, current RT output
+
+	handle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+	handle.ptr += mPreviousRtOutputSrvHeapIndex * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mpCmdList->SetGraphicsRootDescriptorTable(1, handle); // t1, previous RT output
+
+	// viewport
+	mpCmdList->RSSetViewports(1, &mPostProcessingViewPort);
+	mpCmdList->RSSetScissorRects(1, &mPostProcessingScissorRect);
+
+	// clear render target
+	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+	mpCmdList->ClearRenderTargetView(mTemporalFilterRtv, clearColor, 0, nullptr);
+
+	// set render target
+	mpCmdList->OMSetRenderTargets(
+		1,
+		&mTemporalFilterRtv,
+		false,
+		nullptr
+	);
+
+	mpCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+	// draw
+	mpCmdList->IASetVertexBuffers(0, 0, nullptr);
+	mpCmdList->IASetIndexBuffer(nullptr);
+	mpCmdList->DrawInstanced(6, 1, 0, 0);
+
+	// resource barriers
+	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE );
+	resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+	resourceBarrier(mpCmdList, mpTemproalFilterOutput, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
+	
+
+	// copy current rt to prev rt
+	mpCmdList->CopyResource(mpPreviousRtOutput, mpRtOutputResource);
+
+	PIXEndEvent(mpCmdList.GetInterfacePtr());
+}
+
+void PathTracer::applySpatialFilter()
 {
 
 	// Post processing
-	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Post Processing");
+	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Spatial filter");
 
 	// resource barriers
-	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 	
-	// Set pipeline state
-	//mpCmdList->SetPipelineState(mpComputeState);
 	// Set Root signature
 	mpCmdList->SetComputeRootSignature(mpComputeRootSig.GetInterfacePtr());
 	// Set descriptor heaps
@@ -2241,7 +2443,7 @@ void PathTracer::postProcess()
 		// set "Shader Table", i.e. resources for root signature
 		D3D12_GPU_DESCRIPTOR_HANDLE handle = heapStart;
 		if (i == 0) {
-			handle.ptr += mRTOutputSrvHeapIndex * heapEntrySize;
+			handle.ptr += mTemporalFilterOutputSrvHeapIndex/*mRTOutputSrvHeapIndex*/ * heapEntrySize;
 		}else 
 		{
 			handle.ptr += mBlur2OutputSrvHeapIndex * heapEntrySize;
@@ -2291,6 +2493,7 @@ void PathTracer::postProcess()
 	}
 	resourceBarrier(mpCmdList, mpBlurPass2Output, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
+	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
 void PathTracer::applyToneMapping()
@@ -2364,6 +2567,7 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 #endif
 	createComputePipeline();
 	createToneMappingPipeline();
+	createTemporalFilterPipeline();
 	createCameraBuffer();							// My own
 	createEnvironmentMapBuffer();
     createShaderResources();                        // Tutorial 06
@@ -2409,10 +2613,18 @@ void PathTracer::onFrameRender(bool *gKeys)
 	rayTrace();
 
 	//////////////////////
-	// Blur
+	// Temporal filter
 	//////////////////////
-	postProcess();
+	applyTemporalFilter();
 
+	//////////////////////
+	// Spatial filter
+	//////////////////////
+	applySpatialFilter();
+
+	//////////////////////
+	// Tone Map
+	//////////////////////
 	applyToneMapping();
 
 
