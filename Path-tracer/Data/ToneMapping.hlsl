@@ -2,6 +2,16 @@
 
 #include "ToneMapping.hlsli"
 
+float3 linearToSrgb(float3 c)
+{
+    // Based on http://chilliant.blogspot.com/2012/08/srgb-approximations-for-hlsl.html
+    float3 sq1 = sqrt(c);
+    float3 sq2 = sqrt(sq1);
+    float3 sq3 = sqrt(sq2);
+    float3 srgb = 0.662002687 * sq1 + 0.684122060 * sq2 - 0.323583601 * sq3 - 0.0225411470 * c;
+    return srgb;
+}
+
 static const float2 gTexCoords[6] =
 {
     float2(0.0f, 1.0f),
@@ -32,11 +42,62 @@ PSInput VSMain(uint index : SV_VertexID)
 
 
 Texture2D<float4> gInput : register(t0);
+Texture2D<float> gShadowMap_Depth : register(t1);
+Texture2D<float4> gShadowMap_Position : register(t2);
+Texture2D<float4> gShadowMap_Normal : register(t3);
+Texture2D<float4> gShadowMap_Flux : register(t4);
 
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    float4 output = float4(1.0, 1.0, 0.0, 1.0);
-    output.b = gInput[input.uv*1200].b;
-    return output;
+    uint masterWidth;
+    uint masterHeight;
+    gInput.GetDimensions(masterWidth, masterHeight);
+    float2 crd = input.uv * float2(masterWidth, masterHeight);
+    float3 output = gInput[crd].rgb;
+
+	// Tone Map
+    output = linearToSrgb(ACESFitted(1.5 * output.rgb));
+
+
+	// Render Shadow map to the side
+    uint shadowWidth;
+    uint shadowHeight;
+    gShadowMap_Depth.GetDimensions(shadowWidth, shadowHeight);
+    int scale = 4;
+    if (crd.x < shadowWidth / scale && crd.y < shadowHeight / scale)
+    {
+        float zPrim = gShadowMap_Depth[crd * scale];
+        float f = 40.0f; // Sync this value to the C++ code!
+        float n = 0.1f;
+		// Transform to linear view space
+        float z = f * n / (f - zPrim * (f - n));
+        zPrim = z * zPrim;
+        zPrim /= f; // z <- 0..1
+        output = zPrim * float3(1.0, 1.0, 1.0);
+    }
+    else if (crd.x < shadowWidth / scale && crd.y < 2 * shadowHeight / scale)
+    {
+        uint2 coords = crd;
+        coords.y -= shadowHeight / scale;
+        float3 cPrim = gShadowMap_Position[coords * scale].rgb;
+        output = cPrim;
+    }
+    else if (crd.x < shadowWidth / scale && crd.y < 3 * shadowHeight / scale)
+    {
+        uint2 coords = crd;
+        coords.y -= 2 * shadowHeight / scale;
+        float3 cPrim = gShadowMap_Normal[coords * scale].rgb;
+        output = cPrim;
+    }
+    else if (crd.x < shadowWidth / scale && crd.y < 4 * shadowHeight / scale)
+    {
+        uint2 coords = crd;
+        coords.y -= 3 * shadowHeight / scale;
+        float3 cPrim = gShadowMap_Flux[coords * scale].rgb;
+        output = cPrim;
+    }
+
+
+    return float4(output, 1);
 }

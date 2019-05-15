@@ -679,7 +679,7 @@ RootSignatureDesc createRayGenRootDesc()
 {
 	// Create the root-signature
 	RootSignatureDesc desc;
-	desc.range.resize(7);
+	desc.range.resize(3);
 	// gOutput
 	desc.range[0].BaseShaderRegister = 0;// u0
 	desc.range[0].NumDescriptors = 1;
@@ -701,45 +701,14 @@ RootSignatureDesc createRayGenRootDesc()
 	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 	desc.range[2].OffsetInDescriptorsFromTableStart = 2;
 
-	// Shadow map Depth
-	desc.range[3].BaseShaderRegister = 1; //t1
-	desc.range[3].NumDescriptors = 1;
-	desc.range[3].RegisterSpace = 0;
-	desc.range[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	desc.range[3].OffsetInDescriptorsFromTableStart = 0;
-
-	// Shadow map Position
-	desc.range[4].BaseShaderRegister = 2; //t2
-	desc.range[4].NumDescriptors = 1;
-	desc.range[4].RegisterSpace = 0;
-	desc.range[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	desc.range[4].OffsetInDescriptorsFromTableStart = 1;
-
-	// Shadow map Normal
-	desc.range[5].BaseShaderRegister = 3; //t3
-	desc.range[5].NumDescriptors = 1;
-	desc.range[5].RegisterSpace = 0;
-	desc.range[5].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	desc.range[5].OffsetInDescriptorsFromTableStart = 2;
-
-	// Shadow map Flux
-	desc.range[6].BaseShaderRegister = 4; //t4
-	desc.range[6].NumDescriptors = 1;
-	desc.range[6].RegisterSpace = 0;
-	desc.range[6].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
-	desc.range[6].OffsetInDescriptorsFromTableStart = 3;
-
-	desc.rootParams.resize(2);
+	desc.rootParams.resize(1);
 	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 3;
 	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
 
-	desc.rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	desc.rootParams[1].DescriptorTable.NumDescriptorRanges = 4;
-	desc.rootParams[1].DescriptorTable.pDescriptorRanges = desc.range.data() + 3;//&desc.range[3];
 
     // Create the desc
-    desc.desc.NumParameters = 2;
+    desc.desc.NumParameters = 1;
     desc.desc.pParameters = desc.rootParams.data();
     desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 
@@ -1201,8 +1170,6 @@ void PathTracer::createShaderTable()
 		// Output UAV + TLAS + Camera buffer
 			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry0 = heapStart;
 			pEntry0 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
-		// Shadow maps
-			*(D3D12_GPU_VIRTUAL_ADDRESS*) pEntry0 = heapStart + mShadowMapsHeapIndex * heapEntrySize;
 		entryIndex++;
 
     // Entry 1 - primary ray miss
@@ -1263,7 +1230,7 @@ void PathTracer::createShaderResources()
     resDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
     resDesc.Width = mSwapChainSize.x;
     resDesc.Height = mSwapChainSize.y;
-    resDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM; // The backbuffer is actually DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, but sRGB formats can't be used with UAVs. We will convert to sRGB ourselves in the shader
+    resDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT; // The backbuffer is actually DXGI_FORMAT_R8G8B8A8_UNORM_SRGB, but sRGB formats can't be used with UAVs. We will convert to sRGB ourselves in the shader
     resDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
     resDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     resDesc.MipLevels = 1;
@@ -1338,7 +1305,7 @@ void PathTracer::createShaderResources()
 		// Create the SRV for the RT Output
 		D3D12_SHADER_RESOURCE_VIEW_DESC rtOutputSrvDesc = {};
 		rtOutputSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-		rtOutputSrvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		rtOutputSrvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		rtOutputSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
 		rtOutputSrvDesc.Texture2D.MipLevels = 1;
 
@@ -1978,18 +1945,52 @@ void PathTracer::createToneMappingPipeline()
 	mScreenModel.loadModelHardCodedPlane(mpDevice, mpCmdList);
 
 	// root signature
-	D3D12_DESCRIPTOR_RANGE ranges[1];
+	D3D12_DESCRIPTOR_RANGE ranges[5];
+	// Blur output
 	ranges[0].BaseShaderRegister = 0;//t0
 	ranges[0].NumDescriptors = 1;
 	ranges[0].RegisterSpace = 0;
 	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	ranges[0].OffsetInDescriptorsFromTableStart = 0;
 
-	D3D12_ROOT_PARAMETER rootParameters[1];
+	// Shadow map Depth
+	ranges[1].BaseShaderRegister = 1; //t1
+	ranges[1].NumDescriptors = 1;
+	ranges[1].RegisterSpace = 0;
+	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[1].OffsetInDescriptorsFromTableStart = 0;
+
+	// Shadow map Position
+	ranges[2].BaseShaderRegister = 2; //t2
+	ranges[2].NumDescriptors = 1;
+	ranges[2].RegisterSpace = 0;
+	ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[2].OffsetInDescriptorsFromTableStart = 1;
+
+	// Shadow map Normal
+	ranges[3].BaseShaderRegister = 3; //t3
+	ranges[3].NumDescriptors = 1;
+	ranges[3].RegisterSpace = 0;
+	ranges[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[3].OffsetInDescriptorsFromTableStart = 2;
+
+	// Shadow map Flux
+	ranges[4].BaseShaderRegister = 4; //t4
+	ranges[4].NumDescriptors = 1;
+	ranges[4].RegisterSpace = 0;
+	ranges[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[4].OffsetInDescriptorsFromTableStart = 3;
+
+	D3D12_ROOT_PARAMETER rootParameters[2];
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
 	rootParameters[0].DescriptorTable.pDescriptorRanges = ranges;
+
+	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rootParameters[1].DescriptorTable.NumDescriptorRanges = 4;
+	rootParameters[1].DescriptorTable.pDescriptorRanges = &ranges[1];
 
 	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
@@ -1999,7 +2000,7 @@ void PathTracer::createToneMappingPipeline()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
 
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 1;
+	desc.desc.NumParameters = 2;
 	desc.desc.pParameters = rootParameters;
 	desc.desc.NumStaticSamplers = 0;
 	desc.desc.pStaticSamplers = nullptr;
@@ -2314,6 +2315,10 @@ void PathTracer::applyToneMapping()
 	handle.ptr += mBlur2OutputSrvHeapIndex * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	mpCmdList->SetGraphicsRootDescriptorTable(0, handle); // t0, input texture SRV
 
+	handle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+	handle.ptr += mShadowMapsHeapIndex * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	mpCmdList->SetGraphicsRootDescriptorTable(1, handle); // t1-4, shadow maps
+	
 	// viewport
 	mpCmdList->RSSetViewports(1, &mPostProcessingViewPort);
 	mpCmdList->RSSetScissorRects(1, &mPostProcessingScissorRect);
