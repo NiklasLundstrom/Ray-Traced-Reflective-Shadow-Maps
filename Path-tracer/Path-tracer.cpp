@@ -1251,9 +1251,9 @@ void PathTracer::createShaderResources()
 	//  - 1 for the light position buffer
 	//  - 4 for the Shadow map (depth, position, normal, flux)
 
-	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 17, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 18, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #else
-    mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 11, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
+    mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, 12, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 #endif
 
 	// Step size
@@ -1351,6 +1351,13 @@ void PathTracer::createShaderResources()
 
 		mpDevice->CreateShaderResourceView(mpPreviousRtOutput, &rtOutputSrvDesc, handle);
 		mPreviousRtOutputSrvHeapIndex = handleIndex;
+
+		// Create the SRV for the previous previous RT output
+		handle.ptr += cbvSrvDescriptorSize;
+		handleIndex++;
+
+		mpDevice->CreateShaderResourceView(mpPreviousPreviousRtOutput, &rtOutputSrvDesc, handle);
+		mPreviousPreviousRtOutputSrvHeapIndex = handleIndex;
 
 		// Create the SRV for the temporal filter output
 		handle.ptr += cbvSrvDescriptorSize;
@@ -2091,7 +2098,7 @@ void PathTracer::createToneMappingPipeline()
 void PathTracer::createTemporalFilterPipeline()
 {
 	// root signature
-	D3D12_DESCRIPTOR_RANGE ranges[2];
+	D3D12_DESCRIPTOR_RANGE ranges[3];
 
 	// Current RT output
 	ranges[0].BaseShaderRegister = 0;//t0
@@ -2107,6 +2114,13 @@ void PathTracer::createTemporalFilterPipeline()
 	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	ranges[1].OffsetInDescriptorsFromTableStart = 0;
 
+	// Previous previous RT Output
+	ranges[2].BaseShaderRegister = 2; //t2
+	ranges[2].NumDescriptors = 1;
+	ranges[2].RegisterSpace = 0;
+	ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[2].OffsetInDescriptorsFromTableStart = 1;
+
 	D3D12_ROOT_PARAMETER rootParameters[2];
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
@@ -2115,7 +2129,7 @@ void PathTracer::createTemporalFilterPipeline()
 
 	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
-	rootParameters[1].DescriptorTable.NumDescriptorRanges = 1;
+	rootParameters[1].DescriptorTable.NumDescriptorRanges = 2;
 	rootParameters[1].DescriptorTable.pDescriptorRanges = &ranges[1];
 
 	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
@@ -2214,6 +2228,17 @@ void PathTracer::createTemporalFilterPipeline()
 		IID_PPV_ARGS(&mpPreviousRtOutput)
 	));
 	mpPreviousRtOutput->SetName(L"Previous RT Output");
+
+	// previous previous RT output
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kDefaultHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&texDesc,
+		D3D12_RESOURCE_STATE_COPY_DEST,
+		nullptr,
+		IID_PPV_ARGS(&mpPreviousPreviousRtOutput)
+	));
+	mpPreviousPreviousRtOutput->SetName(L"Previous previous RT Output");
 
 }
 
@@ -2356,6 +2381,7 @@ void PathTracer::applyTemporalFilter()
 	// resource barriers
 	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	resourceBarrier(mpCmdList, mpPreviousPreviousRtOutput, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	resourceBarrier(mpCmdList, mpTemproalFilterOutput, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 	// Set pipeline state
@@ -2375,7 +2401,7 @@ void PathTracer::applyTemporalFilter()
 
 	handle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
 	handle.ptr += mPreviousRtOutputSrvHeapIndex * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-	mpCmdList->SetGraphicsRootDescriptorTable(1, handle); // t1, previous RT output
+	mpCmdList->SetGraphicsRootDescriptorTable(1, handle); // t1-2, previous RT outputs
 
 	// viewport
 	mpCmdList->RSSetViewports(1, &mPostProcessingViewPort);
@@ -2402,11 +2428,22 @@ void PathTracer::applyTemporalFilter()
 
 	// resource barriers
 	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE );
-	resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+	resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	resourceBarrier(mpCmdList, mpPreviousPreviousRtOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
 	resourceBarrier(mpCmdList, mpTemproalFilterOutput, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
 	
+	// copy previous rt to previous previous rt
+	mpCmdList->CopyResource(mpPreviousPreviousRtOutput, mpPreviousRtOutput);
+
+	// sync
+	mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
+	mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
+	WaitForSingleObject(mFenceEvent, INFINITE);
+	mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator->Reset();
+	mpCmdList->Reset(mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator, nullptr);
 
 	// copy current rt to prev rt
+	resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
 	mpCmdList->CopyResource(mpPreviousRtOutput, mpRtOutputResource);
 
 	PIXEndEvent(mpCmdList.GetInterfacePtr());

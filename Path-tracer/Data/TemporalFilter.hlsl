@@ -32,6 +32,7 @@ PSInput VSMain(uint index : SV_VertexID)
 
 Texture2D<float4> gRtCurrent : register(t0);
 Texture2D<float4> gRtPrevious : register(t1);
+Texture2D<float4> gRtPreviousPrevious : register(t2);
 
 
 float4 PSMain(PSInput input) : SV_TARGET
@@ -40,7 +41,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     uint masterHeight;
     gRtCurrent.GetDimensions(masterWidth, masterHeight);
     float2 crd = input.uv * float2(masterWidth, masterHeight);
-    float3 output = (gRtCurrent[crd].rgb + gRtPrevious[crd].rgb) * 0.5;
+    float3 output = (gRtCurrent[crd].rgb + gRtPrevious[crd].rgb + gRtPreviousPrevious[crd].rgb) / 3.0f;
 
 	
     return float4(output, 1);
