@@ -275,7 +275,7 @@ AccelerationStructureBuffers Model::loadModelFromFile(ID3D12Device5Ptr pDevice, 
 	mIndexBufferView.SizeInBytes = mesh->mNumFaces * 3 * sizeof(uint);
 
 	// create transform buffer
-	mpTransformBuffer = createBuffer(pDevice, sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	mpTransformBuffer = createBuffer(pDevice, 2*sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
 	mpTransformBuffer->SetName((std::wstring(mName) + L" Transform").c_str());
 	if (loadTransform)
 	{
@@ -300,6 +300,7 @@ void Model::updateTransformBuffer()
 	uint8_t* pData;
 	d3d_call(mpTransformBuffer->Map(0, nullptr, (void**)&pData));
 		memcpy(pData, &mModelToWorld, sizeof(mat4));
+		memcpy(pData + sizeof(mModelToWorld), &mModelToWorldPrev, sizeof(mat4));
 	mpTransformBuffer->Unmap(0, nullptr);
 }
 

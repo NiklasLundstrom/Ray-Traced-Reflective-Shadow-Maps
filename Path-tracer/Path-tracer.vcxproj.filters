@@ -35,12 +35,6 @@
     <FxCompile Include="Data\Blur.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
-    <FxCompile Include="Data\ToneMapping.hlsl">
-      <Filter>Data</Filter>
-    </FxCompile>
-    <FxCompile Include="Data\TemporalFilter.hlsl">
-      <Filter>Data</Filter>
-    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -53,6 +47,13 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="Data\RasterShaders.hlsl">
+      <Filter>Data</Filter>
+    </CustomBuild>
+    <CustomBuild Include="Data\MotionVectors.hlsl" />
+    <CustomBuild Include="Data\ToneMapping.hlsl">
+      <Filter>Data</Filter>
+    </CustomBuild>
+    <CustomBuild Include="Data\TemporalFilter.hlsl">
       <Filter>Data</Filter>
     </CustomBuild>
   </ItemGroup>

@@ -75,6 +75,9 @@
       <FileType>Document</FileType>
       <DeploymentContent Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</DeploymentContent>
     </CustomBuild>
+    <CustomBuild Include="Data\MotionVectors.hlsl">
+      <FileType>Document</FileType>
+    </CustomBuild>
     <FxCompile Include="Data\PostProcessing.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compute</ShaderType>
       <ShaderModel Condition="'$(Configuration)|$(Platform)'=='Release|x64'">6.3</ShaderModel>

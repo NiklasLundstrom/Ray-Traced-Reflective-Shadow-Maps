@@ -136,14 +136,26 @@ private:
 
 	struct {
 		vec3	cameraPosition = vec3(23.5, 8.06, 18.2);
-		float	cameraAngle = -3.73f;// glm::pi<float>();// angle is right-handed
-		vec3	cameraDirection = vec3(sin(cameraAngle), 0, cos(cameraAngle));// direction is left_handed
+		float	cameraAngle = -3.73f;
+		vec3	cameraDirection = vec3(sin(-cameraAngle), 0, cos(-cameraAngle));
+
+		vec3 eye;
+		vec3 at;
+		vec3 up = vec3(0, 1, 0);
+
+		mat4 viewMat;
+		mat4 viewMatPrev;
+		mat4 projMat;
 	}mCamera;
 	
-	void createCameraBuffer();
-	void updateCameraBuffer();
+	void createCameraBuffers();
+	void updateCameraBuffers();
 	ID3D12ResourcePtr	mpCameraBuffer;
 	uint32_t			mCameraBufferSize = 0;
+	ID3D12ResourcePtr	mpCameraMatrixBuffer;
+	uint32_t			mCameraMatrixBufferSize = 3 * sizeof(mat4); // view, viewPrev and projection
+	uint8_t				mCameraMatrixBufferHeapIndex;
+
 
 	Assimp::Importer	importer;
 	float				mCameraSpeed = 1.0f;
@@ -187,7 +199,7 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mShadowMapRTVs[3];
 
 	void createRasterPipelineState();
-	void renderDepthToTexture();
+	void renderShadowMap();
 	void createLightBuffer();
 	void updateLightBuffer();
 	void createShadowMapTextures();
@@ -210,10 +222,9 @@ private:
 	//////////////////////////////////////////////////////////////////////////
 	// Post processing stuff
 	//////////////////////////////////////////////////////////////////////////
-	ID3D12RootSignaturePtr	mpComputeRootSig;
-	ID3D12PipelineStatePtr	mpComputeState;
-	ID3D12PipelineStatePtr	mpComputeStateHorz;
-	ID3D12PipelineStatePtr	mpComputeStateVert;
+	ID3D12RootSignaturePtr	mpSpatialFilterRootSig;
+	ID3D12PipelineStatePtr	mpSpatialFilterStateHorz;
+	ID3D12PipelineStatePtr	mpSpatialFilterStateVert;
 
 	uint8_t					mRTOutputSrvHeapIndex;
 	uint8_t					mBlur1OutputUavHeapIndex;
@@ -224,7 +235,7 @@ private:
 	ID3D12ResourcePtr		mpBlurPass1Output;
 	ID3D12ResourcePtr		mpBlurPass2Output;
 
-	void createComputePipeline();
+	void createSpatialFilterPipeline();
 	void applySpatialFilter();
 	std::vector<float>		mGaussWeights;
 	int						mBlurRadius;
@@ -243,6 +254,21 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE mToneMappingRtv;
 
 	// temporal filter
+	void createMotionVectorsPipeline();
+	void renderMotionVectors();
+	ID3D12RootSignaturePtr	mpMotionVectorsRootSig;
+	ID3D12PipelineStatePtr	mpMotionVectorsState;
+
+	ID3D12ResourcePtr		mpMotionVectorsOutput;
+	ID3D12ResourcePtr		mpMotionVectorsOutput_Depth;
+	ID3D12ResourcePtr		mpPreviousMotionVectorsOutput_Depth;
+	D3D12_CPU_DESCRIPTOR_HANDLE mMotionVectorsRtv;
+	D3D12_CPU_DESCRIPTOR_HANDLE mMotionVectorsDsv;
+	uint8_t					mMotionVectorsOutputSrvHeapIndex;
+	uint8_t					mMotionVectorsOutput_Depth_SrvHeapIndex;
+	uint8_t					mPreviousMotionVectorsOutput_Depth_SrvHeapIndex;
+
+
 	void createTemporalFilterPipeline();
 	void applyTemporalFilter();
 	ID3D12RootSignaturePtr	mpTemporalFilterRootSig;

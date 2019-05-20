@@ -46,6 +46,7 @@ Texture2D<float> gShadowMap_Depth : register(t1);
 Texture2D<float4> gShadowMap_Position : register(t2);
 Texture2D<float4> gShadowMap_Normal : register(t3);
 Texture2D<float4> gShadowMap_Flux : register(t4);
+Texture2D<float4> gMotionVectors : register(t5);
 
 
 float4 PSMain(PSInput input) : SV_TARGET
@@ -68,7 +69,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     if (crd.x < shadowWidth / scale && crd.y < shadowHeight / scale)
     {
         float zPrim = gShadowMap_Depth[crd * scale];
-        float f = 40.0f; // Sync this value to the C++ code!
+        float f = 100.0f; // Sync this value to the C++ code!
         float n = 0.1f;
 		// Transform to linear view space
         float z = f * n / (f - zPrim * (f - n));
@@ -95,6 +96,15 @@ float4 PSMain(PSInput input) : SV_TARGET
         uint2 coords = crd;
         coords.y -= 3 * shadowHeight / scale;
         float3 cPrim = gShadowMap_Flux[coords * scale].rgb;
+        output = cPrim;
+    }
+    else if (crd.x < shadowWidth / scale && crd.y < 5 * shadowHeight / scale)
+    {
+        uint2 coords = crd;
+        coords.y -= 4 * shadowHeight / scale;
+        float4 motionVectors = gMotionVectors[coords * scale * 2];
+        motionVectors.y *= -1;
+        float3 cPrim = 5.0f * motionVectors.rgb + 0.5f;
         output = cPrim;
     }
 

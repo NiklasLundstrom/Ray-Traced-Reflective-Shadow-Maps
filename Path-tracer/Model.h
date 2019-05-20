@@ -21,7 +21,8 @@ public:
 	AccelerationStructureBuffers loadModelFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter, bool loadTransform);
 	void loadModelHardCodedPlane(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList);
 
-	void setTransform(mat4 transform) { mModelToWorld = transform * mVertexToModel; }
+	void setTransform(mat4 transform) { mModelToWorldPrev = mModelToWorld; 
+											mModelToWorld = transform * mVertexToModel; }
 	void updateTransformBuffer();
 
 protected:
@@ -53,6 +54,7 @@ protected:
 	// transform
 	mat4 mVertexToModel;
 	mat4 mModelToWorld;
+	mat4 mModelToWorldPrev;
 	ID3D12ResourcePtr mpTransformBuffer;
 
 	// material
