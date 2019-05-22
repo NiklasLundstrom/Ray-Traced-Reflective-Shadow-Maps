@@ -380,7 +380,7 @@ void PathTracer::buildTransforms(float rotation)
 	mModels["Left wall inside"].setTransform(scale(5.0f*vec3(1.0f, 1.0f, 1.0f)));
 
 	// robot
-	mModels["Robot"].setTransform( rotationMat * translate(mat4(), vec3(2+5, 1.39, 2 * sin(rotation*0.7f))) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f)) );
+	mModels["Robot"].setTransform( rotationMat * translate(mat4(), vec3(2+5, 1.39, 2 /** sin(rotation*0.7f)*/)) * scale(3.0f*vec3(1.0f, 1.0f, 1.0f)) );
 
 }
 
@@ -2235,6 +2235,7 @@ void PathTracer::createMotionVectorsPipeline()
 
 	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON;
 	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	psoDesc.DepthStencilState.DepthEnable = TRUE;
 	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
@@ -2384,11 +2385,26 @@ void PathTracer::createTemporalFilterPipeline()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
 
+	D3D12_STATIC_SAMPLER_DESC sampler = {};
+	sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+	sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+	sampler.MipLODBias = 0;
+	sampler.MaxAnisotropy = 0;
+	sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+	sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+	sampler.MinLOD = 0.0f;
+	sampler.MaxLOD = D3D12_FLOAT32_MAX;
+	sampler.ShaderRegister = 0; // s0
+	sampler.RegisterSpace = 0;
+	sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
 	RootSignatureDesc desc;
 	desc.desc.NumParameters = 2;
 	desc.desc.pParameters = rootParameters;
-	desc.desc.NumStaticSamplers = 0;
-	desc.desc.pStaticSamplers = nullptr;
+	desc.desc.NumStaticSamplers = 1;
+	desc.desc.pStaticSamplers = &sampler;
 	desc.desc.Flags = rootSignatureFlags;
 
 	mpTemporalFilterRootSig = createRootSignature(mpDevice, desc.desc);
@@ -2406,6 +2422,7 @@ void PathTracer::createTemporalFilterPipeline()
 
 	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+	//psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON;
 	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 
 	psoDesc.DepthStencilState.DepthEnable = FALSE;
@@ -2687,7 +2704,7 @@ void PathTracer::applyTemporalFilter()
 	// resource barriers
 	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	resourceBarrier(mpCmdList, mpPreviousPreviousRtOutput, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	//resourceBarrier(mpCmdList, mpPreviousPreviousRtOutput, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	resourceBarrier(mpCmdList, mpTemproalFilterOutput, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 	// Set pipeline state
@@ -2733,33 +2750,35 @@ void PathTracer::applyTemporalFilter()
 	mpCmdList->DrawInstanced(6, 1, 0, 0);
 
 	// resource barriers
-	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE );
-	resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
-	resourceBarrier(mpCmdList, mpPreviousPreviousRtOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
-	resourceBarrier(mpCmdList, mpTemproalFilterOutput, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE );
-
-	resourceBarrier(mpCmdList, mpMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE );
-	resourceBarrier(mpCmdList, mpPreviousMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
 
 
-	// copy previous rt to previous previous rt
-	mpCmdList->CopyResource(mpPreviousPreviousRtOutput, mpPreviousRtOutput);
+	//// copy previous rt to previous previous rt
+	//mpCmdList->CopyResource(mpPreviousPreviousRtOutput, mpPreviousRtOutput);
 
-	// sync
-	mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
-	mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
-	WaitForSingleObject(mFenceEvent, INFINITE);
-	mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator->Reset();
-	mpCmdList->Reset(mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator, nullptr);
+	//// sync
+	//mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
+	//mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
+	//WaitForSingleObject(mFenceEvent, INFINITE);
+	//mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator->Reset();
+	//mpCmdList->Reset(mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator, nullptr);
 
 	// copy current rt to prev rt
-	resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
-	mpCmdList->CopyResource(mpPreviousRtOutput, mpRtOutputResource);
+		resourceBarrier(mpCmdList, mpTemproalFilterOutput, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
+		resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+	
+	mpCmdList->CopyResource(mpPreviousRtOutput, mpTemproalFilterOutput);
+
+		resourceBarrier(mpCmdList, mpTemproalFilterOutput, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
 
 	// copy current depth to prev depth
+		resourceBarrier(mpCmdList, mpMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE );
+		resourceBarrier(mpCmdList, mpPreviousMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+	
 	mpCmdList->CopyResource(mpPreviousMotionVectorsOutput_Depth, mpMotionVectorsOutput_Depth);
-	resourceBarrier(mpCmdList, mpMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
-	resourceBarrier(mpCmdList, mpPreviousMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
+	
+		resourceBarrier(mpCmdList, mpMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
+		resourceBarrier(mpCmdList, mpPreviousMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
 
 
 
@@ -2773,7 +2792,7 @@ void PathTracer::applySpatialFilter()
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Spatial filter");
 
 	// resource barriers
-	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 	
 	// Set Root signature
 	mpCmdList->SetComputeRootSignature(mpSpatialFilterRootSig.GetInterfacePtr());
@@ -2784,7 +2803,7 @@ void PathTracer::applySpatialFilter()
 	mpCmdList->SetComputeRoot32BitConstants(0, 1, &mBlurRadius, 0);
 	mpCmdList->SetComputeRoot32BitConstants(0, (UINT)mGaussWeights.size(), mGaussWeights.data(), 1);
 
-	for (int i = 0; i < 8; i++)
+	for (int i = 0; i < 1; i++)
 	{
 		//////////////
 		// Pass 1

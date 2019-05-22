@@ -48,19 +48,25 @@ Texture2D<float4> gRtPrevious : register(t1);
 Texture2D<float4> gMotionVectors : register(t2);
 Texture2D<float> gDepthCurrent : register(t3);
 Texture2D<float> gDepthPrevious : register(t4);
+SamplerState gSampler : register(s0);
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
+	// for test
+    float depthDifference = 0.0f;
+	//
+
+
     uint masterWidth;
     uint masterHeight;
     gRtCurrent.GetDimensions(masterWidth, masterHeight);
-    float2 crd = input.uv * float2(masterWidth, masterHeight);
+    float2 crd = input.uv;
     float2 reprojectedCrd;
 
     bool acceptReprojection = true;
     
 	// get current depth
-	float depthCurr = gDepthCurrent[crd];
+    float depthCurr = gDepthCurrent.SampleLevel(gSampler, crd, 0);
     depthCurr = makeDepthLinear(depthCurr);
 
     //if we see the sky
@@ -71,23 +77,23 @@ float4 PSMain(PSInput input) : SV_TARGET
 	else
     {
 		// get motion vector
-        float2 motionVector = gMotionVectors[crd].xy * float2(masterWidth, masterHeight);
+        float2 motionVector = gMotionVectors.SampleLevel(gSampler, crd, 0).rgb.xy;
         motionVector.y *= -1.0f;
 		// reproject
         reprojectedCrd = crd - motionVector;
 
 		// if outside of previous frame
-        if (reprojectedCrd.x < 0 || reprojectedCrd.x > masterWidth || reprojectedCrd.y < 0 || reprojectedCrd.y > masterHeight)
+        if (reprojectedCrd.x < 0 || reprojectedCrd.x > 1 || reprojectedCrd.y < 0 || reprojectedCrd.y > 1)
         {
             acceptReprojection = false;
         }
         else
         {
 			// get previous depth
-            float depthPreviousReprojected = gDepthPrevious[reprojectedCrd];
+            float depthPreviousReprojected = gDepthPrevious.SampleLevel(gSampler, reprojectedCrd, 0);
             depthPreviousReprojected = makeDepthLinear(depthPreviousReprojected);
 			// compare depth
-            float depthDifference = abs(1.0f - depthCurr / depthPreviousReprojected);
+            /*float*/ depthDifference = abs(1.0f - depthCurr / depthPreviousReprojected);
             acceptReprojection = depthDifference < 0.1f;
         }
     }
@@ -95,12 +101,14 @@ float4 PSMain(PSInput input) : SV_TARGET
     float3 output;
     if (acceptReprojection)
     {
-        output = (gRtCurrent[crd].rgb + gRtPrevious[reprojectedCrd].rgb) / 2.0f;
+        float mixValue = 0.2;
+        output = mixValue * gRtCurrent.SampleLevel(gSampler, crd, 0).rgb
+			+ (1 - mixValue) * gRtPrevious.SampleLevel(gSampler, reprojectedCrd, 0).rgb;
     }
     else // discard old samples
     {
-        output = gRtCurrent[crd].rgb;
+        output = gRtCurrent.SampleLevel(gSampler, crd, 0);
     }
 
-    return float4(output.rgb, 1.0f);
+    return float4(output, 1.0f);
 }
