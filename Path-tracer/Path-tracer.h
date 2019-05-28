@@ -208,6 +208,10 @@ private:
 	{
 		vec3 position = vec3(-11.9, 9.73, -5.8);
 		vec3 direction = vec3(sin(0.893), 0.0, cos(0.893));
+		vec3 center = vec3(0.8, 2.5, 4.0);
+		float radius = 28.0f;
+		float phi = quarter_pi<float>();
+		float theta = 0.0f;
 
 		vec3 eye;
 		vec3 at;

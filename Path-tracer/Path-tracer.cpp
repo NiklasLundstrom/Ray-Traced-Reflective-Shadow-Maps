@@ -1652,39 +1652,29 @@ void PathTracer::readKeyboardInput(bool *gKeys)
 
 #ifdef HYBRID
 	// Light
-	if (gKeys['F'])
-	{
-		float angle = 0.25f * mCameraSpeed;
-		mLight.direction = vec3(eulerAngleY(-angle) * vec4(mLight.direction, 1));	
-	}
-	else if (gKeys['K'])
-	{
-		float angle = -0.25f * mCameraSpeed;
-		mLight.direction = vec3(eulerAngleY(-angle) * vec4(mLight.direction, 1));
-	}
 	if (gKeys['Y'])
 	{
-		mLight.position += mLight.direction * mCameraSpeed;
+		mLight.radius = max(mLight.radius - mCameraSpeed, 0.0f);
 	}
 	else if (gKeys['H'])
 	{
-		mLight.position -= mLight.direction * mCameraSpeed;
+		mLight.radius += mCameraSpeed;
 	}
 	if (gKeys['G'])
 	{
-		mLight.position += mCameraSpeed * vec3(-mLight.direction.z, 0, mLight.direction.x);
+		mLight.theta += 0.1f * mCameraSpeed;
 	}
 	else if (gKeys['J'])
 	{
-		mLight.position -= mCameraSpeed * vec3(-mLight.direction.z, 0, mLight.direction.x);
+		mLight.theta -= 0.1f * mCameraSpeed;
 	}
 	if (gKeys['U'])
 	{
-		mLight.position.y += mCameraSpeed;
+		mLight.phi = max(mLight.phi - 0.1f * mCameraSpeed, 0.0f);
 	}
 	else if (gKeys['T'])
 	{
-		mLight.position.y -= mCameraSpeed;
+		mLight.phi = min(mLight.phi + 0.1f * mCameraSpeed, pi<float>());
 	}
 #endif
 
@@ -1862,7 +1852,7 @@ void PathTracer::createLightBuffer()
 	mpLightBuffer->SetName(L"Light Buffer");
 
 	// Set up Light values
-	float fovAngle = glm::half_pi<float>();
+	float fovAngle = glm::quarter_pi<float>();
 	
 	// Left-hand system, depth from 0 to 1
 	float fFar = 100.0f;
@@ -1878,12 +1868,16 @@ void PathTracer::createLightBuffer()
 
 void PathTracer::updateLightBuffer()
 {
-	mLight.eye = mLight.position;
-	mLight.at = mLight.direction; 
+	/*mLight.eye = mLight.position;
+	mLight.at = mLight.direction; */
+	mLight.eye.x = mLight.radius * cos(mLight.theta) * sin(mLight.phi);
+	mLight.eye.y = mLight.radius * cos(mLight.phi);
+	mLight.eye.z = mLight.radius * sin(mLight.theta) * sin(mLight.phi);
+
 	// up vector constant
 
-	vec3 center = mLight.eye + mLight.at;
-	mLight.viewMat = lookAtLH(mLight.eye, center, mLight.up);
+	//vec3 center = mLight.center;//mLight.eye + mLight.at;
+	mLight.viewMat = lookAtLH(mLight.eye, mLight.center, mLight.up);
 	// projMat constant
 
 	uint8_t* pData;
@@ -1901,8 +1895,8 @@ void PathTracer::updateLightBuffer()
 	uint8_t* pDataPosition;
 	d3d_call(mpLightPositionBuffer->Map(0, nullptr, (void**)&pDataPosition));
 	memcpy(pDataPosition,
-		&mLight.position,
-		sizeof(mLight.position));
+		&mLight.eye,
+		sizeof(mLight.eye));
 	mpLightPositionBuffer->Unmap(0, nullptr);
 
 }
