@@ -1310,9 +1310,9 @@ void PathTracer::createShaderResources()
 	//  - 1 for the light position buffer
 	//  - 4 for the Shadow map (depth, position, normal, flux)
 
-		uint32_t nbrEntries = 21;
+		uint32_t nbrEntries = 22;
 #else
-		uint32_t nbrEntries = 15;
+		uint32_t nbrEntries = 16;
 #endif
 	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, nbrEntries, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 
@@ -1429,27 +1429,27 @@ void PathTracer::createShaderResources()
 		//mpDevice->CreateShaderResourceView(mpPreviousPreviousRtOutput, &rtOutputSrvDesc, handle);
 		//mPreviousPreviousRtOutputSrvHeapIndex = handleIndex;
 
-		// Create the SRV for the Motion Vectors output
+		// Create the SRV for the G-buffer Motion Vectors
 		handle.ptr += cbvSrvDescriptorSize;
 		handleIndex++;
 
-		mpDevice->CreateShaderResourceView(mpMotionVectorsOutput, &rtOutputSrvDesc, handle);
-		mMotionVectorsOutputSrvHeapIndex = handleIndex;
+		mpDevice->CreateShaderResourceView(mpGeometryBuffer_MotionVectors, &rtOutputSrvDesc, handle);
+		mGeomteryBuffer_MotionVectors_SrvHeapIndex = handleIndex;
 
-		// Create the SRV for the Motion Vectors Depth output
+		// Create the SRV for the G-buffer Depth
 		handle.ptr += cbvSrvDescriptorSize;
 		handleIndex++;
 
 		rtOutputSrvDesc.Format = DXGI_FORMAT_R32_FLOAT;
-		mpDevice->CreateShaderResourceView(mpMotionVectorsOutput_Depth, &rtOutputSrvDesc, handle);
-		mMotionVectorsOutput_Depth_SrvHeapIndex = handleIndex;
+		mpDevice->CreateShaderResourceView(mpGeometryBuffer_Depth, &rtOutputSrvDesc, handle);
+		mGeomteryBuffer_Depth_SrvHeapIndex = handleIndex;
 
-		// Create the SRV for the Previous Motion Vectors Depth output
+		// Create the SRV for the Previous G-buffer Depth
 		handle.ptr += cbvSrvDescriptorSize;
 		handleIndex++;
 
-		mpDevice->CreateShaderResourceView(mpPreviousMotionVectorsOutput_Depth, &rtOutputSrvDesc, handle);
-		mPreviousMotionVectorsOutput_Depth_SrvHeapIndex = handleIndex;
+		mpDevice->CreateShaderResourceView(mpGeometryBuffer_Previous_Depth, &rtOutputSrvDesc, handle);
+		mGeomteryBuffer_Previous_Depth_SrvHeapIndex = handleIndex;
 
 		// Create the SRV for the temporal filter output
 		handle.ptr += cbvSrvDescriptorSize;
@@ -1458,6 +1458,13 @@ void PathTracer::createShaderResources()
 		rtOutputSrvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		mpDevice->CreateShaderResourceView(mpTemproalFilterOutput, &rtOutputSrvDesc, handle);
 		mTemporalFilterOutputSrvHeapIndex = handleIndex;
+
+		// Create the SRV for the G-buffer Normal
+		handle.ptr += cbvSrvDescriptorSize;
+		handleIndex++;
+
+		mpDevice->CreateShaderResourceView(mpGeometryBuffer_Normal, &rtOutputSrvDesc, handle);
+		mGeomteryBuffer_Normal_SrvHeapIndex = handleIndex;
 
 #ifdef HYBRID
 	// Create the CBV for the light buffer
@@ -1542,10 +1549,10 @@ void PathTracer::createShaderResources()
 		mpDevice->CreateDepthStencilView(mpShadowMapTexture_Depth, nullptr, dsvHandle);//null for desc?
 		mShadowMapDsv_Depth = dsvHandle;
 
-	// Motion Vectors
+	// G-buffer
 		dsvHandle.ptr += dsvDescriptorSize;
-		mpDevice->CreateDepthStencilView(mpMotionVectorsOutput_Depth, nullptr, dsvHandle);//null for desc?
-		mMotionVectorsDsv = dsvHandle;
+		mpDevice->CreateDepthStencilView(mpGeometryBuffer_Depth, nullptr, dsvHandle);//null for desc?
+		mGeometryBufferDsv_Depth = dsvHandle;
 
 
 	// Create a RTV descriptor heap
@@ -1555,7 +1562,7 @@ void PathTracer::createShaderResources()
 	// - 1 RTV for Flux
 
 	// create a RTV descriptor heap
-		mpShadowMapRtvHeap = createDescriptorHeap(mpDevice, 6, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
+		mpShadowMapRtvHeap = createDescriptorHeap(mpDevice, 7, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
 
 		// Description
 			D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {};
@@ -1567,32 +1574,39 @@ void PathTracer::createShaderResources()
 			D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = mpShadowMapRtvHeap->GetCPUDescriptorHandleForHeapStart();
 			const UINT rtvDescriptorSize = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-		// Position view
+		// RSM Position
 			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Position, &renderTargetViewDesc, rtvHandle);
 			mShadowMapRtv_Position = rtvHandle;
 			mShadowMapRTVs[0] = mShadowMapRtv_Position;
 
-		// Normal view
+		// RSM Normal
 			rtvHandle.ptr += rtvDescriptorSize;
 			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Normal, &renderTargetViewDesc, rtvHandle);
 			mShadowMapRtv_Normal = rtvHandle;
 			mShadowMapRTVs[1] = mShadowMapRtv_Normal;
 
-		// Flux view
+		// RSM Flux
 			rtvHandle.ptr += rtvDescriptorSize;
 			mpDevice->CreateRenderTargetView(mpShadowMapTexture_Flux, &renderTargetViewDesc, rtvHandle);
 			mShadowMapRtv_Flux = rtvHandle;
 			mShadowMapRTVs[2] = mShadowMapRtv_Flux;
 
-		// Temporal filter view
+		// Temporal filter
 			rtvHandle.ptr += rtvDescriptorSize;
 			mpDevice->CreateRenderTargetView(mpTemproalFilterOutput, &renderTargetViewDesc, rtvHandle);
 			mTemporalFilterRtv = rtvHandle;
 
-		// Motion Vectors view
+		// G-buffer Motion Vectors
 			rtvHandle.ptr += rtvDescriptorSize;
-			mpDevice->CreateRenderTargetView(mpMotionVectorsOutput, &renderTargetViewDesc, rtvHandle);
-			mMotionVectorsRtv = rtvHandle;
+			mpDevice->CreateRenderTargetView(mpGeometryBuffer_MotionVectors, &renderTargetViewDesc, rtvHandle);
+			mGeometryBufferRtv_MotionVectors = rtvHandle;
+			mGeometryBufferRTVs[0] = mGeometryBufferRtv_MotionVectors;
+
+		// G-buffer Normal
+			rtvHandle.ptr += rtvDescriptorSize;
+			mpDevice->CreateRenderTargetView(mpGeometryBuffer_Normal, &renderTargetViewDesc, rtvHandle);
+			mGeometryBufferRtv_Normal = rtvHandle;
+			mGeometryBufferRTVs[1] = mGeometryBufferRtv_Normal;
 
 		// Tone Mapping view
 			renderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;// _sRGB?
@@ -2017,7 +2031,7 @@ std::vector<float> calcGaussWeights(float sigma)
 void PathTracer::createSpatialFilterPipeline()
 {
 	// Create compute root signature
-	D3D12_DESCRIPTOR_RANGE ranges[3];
+	D3D12_DESCRIPTOR_RANGE ranges[4];
 
 	// input texture (to blur)
 	ranges[0].BaseShaderRegister = 0;//t0
@@ -2039,8 +2053,15 @@ void PathTracer::createSpatialFilterPipeline()
 	ranges[2].RegisterSpace = 0;
 	ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	ranges[2].OffsetInDescriptorsFromTableStart = 0;
+
+	// normal
+	ranges[3].BaseShaderRegister = 2;//t2
+	ranges[3].NumDescriptors = 1;
+	ranges[3].RegisterSpace = 0;
+	ranges[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[3].OffsetInDescriptorsFromTableStart = 0;
 	
-	D3D12_ROOT_PARAMETER parameters[4];
+	D3D12_ROOT_PARAMETER parameters[5];
 
 	parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 	parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -2062,9 +2083,14 @@ void PathTracer::createSpatialFilterPipeline()
 	parameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 	parameters[3].DescriptorTable.NumDescriptorRanges = 1;
 	parameters[3].DescriptorTable.pDescriptorRanges = &ranges[2];
+
+	parameters[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	parameters[4].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	parameters[4].DescriptorTable.NumDescriptorRanges = 1;
+	parameters[4].DescriptorTable.pDescriptorRanges = &ranges[3];
 	
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 4;
+	desc.desc.NumParameters = 5;
 	desc.desc.pParameters = parameters;
 	desc.desc.NumStaticSamplers = 0;
 	desc.desc.pStaticSamplers = nullptr;
@@ -2244,7 +2270,7 @@ void PathTracer::createToneMappingPipeline()
 	mpToneMappingOutput->SetName(L"Tone Mapping RTV");
 }
 
-void PathTracer::createMotionVectorsPipeline()
+void PathTracer::createGeometryBufferPipeline()
 {
 	D3D12_DESCRIPTOR_RANGE range[1];
 	// Camera Matrix buffer
@@ -2266,6 +2292,12 @@ void PathTracer::createMotionVectorsPipeline()
 	rootParameters[1].Descriptor.ShaderRegister = 1; // b1
 	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
+	// normals
+	rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	rootParameters[2].Descriptor.RegisterSpace = 0;
+	rootParameters[2].Descriptor.ShaderRegister = 0;//t0
+	rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
 	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
@@ -2275,13 +2307,13 @@ void PathTracer::createMotionVectorsPipeline()
 
 	// Root signature
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 2;
+	desc.desc.NumParameters = 3;
 	desc.desc.pParameters = rootParameters;
 	desc.desc.NumStaticSamplers = 0;
 	desc.desc.pStaticSamplers = nullptr;
 	desc.desc.Flags = rootSignatureFlags;
 
-	mpMotionVectorsRootSig = createRootSignature(mpDevice, desc.desc);
+	mpGeometryBufferRootSig = createRootSignature(mpDevice, desc.desc);
 
 	// Compile shaders
 	ID3DBlobPtr vertexShader = compileLibrary(L"Data/MotionVectors.hlsl", L"VSMain", L"vs_6_3");
@@ -2296,7 +2328,7 @@ void PathTracer::createMotionVectorsPipeline()
 	// Create the graphics pipeline state object (PSO).
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
 	psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
-	psoDesc.pRootSignature = mpMotionVectorsRootSig.GetInterfacePtr();
+	psoDesc.pRootSignature = mpGeometryBufferRootSig.GetInterfacePtr();
 	psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.GetInterfacePtr());
 	psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.GetInterfacePtr());
 
@@ -2316,14 +2348,15 @@ void PathTracer::createMotionVectorsPipeline()
 	psoDesc.DepthStencilState.BackFace = defaultStencilOp;
 	psoDesc.SampleMask = UINT_MAX;
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	psoDesc.NumRenderTargets = 1;
+	psoDesc.NumRenderTargets = 2;
 	psoDesc.RTVFormats[0] = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	psoDesc.RTVFormats[1] = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 	psoDesc.SampleDesc.Count = 1;
 
-	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpMotionVectorsState)));
+	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpGeometryBufferState)));
 
-	// create output resource
+	// create output resources
 	D3D12_RESOURCE_DESC texDesc;
 	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	texDesc.Alignment = 0;
@@ -2344,16 +2377,27 @@ void PathTracer::createMotionVectorsPipeline()
 	colorClearValue.Color[2] = 0.0f;
 	colorClearValue.Color[3] = 0.0f;
 
-	// render target
+	// Motion Vectors
 	d3d_call(mpDevice->CreateCommittedResource(
 		&kDefaultHeapProps,
 		D3D12_HEAP_FLAG_NONE,
 		&texDesc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		&colorClearValue,
-		IID_PPV_ARGS(&mpMotionVectorsOutput)
+		IID_PPV_ARGS(&mpGeometryBuffer_MotionVectors)
 	));
-	mpMotionVectorsOutput->SetName(L"Motion Vectors RTV");
+	mpGeometryBuffer_MotionVectors->SetName(L"G-buffer Motion Vectors");
+
+	// Normal
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kDefaultHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&texDesc,
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		&colorClearValue,
+		IID_PPV_ARGS(&mpGeometryBuffer_Normal)
+	));
+	mpGeometryBuffer_Normal->SetName(L"G-buffer Normal");
 
 	// depth stencil
 	texDesc.Format = DXGI_FORMAT_D32_FLOAT;
@@ -2370,9 +2414,9 @@ void PathTracer::createMotionVectorsPipeline()
 		&texDesc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		&depthClearValue,
-		IID_PPV_ARGS(&mpMotionVectorsOutput_Depth)
+		IID_PPV_ARGS(&mpGeometryBuffer_Depth)
 	));
-	mpMotionVectorsOutput_Depth->SetName(L"Motion Vector Depth");
+	mpGeometryBuffer_Depth->SetName(L"Motion Vector Depth");
 
 	// Previous depth stencil
 	d3d_call(mpDevice->CreateCommittedResource(
@@ -2381,9 +2425,9 @@ void PathTracer::createMotionVectorsPipeline()
 		&texDesc,
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		&depthClearValue,
-		IID_PPV_ARGS(&mpPreviousMotionVectorsOutput_Depth)
+		IID_PPV_ARGS(&mpGeometryBuffer_Previous_Depth)
 	));
-	mpPreviousMotionVectorsOutput_Depth->SetName(L"Previous Motion Vector Depth");
+	mpGeometryBuffer_Previous_Depth->SetName(L"Previous Motion Vector Depth");
 
 }
 
@@ -2699,19 +2743,19 @@ void PathTracer::rayTrace()
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
-void PathTracer::renderMotionVectors()
+void PathTracer::renderGeometryBuffer()
 {
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render Motion Vectors");
 
-	resourceBarrier(mpCmdList, mpMotionVectorsOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
-	resourceBarrier(mpCmdList, mpMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_MotionVectors, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
 
 	// Set pipeline state
-	mpCmdList->SetPipelineState(mpMotionVectorsState);
+	mpCmdList->SetPipelineState(mpGeometryBufferState);
 
 	// Set Root signature
-	mpCmdList->SetGraphicsRootSignature(mpMotionVectorsRootSig.GetInterfacePtr());
+	mpCmdList->SetGraphicsRootSignature(mpGeometryBufferRootSig.GetInterfacePtr());
 
 	// Set descriptor heaps
 	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
@@ -2728,17 +2772,18 @@ void PathTracer::renderMotionVectors()
 
 	mpCmdList->OMSetStencilRef(0);
 
-	// clear render target
+	// clear render targets
 	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	mpCmdList->ClearRenderTargetView(mMotionVectorsRtv, clearColor, 0, nullptr);
-	mpCmdList->ClearDepthStencilView(mMotionVectorsDsv, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	mpCmdList->ClearRenderTargetView(mGeometryBufferRtv_MotionVectors, clearColor, 0, nullptr);
+	mpCmdList->ClearRenderTargetView(mGeometryBufferRtv_Normal, clearColor, 0, nullptr);
+	mpCmdList->ClearDepthStencilView(mGeometryBufferDsv_Depth, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 	// set render target
 	mpCmdList->OMSetRenderTargets(
-		1,
-		&mMotionVectorsRtv,
+		2,
+		mGeometryBufferRTVs,
 		false,
-		&mMotionVectorsDsv
+		&mGeometryBufferDsv_Depth
 	);
 
 	mpCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -2748,6 +2793,8 @@ void PathTracer::renderMotionVectors()
 	{
 		// Model to World Transform
 		mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
+		// Normal buffer
+		mpCmdList->SetGraphicsRootShaderResourceView(2, it->second.getNormalBufferGPUAdress());
 		// Vertex and Index buffers
 		mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView());
 		mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView());
@@ -2757,8 +2804,8 @@ void PathTracer::renderMotionVectors()
 	}
 
 
-	resourceBarrier(mpCmdList, mpMotionVectorsOutput, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
-	resourceBarrier(mpCmdList, mpMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
+	resourceBarrier(mpCmdList, mpGeometryBuffer_MotionVectors, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
 
 
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
@@ -2839,13 +2886,13 @@ void PathTracer::applyTemporalFilter()
 
 
 	// copy current depth to prev depth
-		resourceBarrier(mpCmdList, mpMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE );
-		resourceBarrier(mpCmdList, mpPreviousMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+		resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE );
+		resourceBarrier(mpCmdList, mpGeometryBuffer_Previous_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
 	
-	mpCmdList->CopyResource(mpPreviousMotionVectorsOutput_Depth, mpMotionVectorsOutput_Depth);
+	mpCmdList->CopyResource(mpGeometryBuffer_Previous_Depth, mpGeometryBuffer_Depth);
 	
-		resourceBarrier(mpCmdList, mpMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
-		resourceBarrier(mpCmdList, mpPreviousMotionVectorsOutput_Depth, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
+		resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
+		resourceBarrier(mpCmdList, mpGeometryBuffer_Previous_Depth, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
 
 
 
@@ -2878,10 +2925,15 @@ void PathTracer::applySpatialFilter()
 
 	// Set Depth input
 	handle = heapStart;
-	handle.ptr += mMotionVectorsOutput_Depth_SrvHeapIndex * heapEntrySize;
+	handle.ptr += mGeomteryBuffer_Depth_SrvHeapIndex * heapEntrySize;
 	mpCmdList->SetComputeRootDescriptorTable(3, handle); // t1
 
-	for (int i = 0; i < 4; i++)
+	// Set Normal input
+	handle = heapStart;
+	handle.ptr += mGeomteryBuffer_Normal_SrvHeapIndex * heapEntrySize;
+	mpCmdList->SetComputeRootDescriptorTable(4, handle); // t2
+
+	for (int i = 0; i < 16; i++)
 	{
 		//////////////
 		// Pass 1
@@ -2975,7 +3027,7 @@ void PathTracer::applyToneMapping()
 	mpCmdList->SetGraphicsRootDescriptorTable(1, handle); // t1-4, shadow maps
 
 	handle = heapStart;
-	handle.ptr += mMotionVectorsOutputSrvHeapIndex * heapEntrySize;
+	handle.ptr += mGeomteryBuffer_MotionVectors_SrvHeapIndex * heapEntrySize;
 	mpCmdList->SetGraphicsRootDescriptorTable(2, handle); // t5, Motion Vectors
 
 
@@ -3025,7 +3077,7 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 #endif
 	createSpatialFilterPipeline();
 	createToneMappingPipeline();
-	createMotionVectorsPipeline();
+	createGeometryBufferPipeline();
 	createTemporalFilterPipeline();
 	createCameraBuffers();							// My own
 	createEnvironmentMapBuffer();
@@ -3077,7 +3129,7 @@ void PathTracer::onFrameRender(bool *gKeys)
 	//////////////////////
 	// Temporal filter
 	//////////////////////
-	renderMotionVectors();
+	renderGeometryBuffer();
 	applyTemporalFilter();
 
 	//////////////////////

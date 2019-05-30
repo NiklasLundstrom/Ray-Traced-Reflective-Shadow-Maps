@@ -39,6 +39,7 @@ static const int gMaxBlurRadius = 5;
 
 Texture2D gInput : register(t0);
 Texture2D gDepth : register(t1);
+Texture2D gNormal : register(t2);
 RWTexture2D<float4> gOutput : register(u0);
 
 #define N 256
@@ -46,6 +47,7 @@ RWTexture2D<float4> gOutput : register(u0);
 
 groupshared float4 gCache[CacheSize];
 groupshared float gDepthCache[CacheSize];
+groupshared float4 gNormalCache[CacheSize];
 
 [numthreads(N, 1, 1)]
 void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : SV_DispatchThreadID)
@@ -71,6 +73,7 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
         int x = max(dispatchThreadID.x - gBlurRadius, 0);
         gCache[groupThreadID.x] = gInput[int2(x, dispatchThreadID.y)];
         gDepthCache[groupThreadID.x] = gDepth[int2(x, dispatchThreadID.y)];
+        gNormalCache[groupThreadID.x] = gNormal[int2(x, dispatchThreadID.y)];
     }
     if (groupThreadID.x >= N - gBlurRadius)
     {
@@ -78,11 +81,13 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
         int x = min(dispatchThreadID.x + gBlurRadius, width - 1);
         gCache[groupThreadID.x + 2 * gBlurRadius] = gInput[int2(x, dispatchThreadID.y)];
         gDepthCache[groupThreadID.x + 2 * gBlurRadius] = gDepth[int2(x, dispatchThreadID.y)];
+        gNormalCache[groupThreadID.x + 2 * gBlurRadius] = gNormal[int2(x, dispatchThreadID.y)];
     }
 
 	// Clamp out of bound samples that occur at image borders.
     gCache[groupThreadID.x + gBlurRadius] = gInput[min(dispatchThreadID.xy, int2(width, height) - 1)];
     gDepthCache[groupThreadID.x + gBlurRadius] = gDepth[min(dispatchThreadID.xy, int2(width, height) - 1)];
+    gNormalCache[groupThreadID.x + gBlurRadius] = gNormal[min(dispatchThreadID.xy, int2(width, height) - 1)];
 
 	// Wait for all threads to finish.
     GroupMemoryBarrierWithGroupSync();
@@ -96,6 +101,7 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
     blurColor += weights[gBlurRadius] * gCache[groupThreadID.x + gBlurRadius];
     weightSum += weights[gBlurRadius];
     float depthCenter = makeDepthLinear(gDepthCache[groupThreadID.x + gBlurRadius]);
+    float3 normalCenter = gNormalCache[groupThreadID.x + gBlurRadius].xyz * 2 - 1;
 	
 
     for (int i = -1; i >= -gBlurRadius; i--)
@@ -103,6 +109,10 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
         int k = groupThreadID.x + gBlurRadius + i;
 		// test depth
         if (abs(1.0f - depthCenter / makeDepthLinear(gDepthCache[k])) >= 0.1f)
+        {
+            break;
+        }
+        if (dot(normalCenter, (gNormalCache[k].xyz * 2 - 1)) < 0.9f)
         {
             break;
         }
@@ -114,6 +124,10 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
         int k = groupThreadID.x + gBlurRadius + j;
 		// test depth
         if (abs(1.0f - depthCenter / makeDepthLinear(gDepthCache[k])) >= 0.1f)
+        {
+            break;
+        }
+        if (dot(normalCenter, (gNormalCache[k].xyz * 2 - 1)) < 0.9f)
         {
             break;
         }
@@ -151,6 +165,7 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
         int y = max(dispatchThreadID.y - gBlurRadius, 0);
         gCache[groupThreadID.y] = gInput[int2(dispatchThreadID.x, y)];
         gDepthCache[groupThreadID.y] = gDepth[int2(dispatchThreadID.x, y)];
+        gNormalCache[groupThreadID.y] = gNormal[int2(dispatchThreadID.x, y)];
     }
     if (groupThreadID.y >= N - gBlurRadius)
     {
@@ -158,11 +173,13 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
         int y = min(dispatchThreadID.y + gBlurRadius, height - 1);
         gCache[groupThreadID.y + 2 * gBlurRadius] = gInput[int2(dispatchThreadID.x, y)];
         gDepthCache[groupThreadID.y + 2 * gBlurRadius] = gDepth[int2(dispatchThreadID.x, y)];
+        gNormalCache[groupThreadID.y + 2 * gBlurRadius] = gNormal[int2(dispatchThreadID.x, y)];
     }
 
 	// Clamp out of bound samples that occur at image borders.
     gCache[groupThreadID.y + gBlurRadius] = gInput[min(dispatchThreadID.xy, int2(width, height) - 1)];
     gDepthCache[groupThreadID.y + gBlurRadius] = gDepth[min(dispatchThreadID.xy, int2(width, height) - 1)];
+    gNormalCache[groupThreadID.y + gBlurRadius] = gNormal[min(dispatchThreadID.xy, int2(width, height) - 1)];
 
 	// Wait for all threads to finish.
     GroupMemoryBarrierWithGroupSync();
@@ -176,12 +193,17 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
     blurColor += weights[gBlurRadius] * gCache[groupThreadID.y + gBlurRadius];
     weightSum += weights[gBlurRadius];
     float depthCenter = makeDepthLinear(gDepthCache[groupThreadID.y + gBlurRadius]);
+    float3 normalCenter = gNormalCache[groupThreadID.y + gBlurRadius].xyz * 2 - 1;
 
     for (int i = -1; i >= -gBlurRadius; i--)
     {
         int k = groupThreadID.y + gBlurRadius + i;	
 		// test depth
         if (abs(1.0f - depthCenter / makeDepthLinear(gDepthCache[k])) >= 0.1f)
+        {
+            break;
+        }
+        if (dot(normalCenter, (gNormalCache[k].xyz * 2 - 1)) < 0.9f)
         {
             break;
         }
@@ -193,6 +215,10 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
         int k = groupThreadID.y + gBlurRadius + j;
 		// test depth
         if (abs(1.0f - depthCenter / makeDepthLinear(gDepthCache[k])) >= 0.1f)
+        {
+            break;
+        }
+        if (dot(normalCenter, (gNormalCache[k].xyz * 2 - 1)) < 0.9f)
         {
             break;
         }

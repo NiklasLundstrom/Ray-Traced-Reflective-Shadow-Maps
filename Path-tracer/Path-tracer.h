@@ -257,22 +257,27 @@ private:
 	ID3D12ResourcePtr		mpToneMappingOutput;
 	D3D12_CPU_DESCRIPTOR_HANDLE mToneMappingRtv;
 
+	// G-buffer
+	void createGeometryBufferPipeline();
+	void renderGeometryBuffer();
+	ID3D12RootSignaturePtr	mpGeometryBufferRootSig;
+	ID3D12PipelineStatePtr	mpGeometryBufferState;
+
+	ID3D12ResourcePtr		mpGeometryBuffer_MotionVectors;
+	ID3D12ResourcePtr		mpGeometryBuffer_Depth;
+	ID3D12ResourcePtr		mpGeometryBuffer_Previous_Depth;
+	ID3D12ResourcePtr		mpGeometryBuffer_Normal;
+	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_MotionVectors;
+	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferDsv_Depth;
+	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_Normal;
+	uint8_t					mGeomteryBuffer_MotionVectors_SrvHeapIndex;
+	uint8_t					mGeomteryBuffer_Depth_SrvHeapIndex;
+	uint8_t					mGeomteryBuffer_Previous_Depth_SrvHeapIndex;
+	uint8_t					mGeomteryBuffer_Normal_SrvHeapIndex;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRTVs[2];
+
 	// temporal filter
-	void createMotionVectorsPipeline();
-	void renderMotionVectors();
-	ID3D12RootSignaturePtr	mpMotionVectorsRootSig;
-	ID3D12PipelineStatePtr	mpMotionVectorsState;
-
-	ID3D12ResourcePtr		mpMotionVectorsOutput;
-	ID3D12ResourcePtr		mpMotionVectorsOutput_Depth;
-	ID3D12ResourcePtr		mpPreviousMotionVectorsOutput_Depth;
-	D3D12_CPU_DESCRIPTOR_HANDLE mMotionVectorsRtv;
-	D3D12_CPU_DESCRIPTOR_HANDLE mMotionVectorsDsv;
-	uint8_t					mMotionVectorsOutputSrvHeapIndex;
-	uint8_t					mMotionVectorsOutput_Depth_SrvHeapIndex;
-	uint8_t					mPreviousMotionVectorsOutput_Depth_SrvHeapIndex;
-
-
 	void createTemporalFilterPipeline();
 	void applyTemporalFilter();
 	ID3D12RootSignaturePtr	mpTemporalFilterRootSig;
