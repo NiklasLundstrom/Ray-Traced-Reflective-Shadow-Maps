@@ -2017,21 +2017,30 @@ std::vector<float> calcGaussWeights(float sigma)
 void PathTracer::createSpatialFilterPipeline()
 {
 	// Create compute root signature
-	D3D12_DESCRIPTOR_RANGE ranges[2];
+	D3D12_DESCRIPTOR_RANGE ranges[3];
 
+	// input texture (to blur)
 	ranges[0].BaseShaderRegister = 0;//t0
 	ranges[0].NumDescriptors = 1;
 	ranges[0].RegisterSpace = 0;
 	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	ranges[0].OffsetInDescriptorsFromTableStart = 0;
 
+	// output texture
 	ranges[1].BaseShaderRegister = 0;//u0
 	ranges[1].NumDescriptors = 1;
 	ranges[1].RegisterSpace = 0;
 	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
 	ranges[1].OffsetInDescriptorsFromTableStart = 0;
+
+	// depth
+	ranges[2].BaseShaderRegister = 1;//t1
+	ranges[2].NumDescriptors = 1;
+	ranges[2].RegisterSpace = 0;
+	ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[2].OffsetInDescriptorsFromTableStart = 0;
 	
-	D3D12_ROOT_PARAMETER parameters[3];
+	D3D12_ROOT_PARAMETER parameters[4];
 
 	parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 	parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
@@ -2048,9 +2057,14 @@ void PathTracer::createSpatialFilterPipeline()
 	parameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 	parameters[2].DescriptorTable.NumDescriptorRanges = 1;
 	parameters[2].DescriptorTable.pDescriptorRanges = &ranges[1];
+
+	parameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	parameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	parameters[3].DescriptorTable.NumDescriptorRanges = 1;
+	parameters[3].DescriptorTable.pDescriptorRanges = &ranges[2];
 	
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 3;
+	desc.desc.NumParameters = 4;
 	desc.desc.pParameters = parameters;
 	desc.desc.NumStaticSamplers = 0;
 	desc.desc.pStaticSamplers = nullptr;
@@ -2849,27 +2863,35 @@ void PathTracer::applySpatialFilter()
 	
 	// Set Root signature
 	mpCmdList->SetComputeRootSignature(mpSpatialFilterRootSig.GetInterfacePtr());
+
 	// Set descriptor heaps
 	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
 	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+
+	auto heapStart = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+	auto heapEntrySize = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	D3D12_GPU_DESCRIPTOR_HANDLE handle;
+
 	// Set constants
 	mpCmdList->SetComputeRoot32BitConstants(0, 1, &mBlurRadius, 0);
 	mpCmdList->SetComputeRoot32BitConstants(0, (UINT)mGaussWeights.size(), mGaussWeights.data(), 1);
 
-	for (int i = 0; i < 1; i++)
+	// Set Depth input
+	handle = heapStart;
+	handle.ptr += mMotionVectorsOutput_Depth_SrvHeapIndex * heapEntrySize;
+	mpCmdList->SetComputeRootDescriptorTable(3, handle); // t1
+
+	for (int i = 0; i < 4; i++)
 	{
 		//////////////
 		// Pass 1
 		//////////////
 		mpCmdList->SetPipelineState(mpSpatialFilterStateHorz);
 
-		auto heapStart = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
-		auto heapEntrySize = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
 		// set "Shader Table", i.e. resources for root signature
-		D3D12_GPU_DESCRIPTOR_HANDLE handle = heapStart;
+		handle = heapStart;
 		if (i == 0) {
-			handle.ptr += mTemporalFilterOutputSrvHeapIndex/*mRTOutputSrvHeapIndex*/ * heapEntrySize;
+			handle.ptr += mTemporalFilterOutputSrvHeapIndex * heapEntrySize;
 		}else 
 		{
 			handle.ptr += mBlur2OutputSrvHeapIndex * heapEntrySize;
@@ -2878,6 +2900,7 @@ void PathTracer::applySpatialFilter()
 		handle = heapStart;
 		handle.ptr += mBlur1OutputUavHeapIndex * heapEntrySize;
 		mpCmdList->SetComputeRootDescriptorTable(2, handle); // u0
+
 
 		// dispatch
 		UINT numGroupsX = (UINT)ceilf(mSwapChainSize[0] / 256.0f);
