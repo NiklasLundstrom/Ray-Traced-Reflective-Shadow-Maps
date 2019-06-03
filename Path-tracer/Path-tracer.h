@@ -262,18 +262,22 @@ private:
 	void renderGeometryBuffer();
 	ID3D12RootSignaturePtr	mpGeometryBufferRootSig;
 	ID3D12PipelineStatePtr	mpGeometryBufferState;
+	ID3D12PipelineStatePtr	mpMotionVectorsState;
 
 	ID3D12ResourcePtr		mpGeometryBuffer_MotionVectors;
 	ID3D12ResourcePtr		mpGeometryBuffer_Depth;
 	ID3D12ResourcePtr		mpGeometryBuffer_Previous_Depth;
 	ID3D12ResourcePtr		mpGeometryBuffer_Normal;
+	ID3D12ResourcePtr		mpGeometryBuffer_Color;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_MotionVectors;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferDsv_Depth;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_Normal;
+	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_Color;
 	uint8_t					mGeomteryBuffer_MotionVectors_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Depth_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Previous_Depth_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Normal_SrvHeapIndex;
+	uint8_t					mGeomteryBuffer_Color_SrvHeapIndex;
 
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRTVs[2];
 

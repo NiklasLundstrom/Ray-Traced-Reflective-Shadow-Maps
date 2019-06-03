@@ -503,7 +503,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	{
 		instanceDescs[instanceIdx].InstanceID = it->second.getModelIndex(); // This value will be exposed to the shader via InstanceID()
 		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2 * instanceIdx;  // hard coded
-		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE;
 		mat4 m = transpose(it->second.getTransformMatrix()); // GLM is column major, the INSTANCE_DESC is row major
 		memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
 		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[it->second.getModelIndex()]->GetGPUVirtualAddress();
@@ -542,10 +542,13 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 
 void PathTracer::createAccelerationStructures()
 {
+	vec3 white = 0.75f*vec3(1.0f, 1.0f, 1.0f);
+	vec3 red = 0.75f*vec3(1.0f, 0.0f, 0.0f);
+	vec3 green = 0.75f*vec3(0.0f, 1.0f, 0.0f);
 	uint8_t modelIndex = 0;
 
 	// Load robot
-	Model robot(L"Robot", modelIndex);
+	Model robot(L"Robot", modelIndex, white);
 	mModels["Robot"] = robot;
 	AccelerationStructureBuffers robotAS = mModels["Robot"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/robot.fbx", &importer, false);
 	mpBottomLevelAS[modelIndex] = robotAS.pResult;
@@ -553,7 +556,7 @@ void PathTracer::createAccelerationStructures()
 	modelIndex++;
 
 	// Load floor
-	Model floor(L"Floor", modelIndex);
+	Model floor(L"Floor", modelIndex, white);
 	mModels["Floor"] = floor;
 	AccelerationStructureBuffers floorAS = mModels["Floor"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/floor2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = floorAS.pResult;
@@ -561,7 +564,7 @@ void PathTracer::createAccelerationStructures()
 	modelIndex++;
 
 	// Load extended floor
-	Model floorExt(L"Floor Extended", modelIndex);
+	Model floorExt(L"Floor Extended", modelIndex, white);
 	mModels["Floor Extended"] = floorExt;
 	AccelerationStructureBuffers floorExtAS = mModels["Floor Extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/floor_extended2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = floorExtAS.pResult;
@@ -569,7 +572,7 @@ void PathTracer::createAccelerationStructures()
 	modelIndex++;
 
 	// Load back wall
-	Model backWall(L"Back wall", modelIndex);
+	Model backWall(L"Back wall", modelIndex, red);
 	mModels["Back wall"] = backWall;
 	AccelerationStructureBuffers backWallAS = mModels["Back wall"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/back_wall2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = backWallAS.pResult;
@@ -577,7 +580,7 @@ void PathTracer::createAccelerationStructures()
 	modelIndex++;
 
 	// Load extended back wall
-	Model backWallExt(L"Back wall extended", modelIndex);
+	Model backWallExt(L"Back wall extended", modelIndex, white);
 	mModels["Back wall extended"] = backWallExt;
 	AccelerationStructureBuffers backWallExtAS = mModels["Back wall extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/back_wall_extended2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = backWallExtAS.pResult;
@@ -585,15 +588,15 @@ void PathTracer::createAccelerationStructures()
 	modelIndex++;
 
 	// Load ceiling
-	Model ceiling(L"Ceiling", modelIndex);
+	Model ceiling(L"Ceiling", modelIndex, white);
 	mModels["Ceiling"] = ceiling;
 	AccelerationStructureBuffers ceilingAS = mModels["Ceiling"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/ceiling2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = ceilingAS.pResult;
 	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Ceiling");
 	modelIndex++;
 
-	// Load ceiling
-	Model ceilingExt(L"Ceiling extended", modelIndex);
+	// Load extended ceiling
+	Model ceilingExt(L"Ceiling extended", modelIndex, white);
 	mModels["Ceiling extended"] = ceilingExt;
 	AccelerationStructureBuffers ceilingExtAS = mModels["Ceiling extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/ceiling_extended2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = ceilingExtAS.pResult;
@@ -601,15 +604,15 @@ void PathTracer::createAccelerationStructures()
 	modelIndex++;
 
 	// Load window
-	Model window(L"Window", modelIndex);
+	Model window(L"Window", modelIndex, white);
 	mModels["Window"] = window;
 	AccelerationStructureBuffers windowAS = mModels["Window"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/wall_window2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = windowAS.pResult;
 	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Window");
 	modelIndex++;
 
-	// Load window
-	Model frontWallExt(L"Front wall extended", modelIndex);
+	// Load extended front wall
+	Model frontWallExt(L"Front wall extended", modelIndex, white);
 	mModels["Front wall extended"] = frontWallExt;
 	AccelerationStructureBuffers frontWallExtAS = mModels["Front wall extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/front_wall_extended2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = frontWallExtAS.pResult;
@@ -617,7 +620,7 @@ void PathTracer::createAccelerationStructures()
 	modelIndex++;
 
 	// Load left wall outside
-	Model leftWallOutside(L"Left wall outside", modelIndex);
+	Model leftWallOutside(L"Left wall outside", modelIndex, green);
 	mModels["Left wall outside"] = leftWallOutside;
 	AccelerationStructureBuffers leftWallOutsideAS = mModels["Left wall outside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/left_wall_outside2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = leftWallOutsideAS.pResult;
@@ -625,7 +628,7 @@ void PathTracer::createAccelerationStructures()
 	modelIndex++;
 
 	// Load right wall outside
-	Model rightWallOutside(L"Right wall outside", modelIndex);
+	Model rightWallOutside(L"Right wall outside", modelIndex, white);
 	mModels["Right wall outside"] = rightWallOutside;
 	AccelerationStructureBuffers rightWallOutsideAS = mModels["Right wall outside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/right_wall_outside2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = rightWallOutsideAS.pResult;
@@ -633,7 +636,7 @@ void PathTracer::createAccelerationStructures()
 	modelIndex++;
 
 	// Load right wall inside
-	Model rightWallInside(L"Right wall inside", modelIndex);
+	Model rightWallInside(L"Right wall inside", modelIndex, white);
 	mModels["Right wall inside"] = rightWallInside;
 	AccelerationStructureBuffers rightWallInsideAS = mModels["Right wall inside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/right_wall_inside2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = rightWallInsideAS.pResult;
@@ -641,7 +644,7 @@ void PathTracer::createAccelerationStructures()
 	modelIndex++;
 
 	// Load left wall extended
-	Model leftWallExtended(L"Left wall extended", modelIndex);
+	Model leftWallExtended(L"Left wall extended", modelIndex, white);
 	mModels["Left wall extended"] = leftWallExtended;
 	AccelerationStructureBuffers leftWallExtendedAS = mModels["Left wall extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/left_wall_extended2.fbx", &importer, true);
 	mpBottomLevelAS[modelIndex] = leftWallExtendedAS.pResult;
@@ -1142,7 +1145,7 @@ void PathTracer::createRtPipelineState()
 	#pragma region
     // Bind the payload size to all programs
     
-		ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 7);
+		ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 4);
 		subobjects[index] = primaryShaderConfig.subobject; // Payload size
 
 		uint32_t primaryShaderConfigIndex = index++;
@@ -1156,7 +1159,7 @@ void PathTracer::createRtPipelineState()
 
     // Create the pipeline config
     
-		PipelineConfig config(10); // maxRecursionDepth
+		PipelineConfig config(2); // maxRecursionDepth
 		subobjects[index++] = config.subobject; // Recursion depth
 
     // Create the global root signature and store the empty signature
@@ -1310,9 +1313,9 @@ void PathTracer::createShaderResources()
 	//  - 1 for the light position buffer
 	//  - 4 for the Shadow map (depth, position, normal, flux)
 
-		uint32_t nbrEntries = 22;
+		uint32_t nbrEntries = 23;
 #else
-		uint32_t nbrEntries = 16;
+		uint32_t nbrEntries = 17;
 #endif
 	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, nbrEntries, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 
@@ -1466,6 +1469,13 @@ void PathTracer::createShaderResources()
 		mpDevice->CreateShaderResourceView(mpGeometryBuffer_Normal, &rtOutputSrvDesc, handle);
 		mGeomteryBuffer_Normal_SrvHeapIndex = handleIndex;
 
+		// Create the SRV for the G-buffer Color
+		handle.ptr += cbvSrvDescriptorSize;
+		handleIndex++;
+
+		mpDevice->CreateShaderResourceView(mpGeometryBuffer_Color, &rtOutputSrvDesc, handle);
+		mGeomteryBuffer_Color_SrvHeapIndex = handleIndex;
+
 #ifdef HYBRID
 	// Create the CBV for the light buffer
 		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvLightDesc = {};
@@ -1562,7 +1572,7 @@ void PathTracer::createShaderResources()
 	// - 1 RTV for Flux
 
 	// create a RTV descriptor heap
-		mpShadowMapRtvHeap = createDescriptorHeap(mpDevice, 7, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
+		mpShadowMapRtvHeap = createDescriptorHeap(mpDevice, 8, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
 
 		// Description
 			D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {};
@@ -1600,13 +1610,18 @@ void PathTracer::createShaderResources()
 			rtvHandle.ptr += rtvDescriptorSize;
 			mpDevice->CreateRenderTargetView(mpGeometryBuffer_MotionVectors, &renderTargetViewDesc, rtvHandle);
 			mGeometryBufferRtv_MotionVectors = rtvHandle;
-			mGeometryBufferRTVs[0] = mGeometryBufferRtv_MotionVectors;
 
 		// G-buffer Normal
 			rtvHandle.ptr += rtvDescriptorSize;
 			mpDevice->CreateRenderTargetView(mpGeometryBuffer_Normal, &renderTargetViewDesc, rtvHandle);
 			mGeometryBufferRtv_Normal = rtvHandle;
-			mGeometryBufferRTVs[1] = mGeometryBufferRtv_Normal;
+			mGeometryBufferRTVs[0] = mGeometryBufferRtv_Normal;
+
+		// G-buffer Color
+			rtvHandle.ptr += rtvDescriptorSize;
+			mpDevice->CreateRenderTargetView(mpGeometryBuffer_Color, &renderTargetViewDesc, rtvHandle);
+			mGeometryBufferRtv_Color = rtvHandle;
+			mGeometryBufferRTVs[1] = mGeometryBufferRtv_Color;
 
 		// Tone Mapping view
 			renderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;// _sRGB?
@@ -1782,7 +1797,7 @@ void PathTracer::createRasterPipelineState()
 	range[0].RegisterSpace = 0;
 	range[0].OffsetInDescriptorsFromTableStart = 0;
 
-	D3D12_ROOT_PARAMETER rootParameters[3];
+	D3D12_ROOT_PARAMETER rootParameters[4];
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
 	rootParameters[0].DescriptorTable.pDescriptorRanges = range;
@@ -1800,6 +1815,13 @@ void PathTracer::createRasterPipelineState()
 	rootParameters[2].Descriptor.ShaderRegister = 0;//t0
 	rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
+	// color
+	rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	rootParameters[3].Constants.RegisterSpace = 0;
+	rootParameters[3].Constants.ShaderRegister = 2;//b2
+	rootParameters[3].Constants.Num32BitValues = 3;
+	rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
 	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
@@ -1809,7 +1831,7 @@ void PathTracer::createRasterPipelineState()
 
 	// Root signature
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 3;
+	desc.desc.NumParameters = 4;
 	desc.desc.pParameters = rootParameters;
 	desc.desc.NumStaticSamplers = 0;
 	desc.desc.pStaticSamplers = nullptr;
@@ -2126,7 +2148,7 @@ void PathTracer::createToneMappingPipeline()
 {
 
 	// root signature
-	D3D12_DESCRIPTOR_RANGE ranges[6];
+	D3D12_DESCRIPTOR_RANGE ranges[7];
 
 	// Blur output
 	ranges[0].BaseShaderRegister = 0;//t0
@@ -2170,21 +2192,37 @@ void PathTracer::createToneMappingPipeline()
 	ranges[5].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	ranges[5].OffsetInDescriptorsFromTableStart = 0;
 
-	D3D12_ROOT_PARAMETER rootParameters[3];
+	// G-buffer color
+	ranges[6].BaseShaderRegister = 6; //t6
+	ranges[6].NumDescriptors = 1;
+	ranges[6].RegisterSpace = 0;
+	ranges[6].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[6].OffsetInDescriptorsFromTableStart = 0;
+
+	D3D12_ROOT_PARAMETER rootParameters[4];
+	// blur output
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
 	rootParameters[0].DescriptorTable.pDescriptorRanges = ranges;
 
+	// RSM
 	rootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rootParameters[1].DescriptorTable.NumDescriptorRanges = 4;
 	rootParameters[1].DescriptorTable.pDescriptorRanges = &ranges[1];
 
+	// motion vectors
 	rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rootParameters[2].DescriptorTable.NumDescriptorRanges = 1;
 	rootParameters[2].DescriptorTable.pDescriptorRanges = &ranges[5];
+
+	// G-buffer color
+	rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+	rootParameters[3].DescriptorTable.NumDescriptorRanges = 1;
+	rootParameters[3].DescriptorTable.pDescriptorRanges = &ranges[6];
 
 	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
@@ -2194,7 +2232,7 @@ void PathTracer::createToneMappingPipeline()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS;
 
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 3;
+	desc.desc.NumParameters = 4;
 	desc.desc.pParameters = rootParameters;
 	desc.desc.NumStaticSamplers = 0;
 	desc.desc.pStaticSamplers = nullptr;
@@ -2280,7 +2318,7 @@ void PathTracer::createGeometryBufferPipeline()
 	range[0].RegisterSpace = 0;
 	range[0].OffsetInDescriptorsFromTableStart = 0;
 
-	D3D12_ROOT_PARAMETER rootParameters[3];
+	D3D12_ROOT_PARAMETER rootParameters[4];
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
 	rootParameters[0].DescriptorTable.pDescriptorRanges = range;
@@ -2298,6 +2336,13 @@ void PathTracer::createGeometryBufferPipeline()
 	rootParameters[2].Descriptor.ShaderRegister = 0;//t0
 	rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
+	// color
+	rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	rootParameters[3].Constants.RegisterSpace = 0;
+	rootParameters[3].Constants.ShaderRegister = 2;//b2
+	rootParameters[3].Constants.Num32BitValues = 3;
+	rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
 	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
@@ -2307,7 +2352,7 @@ void PathTracer::createGeometryBufferPipeline()
 
 	// Root signature
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 3;
+	desc.desc.NumParameters = 4;
 	desc.desc.pParameters = rootParameters;
 	desc.desc.NumStaticSamplers = 0;
 	desc.desc.pStaticSamplers = nullptr;
@@ -2316,8 +2361,8 @@ void PathTracer::createGeometryBufferPipeline()
 	mpGeometryBufferRootSig = createRootSignature(mpDevice, desc.desc);
 
 	// Compile shaders
-	ID3DBlobPtr vertexShader = compileLibrary(L"Data/MotionVectors.hlsl", L"VSMain", L"vs_6_3");
-	ID3DBlobPtr pixelShader = compileLibrary(L"Data/MotionVectors.hlsl", L"PSMain", L"ps_6_3");
+	ID3DBlobPtr vertexShader = compileLibrary(L"Data/GBuffer.hlsl", L"VSMain", L"vs_6_3");
+	ID3DBlobPtr pixelShader = compileLibrary(L"Data/GBuffer.hlsl", L"PSMain", L"ps_6_3");
 
 	// Define the vertex input layout.
 	D3D12_INPUT_ELEMENT_DESC inputElementDescs[] =
@@ -2334,7 +2379,7 @@ void PathTracer::createGeometryBufferPipeline()
 
 	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
 	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-	psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON;
+	psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
 	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 	psoDesc.DepthStencilState.DepthEnable = TRUE;
 	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
@@ -2355,6 +2400,16 @@ void PathTracer::createGeometryBufferPipeline()
 	psoDesc.SampleDesc.Count = 1;
 
 	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpGeometryBufferState)));
+
+	// motion vectors state
+	ID3DBlobPtr vertexShaderMotionVectors = compileLibrary(L"Data/MotionVectors.hlsl", L"VSMain", L"vs_6_3");
+	ID3DBlobPtr pixelShaderMotionVectors = compileLibrary(L"Data/MotionVectors.hlsl", L"PSMain", L"ps_6_3");
+	psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShaderMotionVectors.GetInterfacePtr());
+	psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShaderMotionVectors.GetInterfacePtr());
+	psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON;
+	psoDesc.NumRenderTargets = 1;
+	psoDesc.RTVFormats[1] = DXGI_FORMAT_UNKNOWN;
+	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpMotionVectorsState)));
 
 	// create output resources
 	D3D12_RESOURCE_DESC texDesc;
@@ -2399,6 +2454,17 @@ void PathTracer::createGeometryBufferPipeline()
 	));
 	mpGeometryBuffer_Normal->SetName(L"G-buffer Normal");
 
+	// Color
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kDefaultHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&texDesc,
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		&colorClearValue,
+		IID_PPV_ARGS(&mpGeometryBuffer_Color)
+	));
+	mpGeometryBuffer_Normal->SetName(L"G-buffer Color");
+
 	// depth stencil
 	texDesc.Format = DXGI_FORMAT_D32_FLOAT;
 	texDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
@@ -2416,7 +2482,7 @@ void PathTracer::createGeometryBufferPipeline()
 		&depthClearValue,
 		IID_PPV_ARGS(&mpGeometryBuffer_Depth)
 	));
-	mpGeometryBuffer_Depth->SetName(L"Motion Vector Depth");
+	mpGeometryBuffer_Depth->SetName(L"G-buffer Depth");
 
 	// Previous depth stencil
 	d3d_call(mpDevice->CreateCommittedResource(
@@ -2669,6 +2735,8 @@ void PathTracer::renderShadowMap()
 		// Vertex and Index buffers
 		mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView());
 		mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView());
+		// Color
+		mpCmdList->SetGraphicsRoot32BitConstants(3, 3, &it->second.getColor(), 0);
 
 		// Draw
 		mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
@@ -2745,9 +2813,8 @@ void PathTracer::rayTrace()
 
 void PathTracer::renderGeometryBuffer()
 {
-	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render Motion Vectors");
+	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render G-buffer");
 
-	resourceBarrier(mpCmdList, mpGeometryBuffer_MotionVectors, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
 
@@ -2774,8 +2841,8 @@ void PathTracer::renderGeometryBuffer()
 
 	// clear render targets
 	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	mpCmdList->ClearRenderTargetView(mGeometryBufferRtv_MotionVectors, clearColor, 0, nullptr);
 	mpCmdList->ClearRenderTargetView(mGeometryBufferRtv_Normal, clearColor, 0, nullptr);
+	mpCmdList->ClearRenderTargetView(mGeometryBufferRtv_Color, clearColor, 0, nullptr);
 	mpCmdList->ClearDepthStencilView(mGeometryBufferDsv_Depth, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 	// set render target
@@ -2798,16 +2865,56 @@ void PathTracer::renderGeometryBuffer()
 		// Vertex and Index buffers
 		mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView());
 		mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView());
+		// Color
+		mpCmdList->SetGraphicsRoot32BitConstants(3, 3, &it->second.getColor(), 0);
 
 		// Draw
 		mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
 	}
 
 
-	resourceBarrier(mpCmdList, mpGeometryBuffer_MotionVectors, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
-	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
 
 
+	PIXEndEvent(mpCmdList.GetInterfacePtr());
+
+	// Motion Vectors
+
+	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render Motion Vectors");
+	resourceBarrier(mpCmdList, mpGeometryBuffer_MotionVectors, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+	// Set pipeline state
+	mpCmdList->SetPipelineState(mpMotionVectorsState);
+
+	// clear render targets
+	mpCmdList->ClearRenderTargetView(mGeometryBufferRtv_MotionVectors, clearColor, 0, nullptr);
+	mpCmdList->ClearDepthStencilView(mGeometryBufferDsv_Depth, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+
+
+	// set render target
+	mpCmdList->OMSetRenderTargets(
+		1,
+		&mGeometryBufferRtv_MotionVectors,
+		false,
+		&mGeometryBufferDsv_Depth
+	);
+
+	// render models
+	for (auto it = mModels.begin(); it != mModels.end(); ++it)
+	{
+		// Model to World Transform
+		mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
+		// Normal buffer
+		mpCmdList->SetGraphicsRootShaderResourceView(2, it->second.getNormalBufferGPUAdress());
+		// Vertex and Index buffers
+		mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView());
+		mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView());
+
+		// Draw
+		mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+	}
+
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_MotionVectors, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
@@ -3029,6 +3136,10 @@ void PathTracer::applyToneMapping()
 	handle = heapStart;
 	handle.ptr += mGeomteryBuffer_MotionVectors_SrvHeapIndex * heapEntrySize;
 	mpCmdList->SetGraphicsRootDescriptorTable(2, handle); // t5, Motion Vectors
+
+	handle = heapStart;
+	handle.ptr += mGeomteryBuffer_Color_SrvHeapIndex * heapEntrySize;
+	mpCmdList->SetGraphicsRootDescriptorTable(3, handle); // t5, G-buffer Color
 
 
 	

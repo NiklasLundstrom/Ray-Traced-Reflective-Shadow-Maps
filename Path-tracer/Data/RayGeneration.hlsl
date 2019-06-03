@@ -42,7 +42,7 @@ void rayGen()
     {
         nextRand(randSeed);
 
-        payload.depth = 1;
+        //payload.depth = 1;
         payload.seed = randSeed;
         TraceRay(
 					gRtScene,

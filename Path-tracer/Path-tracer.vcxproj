@@ -42,6 +42,9 @@
       </EntryPointName>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Library</ShaderType>
     </FxCompile>
+    <CustomBuild Include="Data\GBuffer.hlsl">
+      <FileType>Document</FileType>
+    </CustomBuild>
     <FxCompile Include="Data\Hit.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
       <EntryPointName Condition="'$(Configuration)|$(Platform)'=='Release|x64'">

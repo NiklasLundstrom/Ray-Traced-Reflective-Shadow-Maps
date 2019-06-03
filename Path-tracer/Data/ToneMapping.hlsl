@@ -47,6 +47,7 @@ Texture2D<float4> gShadowMap_Position : register(t2);
 Texture2D<float4> gShadowMap_Normal : register(t3);
 Texture2D<float4> gShadowMap_Flux : register(t4);
 Texture2D<float4> gMotionVectors : register(t5);
+Texture2D<float4> gGbufferColor : register(t6);
 
 
 float4 PSMain(PSInput input) : SV_TARGET
@@ -55,7 +56,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     uint masterHeight;
     gInput.GetDimensions(masterWidth, masterHeight);
     float2 crd = input.uv * float2(masterWidth, masterHeight);
-    float3 output = gInput[crd].rgb;
+    float3 output = gInput[crd].rgb * gGbufferColor[crd].rgb;
 
 	// Tone Map
     output = linearToSrgb(ACESFitted(2.5 * output.rgb));

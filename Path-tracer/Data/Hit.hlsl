@@ -33,12 +33,12 @@ Texture2D<float4> gShadowMap_Flux : register(t3, space1);
 [shader("closesthit")]
 void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
-    if (payload.depth <= 0)
-    {
-        payload.color = float3(0.0, 0.0, 0.0);
-    }
-    else
-    {
+    //if (payload.depth <= 0)
+    //{
+    //    payload.color = float3(0.0, 0.0, 0.0);
+    //}
+    //else
+    //{
 	// get hit point
         float hitT = RayTCurrent();
         float3 rayDirW = WorldRayDirection();
@@ -55,8 +55,6 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 				+ n2 * attribs.barycentrics.y;
         normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
        
-	// get material color
-        float3 materialColor = float3(1.0f, 1.0f, 1.0f) * 0.75f;
 
 #ifdef HYBRID
         float3 directColor = sampleDirectLight(hitPoint, normal);
@@ -81,9 +79,9 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 	
 #endif
 
-            payload.color = materialColor * incomingColor;
-        }
-    }
+        payload.color = incomingColor;
+    //}
+}
 
 [shader("closesthit")]
 void areaLightChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
@@ -285,7 +283,7 @@ void sampleRay(in float3 hitPoint, in float3 direction, inout RayPayload payload
         rayDiffuse.TMin = 0.0001; // watch out for this value
         rayDiffuse.TMax = 100000;
 
-        payload.depth -= 1;
+        //payload.depth -= 1;
 
         TraceRay(gRtScene,
 					0 /*rayFlags*/,
@@ -297,5 +295,4 @@ void sampleRay(in float3 hitPoint, in float3 direction, inout RayPayload payload
 					payload
 				);
 
-
-    }
+}

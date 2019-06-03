@@ -5,11 +5,12 @@ class Model
 {
 
 public:
-	Model(LPCWSTR name, uint8_t idx);
-	Model() { mName = L"unnamed model"; mModelIndex = 0; };
+	Model(LPCWSTR name, uint8_t idx, vec3 color);
+	Model() { mName = L"unnamed model"; mModelIndex = 0; mColor = vec3(1.0f, 1.0f, 1.0f); };
 
 	LPCWSTR getName() { return mName; }
 	uint8_t getModelIndex() { return mModelIndex; }
+	vec3	getColor() { return mColor; }
 
 	D3D12_VERTEX_BUFFER_VIEW* getVertexBufferView() { return &mVertexBufferView; }
 	D3D12_INDEX_BUFFER_VIEW* getIndexBufferView() { return &mIndexBufferView; }

@@ -9,17 +9,24 @@ cbuffer ModelTransform : register(b1)
     float4x4 modelToWorld;
 };
 
+cbuffer color : register(b2)
+{
+    float r;
+    float g;
+    float b;
+};
+
 StructuredBuffer<float3> normals : register(t0);
 
 struct PSInput
 {
     float4 position : SV_POSITION;
     float3 normal : NORMAL;
-    float4 worldPosition : TEXCOORD;
+    float4 worldPosition : TEXCOORD0;
+    float3 color : TEXCOORD1;
 };
 
-PSInput VSMain(
-    float3 position : POSITION, uint index : SV_VertexID)
+PSInput VSMain(float3 position : POSITION, uint index : SV_VertexID)
 {
     PSInput vsOutput;
 
@@ -37,6 +44,9 @@ PSInput VSMain(
     normal = normal * 0.5 + 0.5;
     vsOutput.normal = normal;
 
+	// color
+    vsOutput.color = float3(r, g, b);
+
     return vsOutput;
 }
 
@@ -53,7 +63,7 @@ PS_OUTPUT PSMain(PSInput input) : SV_TARGET
 
     output.Position = input.worldPosition;
     output.Normal = float4(input.normal, 1.0);
-    output.Flux = float4(1.0, 1.0, 1.0, 1.0);
+    output.Flux = float4(input.color, 1.0);
 
     return output;
 

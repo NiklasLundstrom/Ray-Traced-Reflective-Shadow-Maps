@@ -304,8 +304,9 @@ void Model::updateTransformBuffer()
 	mpTransformBuffer->Unmap(0, nullptr);
 }
 
-Model::Model(LPCWSTR name, uint8_t idx)
+Model::Model(LPCWSTR name, uint8_t idx, vec3 color)
 {
 	mName = name;
 	mModelIndex = idx;
+	mColor = color;
 }
