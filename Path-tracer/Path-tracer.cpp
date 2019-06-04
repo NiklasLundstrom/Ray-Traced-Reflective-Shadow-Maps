@@ -2463,7 +2463,7 @@ void PathTracer::createGeometryBufferPipeline()
 		&colorClearValue,
 		IID_PPV_ARGS(&mpGeometryBuffer_Color)
 	));
-	mpGeometryBuffer_Normal->SetName(L"G-buffer Color");
+	mpGeometryBuffer_Color->SetName(L"G-buffer Color");
 
 	// depth stencil
 	texDesc.Format = DXGI_FORMAT_D32_FLOAT;
@@ -3040,8 +3040,10 @@ void PathTracer::applySpatialFilter()
 	handle.ptr += mGeomteryBuffer_Normal_SrvHeapIndex * heapEntrySize;
 	mpCmdList->SetComputeRootDescriptorTable(4, handle); // t2
 
-	for (int i = 0; i < 16; i++)
+	for (int i = 0; i < 4; i++)
 	{
+		mSpatialItr = i + 1;
+		mpCmdList->SetComputeRoot32BitConstants(0, 1, &mSpatialItr, 0);
 		//////////////
 		// Pass 1
 		//////////////

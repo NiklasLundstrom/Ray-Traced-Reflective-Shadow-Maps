@@ -226,6 +226,8 @@ private:
 	//////////////////////////////////////////////////////////////////////////
 	// Post processing stuff
 	//////////////////////////////////////////////////////////////////////////
+
+	// Spatial filter
 	ID3D12RootSignaturePtr	mpSpatialFilterRootSig;
 	ID3D12PipelineStatePtr	mpSpatialFilterStateHorz;
 	ID3D12PipelineStatePtr	mpSpatialFilterStateVert;
@@ -243,6 +245,7 @@ private:
 	void applySpatialFilter();
 	std::vector<float>		mGaussWeights;
 	int						mBlurRadius;
+	int						mSpatialItr;
 
 	// tone mapping
 	void createToneMappingPipeline();
