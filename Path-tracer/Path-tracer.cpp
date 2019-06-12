@@ -1313,7 +1313,7 @@ void PathTracer::createShaderResources()
 	//  - 1 for the light position buffer
 	//  - 4 for the Shadow map (depth, position, normal, flux)
 
-		uint32_t nbrEntries = 23;
+		uint32_t nbrEntries = 24;
 #else
 		uint32_t nbrEntries = 17;
 #endif
@@ -1476,6 +1476,13 @@ void PathTracer::createShaderResources()
 		mpDevice->CreateShaderResourceView(mpGeometryBuffer_Color, &rtOutputSrvDesc, handle);
 		mGeomteryBuffer_Color_SrvHeapIndex = handleIndex;
 
+		// Create the SRV for the G-buffer Position
+		handle.ptr += cbvSrvDescriptorSize;
+		handleIndex++;
+
+		mpDevice->CreateShaderResourceView(mpGeometryBuffer_Position, &rtOutputSrvDesc, handle);
+		mGeomteryBuffer_Position_SrvHeapIndex = handleIndex;
+
 #ifdef HYBRID
 	// Create the CBV for the light buffer
 		D3D12_CONSTANT_BUFFER_VIEW_DESC cbvLightDesc = {};
@@ -1572,7 +1579,7 @@ void PathTracer::createShaderResources()
 	// - 1 RTV for Flux
 
 	// create a RTV descriptor heap
-		mpShadowMapRtvHeap = createDescriptorHeap(mpDevice, 8, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
+		mpShadowMapRtvHeap = createDescriptorHeap(mpDevice, 9, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, false);
 
 		// Description
 			D3D12_RENDER_TARGET_VIEW_DESC renderTargetViewDesc = {};
@@ -1622,6 +1629,12 @@ void PathTracer::createShaderResources()
 			mpDevice->CreateRenderTargetView(mpGeometryBuffer_Color, &renderTargetViewDesc, rtvHandle);
 			mGeometryBufferRtv_Color = rtvHandle;
 			mGeometryBufferRTVs[1] = mGeometryBufferRtv_Color;
+
+		// G-buffer Position
+			rtvHandle.ptr += rtvDescriptorSize;
+			mpDevice->CreateRenderTargetView(mpGeometryBuffer_Position, &renderTargetViewDesc, rtvHandle);
+			mGeometryBufferRtv_Position = rtvHandle;
+			mGeometryBufferRTVs[2] = mGeometryBufferRtv_Position;
 
 		// Tone Mapping view
 			renderTargetViewDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;// _sRGB?
@@ -2393,9 +2406,10 @@ void PathTracer::createGeometryBufferPipeline()
 	psoDesc.DepthStencilState.BackFace = defaultStencilOp;
 	psoDesc.SampleMask = UINT_MAX;
 	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
-	psoDesc.NumRenderTargets = 2;
+	psoDesc.NumRenderTargets = 3;
 	psoDesc.RTVFormats[0] = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	psoDesc.RTVFormats[1] = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	psoDesc.RTVFormats[2] = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
 	psoDesc.SampleDesc.Count = 1;
 
@@ -2409,6 +2423,7 @@ void PathTracer::createGeometryBufferPipeline()
 	psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON;
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.RTVFormats[1] = DXGI_FORMAT_UNKNOWN;
+	psoDesc.RTVFormats[2] = DXGI_FORMAT_UNKNOWN;
 	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpMotionVectorsState)));
 
 	// create output resources
@@ -2464,6 +2479,17 @@ void PathTracer::createGeometryBufferPipeline()
 		IID_PPV_ARGS(&mpGeometryBuffer_Color)
 	));
 	mpGeometryBuffer_Color->SetName(L"G-buffer Color");
+
+	// Position
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kDefaultHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&texDesc,
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		&colorClearValue,
+		IID_PPV_ARGS(&mpGeometryBuffer_Position)
+	));
+	mpGeometryBuffer_Position->SetName(L"G-buffer Position");
 
 	// depth stencil
 	texDesc.Format = DXGI_FORMAT_D32_FLOAT;
@@ -2843,11 +2869,12 @@ void PathTracer::renderGeometryBuffer()
 	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	mpCmdList->ClearRenderTargetView(mGeometryBufferRtv_Normal, clearColor, 0, nullptr);
 	mpCmdList->ClearRenderTargetView(mGeometryBufferRtv_Color, clearColor, 0, nullptr);
+	mpCmdList->ClearRenderTargetView(mGeometryBufferRtv_Position, clearColor, 0, nullptr);
 	mpCmdList->ClearDepthStencilView(mGeometryBufferDsv_Depth, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 	// set render target
 	mpCmdList->OMSetRenderTargets(
-		2,
+		3,
 		mGeometryBufferRTVs,
 		false,
 		&mGeometryBufferDsv_Depth

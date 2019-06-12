@@ -211,7 +211,7 @@ private:
 		vec3 center = vec3(0.8, 2.5, 4.0);
 		float radius = 28.0f;
 		float phi = quarter_pi<float>();
-		float theta = 0.0f;
+		float theta = pi<float>();// 0.0f;
 
 		vec3 eye;
 		vec3 at;
@@ -272,17 +272,20 @@ private:
 	ID3D12ResourcePtr		mpGeometryBuffer_Previous_Depth;
 	ID3D12ResourcePtr		mpGeometryBuffer_Normal;
 	ID3D12ResourcePtr		mpGeometryBuffer_Color;
+	ID3D12ResourcePtr		mpGeometryBuffer_Position;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_MotionVectors;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferDsv_Depth;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_Normal;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_Color;
+	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_Position;
 	uint8_t					mGeomteryBuffer_MotionVectors_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Depth_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Previous_Depth_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Normal_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Color_SrvHeapIndex;
+	uint8_t					mGeomteryBuffer_Position_SrvHeapIndex;
 
-	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRTVs[2];
+	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRTVs[3];
 
 	// temporal filter
 	void createTemporalFilterPipeline();

@@ -56,7 +56,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     uint masterHeight;
     gInput.GetDimensions(masterWidth, masterHeight);
     float2 crd = input.uv * float2(masterWidth, masterHeight);
-    float3 output = gInput[crd].rgb * gGbufferColor[crd].rgb;
+    float3 output = gInput[crd].rgb;// * gGbufferColor[crd].rgb;
 
 	// Tone Map
     output = linearToSrgb(ACESFitted(2.5 * output.rgb));

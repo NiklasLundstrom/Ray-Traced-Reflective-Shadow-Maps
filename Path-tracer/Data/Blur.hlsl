@@ -103,22 +103,31 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
 
     float depthCenter = makeDepthLinear(gDepthCache[groupThreadID.x + blurRadius]);
     float3 normalCenter = gNormalCache[groupThreadID.x + blurRadius].xyz * 2 - 1;
+    float3 colorCenter = gCache[groupThreadID.x + blurRadius].rgb;
 	
 
     for (int i = -2; i <= 2; i++)
     {
         int k = groupThreadID.x + blurRadius + i * blurHalfRadius;
-		// test depth
-        if (abs(1.0f - depthCenter / makeDepthLinear(gDepthCache[k])) >= 0.1f)
-        {
-            continue;
-        }
-        if (dot(normalCenter, (gNormalCache[k].xyz * 2 - 1)) < 0.9f)
-        {
-            continue;
-        }
-        blurColor += weights[i + 2] * gCache[k];
-        weightSum += weights[i + 2];
+		//// test depth
+  //      if (abs(1.0f - depthCenter / makeDepthLinear(gDepthCache[k])) >= 0.1f)
+  //      {
+  //          continue;
+  //      }
+  //      if (dot(normalCenter, (gNormalCache[k].xyz * 2 - 1)) < 0.9f)
+  //      {
+  //          continue;
+  //      }
+        //blurColor += weights[i + 2] * gCache[k];
+        //weightSum += weights[i + 2];
+        float w_n = max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2 - 1)));//^sigma
+        float w_z = exp(-abs(depthCenter - makeDepthLinear(gDepthCache[k])));// /(sigma * gradient)
+        float w_l = ((itr == 1) ? 1.0f : exp(-length(colorCenter - gCache[k].rgb) / 0.1f)); // /(sigma*var)
+        float w = w_n;// * /*w_z **/w_l;
+
+        blurColor += weights[i + 2] * w * gCache[k];
+        weightSum += weights[i + 2] * w;
+
     }
 
     blurColor /= weightSum;
@@ -181,21 +190,29 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
 
     float depthCenter = makeDepthLinear(gDepthCache[groupThreadID.y + blurRadius]);
     float3 normalCenter = gNormalCache[groupThreadID.y + blurRadius].xyz * 2 - 1;
+    float3 colorCenter = gCache[groupThreadID.y + blurRadius].rgb;
 
     for (int i = -2; i <= 2; i++)
     {
         int k = groupThreadID.y + blurRadius + i * blurHalfRadius;
-		// test depth
-        if (abs(1.0f - depthCenter / makeDepthLinear(gDepthCache[k])) >= 0.1f)
-        {
-            continue;
-        }
-        if (dot(normalCenter, (gNormalCache[k].xyz * 2 - 1)) < 0.9f)
-        {
-            continue;
-        }
-        blurColor += weights[i + 2] * gCache[k];
-        weightSum += weights[i + 2];
+		//// test depth
+  //      if (abs(1.0f - depthCenter / makeDepthLinear(gDepthCache[k])) >= 0.1f)
+  //      {
+  //          continue;
+  //      }
+  //      if (dot(normalCenter, (gNormalCache[k].xyz * 2 - 1)) < 0.9f)
+  //      {
+  //          continue;
+  //      }
+  //      blurColor += weights[i + 2] * gCache[k];
+  //      weightSum += weights[i + 2];
+        float w_n = pow(max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2 - 1))), 100.0f); //^sigma
+        float w_z = exp(-abs(depthCenter - makeDepthLinear(gDepthCache[k]))); // /(sigma * gradient)
+        float w_l = ((itr == 1) ? 1.0f : exp(-length(colorCenter - gCache[k].rgb) / 0.1f)); // /(sigma*var)
+        float w = w_n;// * /*w_z **///w_l;
+
+        blurColor += weights[i + 2] * w * gCache[k];
+        weightSum += weights[i + 2] * w;
     }
 
     blurColor /= weightSum;
