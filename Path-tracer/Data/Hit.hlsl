@@ -132,7 +132,7 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
     int numRaySamples = 0;
     int numTotSamples = 0;
-    while (numRaySamples < 50 && numTotSamples < 800)
+    while (numRaySamples < 10 && numTotSamples < 400)
     {
         if (numTotSamples > 100 && numRaySamples == 0)
         {

@@ -146,6 +146,9 @@ private:
 		mat4 viewMat;
 		mat4 viewMatPrev;
 		mat4 projMat;
+		
+		mat4 viewMatInv;
+		mat4 projMatInv;
 	}mCamera;
 	
 	void createCameraBuffers();

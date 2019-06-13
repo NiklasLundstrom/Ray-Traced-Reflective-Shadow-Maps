@@ -120,9 +120,9 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
   //      }
         //blurColor += weights[i + 2] * gCache[k];
         //weightSum += weights[i + 2];
-        float w_n = max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2 - 1)));//^sigma
+        float w_n = pow(max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2 - 1))), 10.0f); //^sigma
         float w_z = exp(-abs(depthCenter - makeDepthLinear(gDepthCache[k])));// /(sigma * gradient)
-        float w_l = ((itr == 1) ? 1.0f : exp(-length(colorCenter - gCache[k].rgb) / 0.1f)); // /(sigma*var)
+        float w_l =/* ((itr == 1) ? 1.0f :*/ exp(-length(colorCenter - gCache[k].rgb) / 0.1f); // /(sigma*var)
         float w = w_n;// * /*w_z **/w_l;
 
         blurColor += weights[i + 2] * w * gCache[k];
@@ -132,7 +132,7 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
 
     blurColor /= weightSum;
 
-    gOutput[dispatchThreadID.xy] = /*gCache[groupThreadID.x + gBlurRadius];*/ blurColor;
+    gOutput[dispatchThreadID.xy] = /*gCache[groupThreadID.x + blurRadius];*/    blurColor;
 }
 
 
@@ -208,7 +208,7 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
   //      weightSum += weights[i + 2];
         float w_n = pow(max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2 - 1))), 100.0f); //^sigma
         float w_z = exp(-abs(depthCenter - makeDepthLinear(gDepthCache[k]))); // /(sigma * gradient)
-        float w_l = ((itr == 1) ? 1.0f : exp(-length(colorCenter - gCache[k].rgb) / 0.1f)); // /(sigma*var)
+        float w_l =/* ((itr == 1) ? 1.0f : */exp(-length(colorCenter - gCache[k].rgb) / 0.1f); // /(sigma*var)
         float w = w_n;// * /*w_z **///w_l;
 
         blurColor += weights[i + 2] * w * gCache[k];
@@ -217,5 +217,5 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
 
     blurColor /= weightSum;
 
-    gOutput[dispatchThreadID.xy] = /*gCache[groupThreadID.y + gBlurRadius];*/ blurColor;
+    gOutput[dispatchThreadID.xy] = /*gCache[groupThreadID.y + blurRadius];*/    blurColor;
 }

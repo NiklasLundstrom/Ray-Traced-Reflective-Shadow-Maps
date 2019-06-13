@@ -1727,7 +1727,7 @@ void PathTracer::createCameraBuffers()
 {
 	// Create camera buffer
 	uint32_t nbVec = 3; // Position and Direction
-	mCameraBufferSize = nbVec * sizeof(vec4);
+	mCameraBufferSize = nbVec * sizeof(vec4) + 2*sizeof(mat4);
 	mpCameraBuffer = createBuffer(mpDevice, mCameraBufferSize, D3D12_RESOURCE_FLAG_NONE,
 		D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
 	mpCameraBuffer->SetName(L"Camera buffer");
@@ -1743,40 +1743,16 @@ void PathTracer::createCameraBuffers()
 	float fFar = 100.0f;
 	mCamera.projMat = glm::perspectiveFovLH_ZO(fovAngle, (float)mSwapChainSize.x, (float)mSwapChainSize.y, 0.1f, fFar);
 
+	mCamera.projMatInv = glm::inverse(mCamera.projMat);
 
 }
 
 void PathTracer::updateCameraBuffers()
 {
-
-	HRESULT deviceError = mpDevice->GetDeviceRemovedReason();
-	if (deviceError != S_OK)
-	{
-		int bp = 1;
-	}
-
-	// camera buffer
-	uint8_t* pData;
-	d3d_call(mpCameraBuffer->Map(0, nullptr, (void**)&pData));
-	memcpy(	pData, 
-			&mCamera.cameraPosition, 
-			sizeof(mCamera.cameraPosition)
-			);
-	memcpy(	pData + sizeof(mCamera.cameraPosition), 
-			&mCamera.cameraAngle, 
-			sizeof(mCamera.cameraAngle)
-			);
-	memcpy(	pData + sizeof(mCamera.cameraPosition) + sizeof(mCamera.cameraAngle),
-			&frameCount, sizeof(frameCount)
-			);
-	mpCameraBuffer->Unmap(0, nullptr);
-
-
-
-	// camera matrix buffer
+	// Update camera matrix
 	mCamera.eye = mCamera.cameraPosition; 
 	mCamera.at = mCamera.cameraDirection; 
-		// up vector constant
+	// up vector constant
 
 	mCamera.viewMatPrev = mCamera.viewMat;
 
@@ -1784,7 +1760,36 @@ void PathTracer::updateCameraBuffers()
 	mCamera.viewMat = lookAtLH(mCamera.eye, center, mCamera.up);
 		// projMat constant
 
-	//uint8_t* pData;
+	mCamera.viewMatInv = glm::inverse(mCamera.viewMat);
+
+	// camera buffer
+	uint8_t* pData;
+	d3d_call(mpCameraBuffer->Map(0, nullptr, (void**)&pData));
+	memcpy(pData,
+		&mCamera.viewMatInv, sizeof(mCamera.viewMatInv)
+	);
+	pData += sizeof(mCamera.viewMatInv);
+	memcpy(pData,
+		&mCamera.projMatInv, sizeof(mCamera.projMatInv)
+	);
+	pData += sizeof(mCamera.projMatInv);
+	memcpy(	pData, 
+			&mCamera.cameraPosition, 
+			sizeof(mCamera.cameraPosition)
+			);
+	pData += sizeof(mCamera.cameraPosition);
+	memcpy(	pData, 
+			&mCamera.cameraAngle, 
+			sizeof(mCamera.cameraAngle)
+			);
+	pData += sizeof(mCamera.cameraAngle);
+	memcpy(	pData,
+			&frameCount, sizeof(frameCount)
+			);
+	mpCameraBuffer->Unmap(0, nullptr);
+
+
+	// camera matrix buffer
 	d3d_call(mpCameraMatrixBuffer->Map(0, nullptr, (void**)&pData));
 	memcpy(pData,
 		&mCamera.viewMat,
@@ -1796,8 +1801,8 @@ void PathTracer::updateCameraBuffers()
 		&mCamera.viewMatPrev,
 		sizeof(mCamera.viewMatPrev));
 	mpCameraMatrixBuffer->Unmap(0, nullptr);
-
 }
+
 
 #ifdef HYBRID
 void PathTracer::createRasterPipelineState()
@@ -2420,7 +2425,7 @@ void PathTracer::createGeometryBufferPipeline()
 	ID3DBlobPtr pixelShaderMotionVectors = compileLibrary(L"Data/MotionVectors.hlsl", L"PSMain", L"ps_6_3");
 	psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShaderMotionVectors.GetInterfacePtr());
 	psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShaderMotionVectors.GetInterfacePtr());
-	psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON;
+	//psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON;
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.RTVFormats[1] = DXGI_FORMAT_UNKNOWN;
 	psoDesc.RTVFormats[2] = DXGI_FORMAT_UNKNOWN;
@@ -2839,6 +2844,9 @@ void PathTracer::rayTrace()
 
 void PathTracer::renderGeometryBuffer()
 {
+	//////////////////
+	// G-buffer
+	//////////////////
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render G-buffer");
 
 	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -2904,7 +2912,9 @@ void PathTracer::renderGeometryBuffer()
 
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 
+	//////////////////
 	// Motion Vectors
+	//////////////////
 
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render Motion Vectors");
 	resourceBarrier(mpCmdList, mpGeometryBuffer_MotionVectors, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
