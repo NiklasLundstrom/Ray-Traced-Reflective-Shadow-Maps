@@ -392,6 +392,7 @@ void PathTracer::buildTransforms(float rotation)
 
 	// robot
 	mModels["Robot"].setTransform( rotationMat * translate(mat4(), vec3(1.5, /*1.39*/0.347499, 0 /** sin(rotation*0.7f)*/)) * scale(0.75f*vec3(1.0f, 1.0f, 1.0f)) );
+	mModels["Robot2"].setTransform(translate(mat4(), vec3(4.0, /*1.39*/0.347499, 1.0)) * eulerAngleY(2.0f) * scale(0.75f*vec3(1.0f, 1.0f, 1.0f)));
 
 }
 
@@ -461,7 +462,7 @@ AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D1
 
 void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, std::map<std::string, Model> models, AccelerationStructureBuffers& buffers)
 {
-	int numInstances = 13; // keep in sync with mNumInstances
+	int numInstances = 14; // keep in sync with mNumInstances
 
 	// First, get the size of the TLAS buffers and create them
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
@@ -503,7 +504,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	{
 		instanceDescs[instanceIdx].InstanceID = it->second.getModelIndex(); // This value will be exposed to the shader via InstanceID()
 		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2 * instanceIdx;  // hard coded
-		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE;
+		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE;
 		mat4 m = transpose(it->second.getTransformMatrix()); // GLM is column major, the INSTANCE_DESC is row major
 		memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
 		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[it->second.getModelIndex()]->GetGPUVirtualAddress();
@@ -543,8 +544,8 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 void PathTracer::createAccelerationStructures()
 {
 	vec3 white = 0.75f*vec3(1.0f, 1.0f, 1.0f);
-	vec3 red = 0.75f*vec3(1.0f, 0.0f, 0.0f);
-	vec3 green = 0.75f*vec3(0.0f, 1.0f, 0.0f);
+	vec3 red = 0.75f*vec3(1.0f, 0.3f, 0.3f);
+	vec3 green = 0.75f*vec3(0.3f, 1.0f, 0.3f);
 	uint8_t modelIndex = 0;
 
 	// Load robot
@@ -553,6 +554,14 @@ void PathTracer::createAccelerationStructures()
 	AccelerationStructureBuffers robotAS = mModels["Robot"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/robot.fbx", &importer, false);
 	mpBottomLevelAS[modelIndex] = robotAS.pResult;
 			mpBottomLevelAS[modelIndex]->SetName(L"BLAS Robot");
+	modelIndex++;
+
+	// Load robot
+	Model robot2(L"Robot2", modelIndex, white);
+	mModels["Robot2"] = robot2;
+	AccelerationStructureBuffers robot2AS = mModels["Robot2"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/robot.fbx", &importer, false);
+	mpBottomLevelAS[modelIndex] = robot2AS.pResult;
+	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Robot2");
 	modelIndex++;
 
 	// Load floor
@@ -1093,7 +1102,7 @@ void PathTracer::createRtPipelineState()
 
 #ifdef HYBRID
 		// Create the Shadow-ray HitProgram
-			HitProgram shadowHitProgram(nullptr, kShadowChs, kShadowHitGroup);
+			HitProgram shadowHitProgram( kShadowChs, nullptr, kShadowHitGroup);
 			subobjects[index++] = shadowHitProgram.subObject; // Shadow Hit Group
 #endif
 

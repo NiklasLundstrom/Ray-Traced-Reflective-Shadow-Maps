@@ -149,7 +149,7 @@ AccelerationStructureBuffers Model::createBottomLevelAS(ID3D12Device5Ptr pDevice
 	geomDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
 	geomDesc.Triangles.IndexCount = indexCount;
 	geomDesc.Triangles.Transform3x4 = NULL;
-	geomDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE;
+	geomDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE | D3D12_RAYTRACING_GEOMETRY_FLAG_NO_DUPLICATE_ANYHIT_INVOCATION;
 	
 
 	// Get the size requirements for the scratch and AS buffers

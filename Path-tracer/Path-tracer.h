@@ -87,7 +87,7 @@ private:
     ID3D12ResourcePtr			mpVertexBuffer[2];
 	// 3 instances: plane, area light and robot
 	// keep in sync with value hard coded in buildTopLevelAS()
-	static const int			mNumInstances = 13; 
+	static const int			mNumInstances = 14; 
 	void buildTransforms(float rotation);
 
 #ifdef HYBRID

@@ -1,7 +1,7 @@
 #include "Common.hlsli"
 #include "hlslUtils.hlsli"
 float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload);
-float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal);
+float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload);
 void sampleDiffuseLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload);
 void sampleRay(in float3 hitPoint, in float3 direction, inout RayPayload payload);
 
@@ -57,10 +57,10 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
        
 
 #ifdef HYBRID
-        float3 directColor = sampleDirectLight(hitPoint, normal);
+    float3 directColor = sampleDirectLight(hitPoint, normal, payload);
         float3 indirectColor = sampleIndirectLight(hitPoint, normal, payload);
 
-        float3 incomingColor = directColor + indirectColor;
+    float3 incomingColor = directColor + indirectColor;
 #else
 
 
@@ -112,7 +112,7 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         px = saturate(px);
         py = saturate(py);
 		
-		return float3(0.0f, 0.0f, 1.0f);
+        return float3(0.0f, 0.0f, 1.0f);
     }
     px = px * shadowWidth;
     py = (1 - py) * shadowHeight;
@@ -211,7 +211,7 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
             {
                 indirectColor += angleHitPoint
 								* angleLightPoint
-								* gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.0f) * xi1 * xi1 * 20.0f;
+								* gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.1f) * xi1 * xi1 * 10.0f;
         }
 
         }
@@ -224,21 +224,64 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
 }
 
-float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal)
+float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload)
 {
     ShadowPayload shadowPayload;
  
     RayDesc rayShadow;
     rayShadow.Origin = hitPoint;
+
     float3 direction = lightPosition - hitPoint;
     float distance = length(direction);
+
+
+	// Construct TBN matrix to position disk samples towards shadow ray direction
+
+    float3 n = normalize(lightPosition - hitPoint);
+
+    float3 rvec = normalize(mul(float4(hitPoint, 1.0f), worldToView));
+
+    float3 b1 = normalize(rvec - n * dot(rvec, n));
+
+    float3 b2 = cross(n, b1);
+
+
+
+    float3x3 tbn = float3x3(b1, b2, n);
+
+	// pick random sample
+    float xi1 = nextRand(payload.seed);
+    float xi2 = nextRand(payload.seed);
+    float R = 2.0f; // Light radius
+    float a = 2.0 * xi1 - 1.0;
+    float b = 2.0 * xi2 - 1.0;
+    float r;
+    float phi;
+    if (a * a > b * b)
+    {
+        r = R * a;
+        phi = (PI / 4.0) * (b / a);
+    }
+    else
+    {
+        r = R * b;
+        phi = (PI / 2.0) - (PI / 4.0) * (a / b);
+    }
+    float2 diskSample;
+    diskSample.x = r * cos(phi);
+    diskSample.y = r * sin(phi);
+	
+    float3 sampleDirection = lightPosition + (mul(float3(diskSample.x, diskSample.y, 0.0f), tbn)) - hitPoint;
+    //float3 sampleDirection = mul(tbn,float3(x, y, z) );
+	
+
 	direction = normalize(direction);
 	float angle = saturate( dot(direction, hitPointNormal));
     if (angle < 0.0001)
     {
         return float3(0.0, 0.0, 0.0);
     }
-    rayShadow.Direction = direction;
+    rayShadow.Direction = /*direction*/sampleDirection;
     rayShadow.TMin = 0.0001;
     rayShadow.TMax = distance - 0.0001;
 
@@ -257,7 +300,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal)
     if (shadowPayload.hit == false) // no occlusion
     {
         
-        outColor = angle * float3(1.0, 1.0, 1.0) * 0.15f;
+        outColor = angle * float3(1.0, 1.0, 1.0) * 0.3f;
     }
     else // shadow
     {

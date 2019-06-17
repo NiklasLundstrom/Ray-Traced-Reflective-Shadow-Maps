@@ -101,7 +101,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     float3 output;
     if (acceptReprojection)
     {
-        float mixValue = 0.2;
+        float mixValue = 0.1;
         output = mixValue * gRtCurrent.SampleLevel(gSampler, crd, 0).rgb
 			+ (1 - mixValue) * gRtPrevious.SampleLevel(gSampler, reprojectedCrd, 0).rgb;
     }

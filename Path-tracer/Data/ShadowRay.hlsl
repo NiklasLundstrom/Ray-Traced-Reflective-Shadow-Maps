@@ -1,9 +1,10 @@
 #include "Common.hlsli"
  
-[shader("closesthit")]
+[shader("anyhit")]
 void shadowChs(inout ShadowPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
     payload.hit = true;
+    AcceptHitAndEndSearch();
 }
 
 [shader("miss")]
