@@ -266,17 +266,21 @@ private:
 	// G-buffer
 	void createGeometryBufferPipeline();
 	void renderGeometryBuffer();
+	void renderMotionVectors();
 	ID3D12RootSignaturePtr	mpGeometryBufferRootSig;
+	ID3D12RootSignaturePtr	mpMotionVectorsRootSig;
 	ID3D12PipelineStatePtr	mpGeometryBufferState;
 	ID3D12PipelineStatePtr	mpMotionVectorsState;
 
 	ID3D12ResourcePtr		mpGeometryBuffer_MotionVectors;
+	ID3D12ResourcePtr		mpGeometryBuffer_MotionVectors_depth;
 	ID3D12ResourcePtr		mpGeometryBuffer_Depth;
 	ID3D12ResourcePtr		mpGeometryBuffer_Previous_Depth;
 	ID3D12ResourcePtr		mpGeometryBuffer_Normal;
 	ID3D12ResourcePtr		mpGeometryBuffer_Color;
 	ID3D12ResourcePtr		mpGeometryBuffer_Position;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_MotionVectors;
+	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferDsv_MotionVectors;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferDsv_Depth;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_Normal;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_Color;

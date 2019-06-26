@@ -35,9 +35,6 @@
     <FxCompile Include="Data\Blur.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
-    <FxCompile Include="Data\GBuffer.hlsl">
-      <Filter>Data</Filter>
-    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -45,6 +42,9 @@
       <Filter>Data</Filter>
     </None>
     <None Include="Data\ToneMapping.hlsli">
+      <Filter>Data</Filter>
+    </None>
+    <None Include="Data\MotionVectors.hlsli">
       <Filter>Data</Filter>
     </None>
   </ItemGroup>
@@ -61,5 +61,6 @@
     <CustomBuild Include="Data\MotionVectors.hlsl">
       <Filter>Data</Filter>
     </CustomBuild>
+    <CustomBuild Include="Data\GBuffer.hlsl" />
   </ItemGroup>
 </Project>

@@ -132,7 +132,7 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
     int numRaySamples = 0;
     int numTotSamples = 0;
-    while (numRaySamples < 10 && numTotSamples < 400)
+    while (numRaySamples < 10 && numTotSamples < 150)
     {
         if (numTotSamples > 100 && numRaySamples == 0)
         {
@@ -250,6 +250,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
     float3x3 tbn = float3x3(b1, b2, n);
 
 	// pick random sample
+	// from Ray-tracing gems, 16.5.1.2
     float xi1 = nextRand(payload.seed);
     float xi2 = nextRand(payload.seed);
     float R = 2.0f; // Light radius
@@ -271,6 +272,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
     diskSample.x = r * cos(phi);
     diskSample.y = r * sin(phi);
 	
+	// direction from https://github.com/Apress/ray-tracing-gems/blob/master/Ch_13_Ray_Traced_Shadows_Maintaining_Real-Time_Frame_Rates/dxrShadows/Data/DXRShadows.rt.hlsl
     float3 sampleDirection = lightPosition + (mul(float3(diskSample.x, diskSample.y, 0.0f), tbn)) - hitPoint;
     //float3 sampleDirection = mul(tbn,float3(x, y, z) );
 	

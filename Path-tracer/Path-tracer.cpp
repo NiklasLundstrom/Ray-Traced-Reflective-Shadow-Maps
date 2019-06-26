@@ -1559,7 +1559,7 @@ void PathTracer::createShaderResources()
 	// - 1 DSV for the Shadow Map
 
 	// create a DSV descriptor heap
-		mpShadowMapDsvHeap = createDescriptorHeap(mpDevice, 2, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, false);
+		mpShadowMapDsvHeap = createDescriptorHeap(mpDevice, 3, D3D12_DESCRIPTOR_HEAP_TYPE_DSV, false);
 
 	// Description
 		D3D12_DEPTH_STENCIL_VIEW_DESC depthStencilViewDesc = {};
@@ -1579,6 +1579,12 @@ void PathTracer::createShaderResources()
 		dsvHandle.ptr += dsvDescriptorSize;
 		mpDevice->CreateDepthStencilView(mpGeometryBuffer_Depth, nullptr, dsvHandle);//null for desc?
 		mGeometryBufferDsv_Depth = dsvHandle;
+
+	// Motion vectors
+		dsvHandle.ptr += dsvDescriptorSize;
+		mpDevice->CreateDepthStencilView(mpGeometryBuffer_MotionVectors_depth, nullptr, dsvHandle);//null for desc?
+		mGeometryBufferDsv_MotionVectors = dsvHandle;
+
 
 
 	// Create a RTV descriptor heap
@@ -2337,6 +2343,10 @@ void PathTracer::createToneMappingPipeline()
 
 void PathTracer::createGeometryBufferPipeline()
 {
+	////////////////////////
+	// G-buffer state
+	////////////////////////
+
 	D3D12_DESCRIPTOR_RANGE range[1];
 	// Camera Matrix buffer
 	range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
@@ -2399,48 +2409,129 @@ void PathTracer::createGeometryBufferPipeline()
 
 	// Create the graphics pipeline state object (PSO).
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {};
-	psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
+	{
+		psoDesc.InputLayout = { inputElementDescs, _countof(inputElementDescs) };
+		psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+		psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+		psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
+		psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+		psoDesc.DepthStencilState.DepthEnable = TRUE;
+		psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
+		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+		psoDesc.DepthStencilState.StencilEnable = FALSE;
+		psoDesc.DepthStencilState.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
+		psoDesc.DepthStencilState.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
+		const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
+		{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+		psoDesc.DepthStencilState.FrontFace = defaultStencilOp;
+		psoDesc.DepthStencilState.BackFace = defaultStencilOp;
+		psoDesc.SampleMask = UINT_MAX;
+		psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+		psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
+		psoDesc.SampleDesc.Count = 1;
+	}
 	psoDesc.pRootSignature = mpGeometryBufferRootSig.GetInterfacePtr();
 	psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShader.GetInterfacePtr());
 	psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShader.GetInterfacePtr());
-
-	psoDesc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
-	psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF;
-	psoDesc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-	psoDesc.DepthStencilState.DepthEnable = TRUE;
-	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
-	psoDesc.DepthStencilState.StencilEnable = FALSE;
-	psoDesc.DepthStencilState.StencilReadMask = D3D12_DEFAULT_STENCIL_READ_MASK;
-	psoDesc.DepthStencilState.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK;
-	const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp =
-	{ D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
-	psoDesc.DepthStencilState.FrontFace = defaultStencilOp;
-	psoDesc.DepthStencilState.BackFace = defaultStencilOp;
-	psoDesc.SampleMask = UINT_MAX;
-	psoDesc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
 	psoDesc.NumRenderTargets = 3;
 	psoDesc.RTVFormats[0] = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	psoDesc.RTVFormats[1] = DXGI_FORMAT_R32G32B32A32_FLOAT;
 	psoDesc.RTVFormats[2] = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	psoDesc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-	psoDesc.SampleDesc.Count = 1;
 
 	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpGeometryBufferState)));
 
+	////////////////////////
 	// motion vectors state
+	////////////////////////
+
+	D3D12_DESCRIPTOR_RANGE ranges[3];
+	// Camera Matrix buffer
+	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+	ranges[0].NumDescriptors = 1;
+	ranges[0].BaseShaderRegister = 0; //b0
+	ranges[0].RegisterSpace = 0;
+	ranges[0].OffsetInDescriptorsFromTableStart = 0;
+
+	// Current Depth
+	ranges[1].BaseShaderRegister = 0; //t0
+	ranges[1].NumDescriptors = 1;
+	ranges[1].RegisterSpace = 0;
+	ranges[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[1].OffsetInDescriptorsFromTableStart = 0;
+
+	// Previous Depth
+	ranges[2].BaseShaderRegister = 1; //t1
+	ranges[2].NumDescriptors = 1;
+	ranges[2].RegisterSpace = 0;
+	ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[2].OffsetInDescriptorsFromTableStart = 1;
+
+	D3D12_ROOT_PARAMETER mvRootParameters[3];
+	mvRootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	mvRootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
+	mvRootParameters[0].DescriptorTable.pDescriptorRanges = ranges;
+	mvRootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+	// Model transform buffer
+	mvRootParameters[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
+	mvRootParameters[1].Descriptor.RegisterSpace = 0;
+	mvRootParameters[1].Descriptor.ShaderRegister = 1; // b1
+	mvRootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
+	// depth, current and previous
+	mvRootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	mvRootParameters[2].DescriptorTable.NumDescriptorRanges = 2;
+	mvRootParameters[2].DescriptorTable.pDescriptorRanges = &ranges[1];
+	mvRootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
+
+	D3D12_ROOT_SIGNATURE_FLAGS mvRootSignatureFlags =
+		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
+		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
+
+	D3D12_STATIC_SAMPLER_DESC sampler = {};
+	{
+		sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+		sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+		sampler.MipLODBias = 0;
+		sampler.MaxAnisotropy = 0;
+		sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+		sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+		sampler.MinLOD = 0.0f;
+		sampler.MaxLOD = D3D12_FLOAT32_MAX;
+		sampler.ShaderRegister = 0; // s0
+		sampler.RegisterSpace = 0;
+		sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	}
+
+	RootSignatureDesc mvDesc;
+	mvDesc.desc.NumParameters = 3;
+	mvDesc.desc.pParameters = mvRootParameters;
+	mvDesc.desc.NumStaticSamplers = 1;
+	mvDesc.desc.pStaticSamplers = &sampler;
+	mvDesc.desc.Flags = mvRootSignatureFlags;
+
+	mpMotionVectorsRootSig = createRootSignature(mpDevice, mvDesc.desc);
+
 	ID3DBlobPtr vertexShaderMotionVectors = compileLibrary(L"Data/MotionVectors.hlsl", L"VSMain", L"vs_6_3");
 	ID3DBlobPtr pixelShaderMotionVectors = compileLibrary(L"Data/MotionVectors.hlsl", L"PSMain", L"ps_6_3");
+	
+	// Create the graphics pipeline state object (PSO).
+	psoDesc.pRootSignature = mpMotionVectorsRootSig.GetInterfacePtr();
 	psoDesc.VS = CD3DX12_SHADER_BYTECODE(vertexShaderMotionVectors.GetInterfacePtr());
 	psoDesc.PS = CD3DX12_SHADER_BYTECODE(pixelShaderMotionVectors.GetInterfacePtr());
-	//psoDesc.RasterizerState.ConservativeRaster = D3D12_CONSERVATIVE_RASTERIZATION_MODE_ON;
 	psoDesc.NumRenderTargets = 1;
 	psoDesc.RTVFormats[1] = DXGI_FORMAT_UNKNOWN;
 	psoDesc.RTVFormats[2] = DXGI_FORMAT_UNKNOWN;
 	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpMotionVectorsState)));
 
+	////////////////////////////
 	// create output resources
+	////////////////////////////
+
 	D3D12_RESOURCE_DESC texDesc;
 	texDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 	texDesc.Alignment = 0;
@@ -2533,8 +2624,18 @@ void PathTracer::createGeometryBufferPipeline()
 		&depthClearValue,
 		IID_PPV_ARGS(&mpGeometryBuffer_Previous_Depth)
 	));
-	mpGeometryBuffer_Previous_Depth->SetName(L"Previous Motion Vector Depth");
+	mpGeometryBuffer_Previous_Depth->SetName(L"Previous G-buffer Depth");
 
+	// Motion vectors depth stencil
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kDefaultHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&texDesc,
+		D3D12_RESOURCE_STATE_DEPTH_WRITE,
+		&depthClearValue,
+		IID_PPV_ARGS(&mpGeometryBuffer_MotionVectors_depth)
+	));
+	mpGeometryBuffer_MotionVectors_depth->SetName(L"Motion vectors Depth");
 }
 
 void PathTracer::createTemporalFilterPipeline()
@@ -2570,14 +2671,14 @@ void PathTracer::createTemporalFilterPipeline()
 	ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	ranges[2].OffsetInDescriptorsFromTableStart = 1;
 
-	// Current Depth (from motion vectors)
+	// Current Depth
 	ranges[3].BaseShaderRegister = 3; //t3
 	ranges[3].NumDescriptors = 1;
 	ranges[3].RegisterSpace = 0;
 	ranges[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	ranges[3].OffsetInDescriptorsFromTableStart = 2;
 
-	// Previous Depth (from motion vectors)
+	// Previous Depth
 	ranges[4].BaseShaderRegister = 4; //t4
 	ranges[4].NumDescriptors = 1;
 	ranges[4].RegisterSpace = 0;
@@ -2853,9 +2954,6 @@ void PathTracer::rayTrace()
 
 void PathTracer::renderGeometryBuffer()
 {
-	//////////////////
-	// G-buffer
-	//////////////////
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render G-buffer");
 
 	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
@@ -2868,8 +2966,8 @@ void PathTracer::renderGeometryBuffer()
 	mpCmdList->SetGraphicsRootSignature(mpGeometryBufferRootSig.GetInterfacePtr());
 
 	// Set descriptor heaps
-	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
-	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+	/*ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
+	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);*/
 
 	// set "Shader Table", i.e. resources for root signature
 	D3D12_GPU_DESCRIPTOR_HANDLE cameraMatrixBufferHandle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
@@ -2916,24 +3014,34 @@ void PathTracer::renderGeometryBuffer()
 		mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
 	}
 
-
-
-
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
-
-	//////////////////
-	// Motion Vectors
-	//////////////////
-
+}
+void PathTracer::renderMotionVectors()
+{
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render Motion Vectors");
 	resourceBarrier(mpCmdList, mpGeometryBuffer_MotionVectors, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 	// Set pipeline state
 	mpCmdList->SetPipelineState(mpMotionVectorsState);
 
+	// Set Root signature
+	mpCmdList->SetGraphicsRootSignature(mpMotionVectorsRootSig.GetInterfacePtr());
+
+	// set "Shader Table", i.e. resources for root signature
+	D3D12_GPU_DESCRIPTOR_HANDLE handle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+	UINT stepSize = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	// camera matrix
+	handle.ptr += mCameraMatrixBufferHeapIndex * stepSize;
+	mpCmdList->SetGraphicsRootDescriptorTable(0, handle); // b0
+	// depth, current and previous
+	handle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
+	handle.ptr += mGeomteryBuffer_Depth_SrvHeapIndex * stepSize;
+	mpCmdList->SetGraphicsRootDescriptorTable(2, handle); // t0, t1
+
 	// clear render targets
+	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 	mpCmdList->ClearRenderTargetView(mGeometryBufferRtv_MotionVectors, clearColor, 0, nullptr);
-	mpCmdList->ClearDepthStencilView(mGeometryBufferDsv_Depth, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	mpCmdList->ClearDepthStencilView(mGeometryBufferDsv_MotionVectors, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
 
 
 	// set render target
@@ -2941,7 +3049,7 @@ void PathTracer::renderGeometryBuffer()
 		1,
 		&mGeometryBufferRtv_MotionVectors,
 		false,
-		&mGeometryBufferDsv_Depth
+		&mGeometryBufferDsv_MotionVectors
 	);
 
 	// render models
@@ -2949,8 +3057,6 @@ void PathTracer::renderGeometryBuffer()
 	{
 		// Model to World Transform
 		mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
-		// Normal buffer
-		mpCmdList->SetGraphicsRootShaderResourceView(2, it->second.getNormalBufferGPUAdress());
 		// Vertex and Index buffers
 		mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView());
 		mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView());
@@ -2981,8 +3087,8 @@ void PathTracer::applyTemporalFilter()
 	mpCmdList->SetGraphicsRootSignature(mpTemporalFilterRootSig.GetInterfacePtr());
 
 	// Set descriptor heaps
-	ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
-	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+	/*ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
+	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);*/
 
 	// set "Shader Table", i.e. resources for root signature
 	D3D12_GPU_DESCRIPTOR_HANDLE handle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
@@ -3281,6 +3387,12 @@ void PathTracer::onFrameRender(bool *gKeys)
     uint32_t rtvIndex = beginFrame();
 
 	//////////////////////
+	// G-buffer
+	//////////////////////
+	renderGeometryBuffer();
+	renderMotionVectors();
+
+	//////////////////////
 	// ray-trace
 	//////////////////////
 	rayTrace();
@@ -3288,7 +3400,6 @@ void PathTracer::onFrameRender(bool *gKeys)
 	//////////////////////
 	// Temporal filter
 	//////////////////////
-	renderGeometryBuffer();
 	applyTemporalFilter();
 
 	//////////////////////

@@ -105,7 +105,7 @@ float4 PSMain(PSInput input) : SV_TARGET
         coords.y -= 4 * shadowHeight / scale;
         float4 motionVectors = gMotionVectors[coords * scale * 2];
         motionVectors.y *= -1;
-        float3 cPrim = 5.0f * motionVectors.rgb + 0.5f;
+        float3 cPrim = float3(5.0f * motionVectors.rg + 0.5f, 1.0f - 0.5f*motionVectors.b);
         output = cPrim;
     }
 
