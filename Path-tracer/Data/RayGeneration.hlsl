@@ -38,7 +38,7 @@ void rayGen()
     uint randSeed = initRand(launchIndex.x + launchIndex.y * launchDim.x, frameCount, 16);
             
     RayPayload payload;
-    float3 color = float3(0.0, 0.0, 0.0);
+    float4 color = float4(0.0, 0.0, 0.0, 0.0);
 
     int numSamples = 1;
     for (int i = 0; i < numSamples; i++)
@@ -61,6 +61,6 @@ void rayGen()
     }
     color /= numSamples;
 
-    gOutput[launchIndex.xy] = float4(color, 1);
+    gOutput[launchIndex.xy] = float4(color);//,1);
 }
 

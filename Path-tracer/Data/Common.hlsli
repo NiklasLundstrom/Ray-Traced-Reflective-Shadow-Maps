@@ -1,7 +1,7 @@
 ///// Ray-tracing /////////////////
 struct RayPayload
 {
-    float3 color;
+    float4 color;
     uint seed;
     //int depth;
 };

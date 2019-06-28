@@ -773,6 +773,7 @@ RootSignatureDesc createRayGenRootDesc()
 	desc.range[2].OffsetInDescriptorsFromTableStart = 2;
 
 	desc.rootParams.resize(1);
+	// output UAV, TLAS and camera
 	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 3;
 	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
@@ -789,7 +790,7 @@ RootSignatureDesc createRayGenRootDesc()
 RootSignatureDesc createModelHitRootDesc()
 {
 	RootSignatureDesc desc;
-	desc.range.resize(7);
+	desc.range.resize(8);
 
 	// gRtScene
 	desc.range[0].BaseShaderRegister = 0; //t0
@@ -840,7 +841,14 @@ RootSignatureDesc createModelHitRootDesc()
 	desc.range[6].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[6].OffsetInDescriptorsFromTableStart = 5;
 
-	desc.rootParams.resize(4);
+	// motion vectors (for adaptive sampling)
+	desc.range[7].BaseShaderRegister = 4; //t4
+	desc.range[7].NumDescriptors = 1;
+	desc.range[7].RegisterSpace = 1;
+	desc.range[7].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[7].OffsetInDescriptorsFromTableStart = 0;
+
+	desc.rootParams.resize(5);
 	// TLAS
 	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
@@ -861,7 +869,12 @@ RootSignatureDesc createModelHitRootDesc()
 	desc.rootParams[3].DescriptorTable.NumDescriptorRanges = 6;
 	desc.rootParams[3].DescriptorTable.pDescriptorRanges = desc.range.data() + 1;
 
-	desc.desc.NumParameters = 4;
+	// Motion vectors
+	desc.rootParams[4].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	desc.rootParams[4].DescriptorTable.NumDescriptorRanges = 1;
+	desc.rootParams[4].DescriptorTable.pDescriptorRanges = desc.range.data() + 7;
+
+	desc.desc.NumParameters = 5;
 	desc.desc.pParameters = desc.rootParams.data();
 	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 
@@ -1154,7 +1167,7 @@ void PathTracer::createRtPipelineState()
 	#pragma region
     // Bind the payload size to all programs
     
-		ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 4);
+		ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 5);
 		subobjects[index] = primaryShaderConfig.subobject; // Payload size
 
 		uint32_t primaryShaderConfigIndex = index++;
@@ -1213,7 +1226,7 @@ void PathTracer::createShaderTable()
 
     // Calculate the size and create the buffer
     mShaderTableEntrySize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-    mShaderTableEntrySize += 4 * sizeof(UINT64); // The hit shader constant-buffer descriptor
+    mShaderTableEntrySize += 5 * sizeof(UINT64); // The hit shader constant-buffer descriptor
     mShaderTableEntrySize = align_to(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT, mShaderTableEntrySize);
     uint32_t shaderTableSize = mShaderTableEntrySize * numShaderTableEntries;
 
@@ -1275,6 +1288,9 @@ void PathTracer::createShaderTable()
 			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
 			// Light buffers and Shadow maps
 			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + mLightBufferHeapIndex * heapEntrySize;
+			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
+			// Motion vectors (for adaptive sampling)
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + mGeomteryBuffer_MotionVectors_SrvHeapIndex * heapEntrySize;
 			entryIndex++;
 		
 #ifdef HYBRID
@@ -1427,12 +1443,12 @@ void PathTracer::createShaderResources()
 		mpDevice->CreateShaderResourceView(mpBlurPass2Output, &rtOutputSrvDesc, handle);
 		mBlur2OutputSrvHeapIndex = handleIndex;
 
-		// Create the SRV for the previous RT output
+		// Create the SRV for the color history
 		handle.ptr += cbvSrvDescriptorSize;
 		handleIndex++;
 
-		mpDevice->CreateShaderResourceView(mpPreviousRtOutput, &rtOutputSrvDesc, handle);
-		mPreviousRtOutputSrvHeapIndex = handleIndex;
+		mpDevice->CreateShaderResourceView(mpColorHistory, &rtOutputSrvDesc, handle);
+		mColorHistorySrvHeapIndex = handleIndex;
 
 		//// Create the SRV for the previous previous RT output
 		//handle.ptr += cbvSrvDescriptorSize;
@@ -2805,9 +2821,9 @@ void PathTracer::createTemporalFilterPipeline()
 		&texDesc,
 		D3D12_RESOURCE_STATE_COPY_DEST,
 		nullptr,
-		IID_PPV_ARGS(&mpPreviousRtOutput)
+		IID_PPV_ARGS(&mpColorHistory)
 	));
-	mpPreviousRtOutput->SetName(L"Previous RT Output");
+	mpColorHistory->SetName(L"Color History");
 
 	// previous previous RT output
 	d3d_call(mpDevice->CreateCommittedResource(
@@ -3076,7 +3092,7 @@ void PathTracer::applyTemporalFilter()
 
 	// resource barriers
 	resourceBarrier(mpCmdList, mpRtOutputResource, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	resourceBarrier(mpCmdList, mpColorHistory, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	//resourceBarrier(mpCmdList, mpPreviousPreviousRtOutput, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	resourceBarrier(mpCmdList, mpTemproalFilterOutput, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
@@ -3096,7 +3112,7 @@ void PathTracer::applyTemporalFilter()
 	mpCmdList->SetGraphicsRootDescriptorTable(0, handle); // t0, current RT output
 
 	handle = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
-	handle.ptr += mPreviousRtOutputSrvHeapIndex * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+	handle.ptr += mColorHistorySrvHeapIndex * mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 	mpCmdList->SetGraphicsRootDescriptorTable(1, handle); // t1-2, previous RT outputs
 
 	// viewport
@@ -3137,9 +3153,9 @@ void PathTracer::applyTemporalFilter()
 
 	// copy current rt to prev rt
 		resourceBarrier(mpCmdList, mpTemproalFilterOutput, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
-		resourceBarrier(mpCmdList, mpPreviousRtOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+		resourceBarrier(mpCmdList, mpColorHistory, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
 	
-	mpCmdList->CopyResource(mpPreviousRtOutput, mpTemproalFilterOutput);
+	mpCmdList->CopyResource(mpColorHistory, mpTemproalFilterOutput);
 
 		resourceBarrier(mpCmdList, mpTemproalFilterOutput, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 

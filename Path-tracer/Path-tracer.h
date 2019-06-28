@@ -300,11 +300,11 @@ private:
 	ID3D12RootSignaturePtr	mpTemporalFilterRootSig;
 	ID3D12PipelineStatePtr	mpTemporalFilterState;
 
-	ID3D12ResourcePtr		mpPreviousRtOutput;
+	ID3D12ResourcePtr		mpColorHistory;
 	ID3D12ResourcePtr		mpPreviousPreviousRtOutput;
 	ID3D12ResourcePtr		mpTemproalFilterOutput;
 	D3D12_CPU_DESCRIPTOR_HANDLE mTemporalFilterRtv;
-	uint8_t					mPreviousRtOutputSrvHeapIndex;
+	uint8_t					mColorHistorySrvHeapIndex;
 	uint8_t					mPreviousPreviousRtOutputSrvHeapIndex;
 	uint8_t					mTemporalFilterOutputSrvHeapIndex;
 

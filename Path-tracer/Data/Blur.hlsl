@@ -1,4 +1,4 @@
-static const bool enableFilter = false;
+static const bool enableFilter = true;
 
 float makeDepthLinear(float oldDepth)
 {

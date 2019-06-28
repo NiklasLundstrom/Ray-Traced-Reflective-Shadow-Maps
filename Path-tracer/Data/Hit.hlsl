@@ -1,6 +1,6 @@
 #include "Common.hlsli"
 #include "hlslUtils.hlsli"
-float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload);
+float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload, in float acceptedReprojection);
 float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload);
 void sampleDiffuseLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload);
 void sampleRay(in float3 hitPoint, in float3 direction, inout RayPayload payload);
@@ -28,6 +28,7 @@ Texture2D<float> gShadowMap_Depth : register(t0, space1);
 Texture2D<float4> gShadowMap_Position : register(t1, space1);
 Texture2D<float4> gShadowMap_Normal : register(t2, space1);
 Texture2D<float4> gShadowMap_Flux : register(t3, space1);
+Texture2D<float4> gMotionVector : register(t4, space1);
 
 
 [shader("closesthit")]
@@ -44,6 +45,7 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
         float3 rayDirW = WorldRayDirection();
         float3 rayOriginW = WorldRayOrigin();
         float3 hitPoint = rayOriginW + rayDirW * hitT;
+		uint2 pixelCrd = DispatchRaysIndex().xy;
 
 	// get normal
         uint vertIndex = 3 * PrimitiveIndex();
@@ -55,12 +57,21 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 				+ n2 * attribs.barycentrics.y;
         normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
        
+	// get motion vector info
+		float acceptedReprojection = gMotionVector[pixelCrd].z;
 
 #ifdef HYBRID
-    float3 directColor = sampleDirectLight(hitPoint, normal, payload);
-        float3 indirectColor = sampleIndirectLight(hitPoint, normal, payload);
+    float3 directColor = float3(0.0, 0.0, 0.0);
+    for (int i = 0; i < 10; i++)
+    {
+        directColor += sampleDirectLight(hitPoint, normal, payload);
+    }
+    directColor /= 10.0f;
+        float4 indirectColorNumRays = sampleIndirectLight(hitPoint, normal, payload, acceptedReprojection);
+        float3 indirectColor = indirectColorNumRays.rgb;
+        float numRays = indirectColorNumRays.a;
 
-    float3 incomingColor = directColor + indirectColor;
+        float3 incomingColor = directColor + indirectColor;
 #else
 
 
@@ -79,19 +90,20 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 	
 #endif
 
-        payload.color = incomingColor;
+        payload.color = float4(incomingColor, numRays);
+    //payload.nbrSamples = 1.0f;
     //}
-}
+    }
 
 [shader("closesthit")]
 void areaLightChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
-    payload.color = float3(1.0f, 0.0f, 1.0f)*15.0f;
+    payload.color = float4(1.0f, 0.0f, 1.0f, 1.0f)*15.0f;
 }
 
 
 
-float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload)
+float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload, in float acceptedReprojection)
 {
     uint shadowWidth;
     uint shadowHeight;
@@ -112,7 +124,7 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         px = saturate(px);
         py = saturate(py);
 		
-        return float3(0.0f, 0.0f, 1.0f);
+        return float4(0.0f, 0.0f, 1.0f, 0.0f);
     }
     px = px * shadowWidth;
     py = (1 - py) * shadowHeight;
@@ -132,7 +144,9 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
     int numRaySamples = 0;
     int numTotSamples = 0;
-    while (numRaySamples < 10 && numTotSamples < 150)
+    int maxNumRays = acceptedReprojection ? 9 : 60;
+    int maxNumTot = acceptedReprojection ? 150 : 1000;
+    while (numRaySamples < maxNumRays && numTotSamples < maxNumTot)
     {
         if (numTotSamples > 100 && numRaySamples == 0)
         {
@@ -220,7 +234,7 @@ float3 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
     {
         indirectColor /= numTotSamples;// (shadowWidth * shadowHeight / 25); //numSamples;
     }
-    return indirectColor;
+    return float4(indirectColor, numRaySamples);
 
 }
 

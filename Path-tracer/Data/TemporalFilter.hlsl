@@ -49,7 +49,7 @@ float4 PSMain(PSInput input) : SV_TARGET
         float4 colorHistory = gRtPrevious.SampleLevel(gSampler, reprojectedCrd, 0);
         historyLength = colorHistory.a + 1.0f;
 
-        float mixValue = max(0.2f, 1.0f / historyLength);
+        float mixValue = 0.5f; //0.2f; /*max(0.2f, 1.0f / historyLength);*/
         output = mixValue * colorCurrent.rgb
 			+ (1 - mixValue) * colorHistory.rgb;
 

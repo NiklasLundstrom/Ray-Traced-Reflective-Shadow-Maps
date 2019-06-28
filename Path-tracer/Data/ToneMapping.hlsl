@@ -69,21 +69,21 @@ float4 PSMain(PSInput input) : SV_TARGET
     int scale = 4;
     if (crd.x < shadowWidth / scale && crd.y < shadowHeight / scale)
     {
-        float zPrim = gShadowMap_Depth[crd * scale];
-        float f = 100.0f; // Sync this value to the C++ code!
-        float n = 0.1f;
-		// Transform to linear view space
-        float z = f * n / (f - zPrim * (f - n));
-        zPrim = z * zPrim;
-        zPrim /= f; // z <- 0..1
-        output = zPrim * float3(1.0, 1.0, 1.0);
+  //      float zPrim = gShadowMap_Depth[crd * scale];
+  //      float f = 100.0f; // Sync this value to the C++ code!
+  //      float n = 0.1f;
+		//// Transform to linear view space
+  //      float z = f * n / (f - zPrim * (f - n));
+  //      zPrim = z * zPrim;
+  //      zPrim /= f; // z <- 0..1
+  //      output = zPrim * float3(1.0, 1.0, 1.0);
     }
     else if (crd.x < shadowWidth / scale && crd.y < 2 * shadowHeight / scale)
     {
-        uint2 coords = crd;
-        coords.y -= shadowHeight / scale;
-        float3 cPrim = gShadowMap_Position[coords * scale].rgb;
-        output = cPrim;
+        //uint2 coords = crd;
+        //coords.y -= shadowHeight / scale;
+        //float3 cPrim = gShadowMap_Position[coords * scale].rgb;
+        //output = cPrim;
     }
     else if (crd.x < shadowWidth / scale && crd.y < 3 * shadowHeight / scale)
     {
@@ -94,10 +94,10 @@ float4 PSMain(PSInput input) : SV_TARGET
     }
     else if (crd.x < shadowWidth / scale && crd.y < 4 * shadowHeight / scale)
     {
-        uint2 coords = crd;
-        coords.y -= 3 * shadowHeight / scale;
-        float3 cPrim = gShadowMap_Flux[coords * scale].rgb;
-        output = cPrim;
+        //uint2 coords = crd;
+        //coords.y -= 3 * shadowHeight / scale;
+        //float3 cPrim = gShadowMap_Flux[coords * scale].rgb;
+        //output = cPrim;
     }
     else if (crd.x < shadowWidth / scale && crd.y < 5 * shadowHeight / scale)
     {

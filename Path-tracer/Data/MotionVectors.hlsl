@@ -67,7 +67,9 @@ PS_OUTPUT PSMain(PSInput input) : SV_TARGET
     float2 crd = ndcCurr*0.5f + 0.5f;
     crd.y = 1.0f - crd.y;
     float accepted = (float) acceptReprojection(output.MotionVectors.xy, gSampler, crd, gDepthCurrent, gDepthPrevious);
-    output.MotionVectors.zw = float2(accepted, 1.0f);
+    
+	
+	output.MotionVectors.zw = float2(accepted, 1.0f);
     return output;
 
 }
