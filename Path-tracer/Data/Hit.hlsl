@@ -34,71 +34,48 @@ Texture2D<float4> gMotionVector : register(t4, space1);
 [shader("closesthit")]
 void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
-    //if (payload.depth <= 0)
-    //{
-    //    payload.color = float3(0.0, 0.0, 0.0);
-    //}
-    //else
-    //{
 	// get hit point
-        float hitT = RayTCurrent();
-        float3 rayDirW = WorldRayDirection();
-        float3 rayOriginW = WorldRayOrigin();
-        float3 hitPoint = rayOriginW + rayDirW * hitT;
-		uint2 pixelCrd = DispatchRaysIndex().xy;
+    float hitT = RayTCurrent();
+    float3 rayDirW = WorldRayDirection();
+    float3 rayOriginW = WorldRayOrigin();
+    float3 hitPoint = rayOriginW + rayDirW * hitT;
+    uint2 pixelCrd = DispatchRaysIndex().xy;
 
 	// get normal
-        uint vertIndex = 3 * PrimitiveIndex();
-        float3 n0 = normals[indices[vertIndex + 0]];
-        float3 n1 = normals[indices[vertIndex + 1]];
-        float3 n2 = normals[indices[vertIndex + 2]];
-        float3 normal = n0 * (1 - attribs.barycentrics.x - attribs.barycentrics.y)
+    uint vertIndex = 3 * PrimitiveIndex();
+    float3 n0 = normals[indices[vertIndex + 0]];
+    float3 n1 = normals[indices[vertIndex + 1]];
+    float3 n2 = normals[indices[vertIndex + 2]];
+    float3 normal = n0 * (1 - attribs.barycentrics.x - attribs.barycentrics.y)
 				+ n1 * attribs.barycentrics.x
 				+ n2 * attribs.barycentrics.y;
-        normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
+    normal = normalize(mul(ObjectToWorld(), float4(normal, 0.0f)).xyz);
        
 	// get motion vector info
-		float acceptedReprojection = gMotionVector[pixelCrd].z;
+    float acceptedReprojection = gMotionVector[pixelCrd].z;
 
-#ifdef HYBRID
     float3 directColor = float3(0.0, 0.0, 0.0);
     for (int i = 0; i < 10; i++)
     {
         directColor += sampleDirectLight(hitPoint, normal, payload);
     }
     directColor /= 10.0f;
-        float4 indirectColorNumRays = sampleIndirectLight(hitPoint, normal, payload, acceptedReprojection);
-        float3 indirectColor = indirectColorNumRays.rgb;
-        float numRays = indirectColorNumRays.a;
+    float4 indirectColorNumRays = sampleIndirectLight(hitPoint, normal, payload, acceptedReprojection);
+    float3 indirectColor = indirectColorNumRays.rgb;
+    float numRays = indirectColorNumRays.a;
 
-        float3 incomingColor = directColor + indirectColor;
-#else
+        //float3 incomingColor = directColor + indirectColor;
 
 
-        if (nextRand(payload.seed) < 0.2)
-        {
-			// reflection direction
-            float3 direction = normalize(reflect(rayDirW, normal));
-            sampleRay(hitPoint, direction, payload);
-        }
-		else
-        {
-			// diffuse random direction
-			sampleDiffuseLight(hitPoint, normal, payload);
-        }
-        float3 incomingColor = payload.color;
-	
-#endif
-
-        payload.color = float4(incomingColor, numRays);
-    //payload.nbrSamples = 1.0f;
-    //}
-    }
+    payload.indirectColor = float4(indirectColor, numRays);
+    payload.directColor = float3(directColor);
+}
 
 [shader("closesthit")]
 void areaLightChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
-    payload.color = float4(1.0f, 0.0f, 1.0f, 1.0f)*15.0f;
+    payload.indirectColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
+    payload.directColor = float3(1.0f, 0.0f, 1.0f) * 15.0f;
 }
 
 
@@ -157,7 +134,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 		// pick random sample
         float xi1 = nextRand(payload.seed);
         float xi2 = nextRand(payload.seed);
-		float rMax = 400.0f;
+        float rMax = 400.0f;
         int i = floor(rMax * xi1 * sin(2 * PI * xi2));
         int j = floor(rMax * xi1 * cos(2 * PI * xi2));
 			//int i = xi1 * shadowWidth;
@@ -170,47 +147,47 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
             //return float3(0.0, 1.0, 0.0);
             continue;
         }
-		numTotSamples++;
+        numTotSamples++;
 
 		// sample shadow map
         float4 lightPosData = gShadowMap_Position[crd + uint2(i, j)];
-            if (lightPosData.w == 0)
-            {
-                continue;
-            }
+        if (lightPosData.w == 0)
+        {
+            continue;
+        }
 			
 
-            float3 lightPos = lightPosData.xyz;
-            float3 direction = lightPos - hitPoint;
-            float distance = length(direction);
-            direction = normalize(direction);
+        float3 lightPos = lightPosData.xyz;
+        float3 direction = lightPos - hitPoint;
+        float distance = length(direction);
+        direction = normalize(direction);
 
 		// do not sample if light is below the surface or
 		// on the same plane as the hit point 
-            float angleHitPoint = saturate(dot(direction, hitPointNormal));
-            if (angleHitPoint < 0.0001)
-            {
-                continue;
-            }
+        float angleHitPoint = saturate(dot(direction, hitPointNormal));
+        if (angleHitPoint < 0.0001)
+        {
+            continue;
+        }
 		// do not sample if hit point is below the pixel light's surface,
 		// or on the same plane
         float3 pixelLightNormal = gShadowMap_Normal[crd + uint2(i, j)].rgb;
-            pixelLightNormal = pixelLightNormal * 2 - 1;
+        pixelLightNormal = pixelLightNormal * 2 - 1;
 
-            float angleLightPoint = saturate(dot(-direction, pixelLightNormal));
-            if (angleLightPoint < 0.0001)
-            {
-                continue;
-            }
+        float angleLightPoint = saturate(dot(-direction, pixelLightNormal));
+        if (angleLightPoint < 0.0001)
+        {
+            continue;
+        }
 
 		//else 
-            numRaySamples++;
+        numRaySamples++;
 
 		// set up ray
-            rayShadow.TMax = distance - 0.0001; // minus 0.0001?
-            rayShadow.Direction = direction;
+        rayShadow.TMax = distance - 0.0001; // minus 0.0001?
+        rayShadow.Direction = direction;
 
-            TraceRay(
+        TraceRay(
 				gRtScene,
 				0 /*rayFlags*/,
 				0xFF, /* ray mask*/
@@ -221,18 +198,18 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 				shadowPayload
 			);
 
-            if (shadowPayload.hit == false)// we reached the light point
-            {
-                indirectColor += angleHitPoint
+        if (shadowPayload.hit == false)// we reached the light point
+        {
+            indirectColor += angleHitPoint
 								* angleLightPoint
-								* gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.1f) * xi1 * xi1 * 10.0f;
+								* gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.1f) * xi1 * xi1 * 5.0f;
         }
 
-        }
+    }
 
     if (numRaySamples > 0)
     {
-        indirectColor /= numTotSamples;// (shadowWidth * shadowHeight / 25); //numSamples;
+        indirectColor /= numTotSamples; // (shadowWidth * shadowHeight / 25); //numSamples;
     }
     return float4(indirectColor, numRaySamples);
 
@@ -291,8 +268,8 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
     //float3 sampleDirection = mul(tbn,float3(x, y, z) );
 	
 
-	direction = normalize(direction);
-	float angle = saturate( dot(direction, hitPointNormal));
+    direction = normalize(direction);
+    float angle = saturate(dot(direction, hitPointNormal));
     if (angle < 0.0001)
     {
         return float3(0.0, 0.0, 0.0);
@@ -316,7 +293,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
     if (shadowPayload.hit == false) // no occlusion
     {
         
-        outColor = angle * float3(1.0, 1.0, 1.0) * 0.3f;
+        outColor = angle * float3(1.0, 1.0, 1.0) * 0.6f;
     }
     else // shadow
     {
@@ -329,22 +306,22 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
 
 void sampleDiffuseLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload)
 {
-        float3 direction = getCosHemisphereSample(payload.seed, hitPointNormal);
-        sampleRay(hitPoint, direction, payload);
+    float3 direction = getCosHemisphereSample(payload.seed, hitPointNormal);
+    sampleRay(hitPoint, direction, payload);
 }
 
 void sampleRay(in float3 hitPoint, in float3 direction, inout RayPayload payload)
 {
 	// set up diffuse ray
-        RayDesc rayDiffuse;
-        rayDiffuse.Origin = hitPoint;
-        rayDiffuse.Direction = direction;
-        rayDiffuse.TMin = 0.0001; // watch out for this value
-        rayDiffuse.TMax = 100000;
+    RayDesc rayDiffuse;
+    rayDiffuse.Origin = hitPoint;
+    rayDiffuse.Direction = direction;
+    rayDiffuse.TMin = 0.0001; // watch out for this value
+    rayDiffuse.TMax = 100000;
 
         //payload.depth -= 1;
 
-        TraceRay(gRtScene,
+    TraceRay(gRtScene,
 					0 /*rayFlags*/,
 					0xFF, /* ray mask*/
 					0 /* ray index*/,

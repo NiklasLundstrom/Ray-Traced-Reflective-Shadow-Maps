@@ -1,7 +1,8 @@
 ///// Ray-tracing /////////////////
 struct RayPayload
 {
-    float4 color;
+    float4 indirectColor;
+    float3 directColor;
     uint seed;
     //int depth;
 };
@@ -12,7 +13,7 @@ struct ShadowPayload
 };
 
 //// constants ////
-    static const float PI = 3.14159265f;
+static const float PI = 3.14159265f;
 
 //// Post processing ///////////////
 float makeDepthLinear(float oldDepth)

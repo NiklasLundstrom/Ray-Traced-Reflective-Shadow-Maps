@@ -31,109 +31,111 @@
 
 #define HYBRID
 
-//using namespace System::Windows::Input;
+ //using namespace System::Windows::Input;
 
 class PathTracer : public Tutorial
 {
 public:
-    //struct AccelerationStructureBuffers
-    //{
-    //    ID3D12ResourcePtr pScratch;
-    //    ID3D12ResourcePtr pResult;
-    //    ID3D12ResourcePtr pInstanceDesc;    // Used only for top-level AS
-    //};
+	//struct AccelerationStructureBuffers
+	//{
+	//    ID3D12ResourcePtr pScratch;
+	//    ID3D12ResourcePtr pResult;
+	//    ID3D12ResourcePtr pInstanceDesc;    // Used only for top-level AS
+	//};
 
-    void onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight) override;
-    void onFrameRender(bool *gKeys) override;
-    void onShutdown() override;
+	void onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight) override;
+	void onFrameRender(bool *gKeys) override;
+	void onShutdown() override;
 private:
-    //////////////////////////////////////////////////////////////////////////
-    // Tutorial 02 code
-    //////////////////////////////////////////////////////////////////////////
-    void initDXR(HWND winHandle, uint32_t winWidth, uint32_t winHeight);
-    uint32_t beginFrame();
-    void endFrame(uint32_t rtvIndex);
-    HWND							mHwnd = nullptr;
-    ID3D12Device5Ptr				mpDevice;
-    ID3D12CommandQueuePtr			mpCmdQueue;
-    IDXGISwapChain3Ptr				mpSwapChain;
-    uvec2							mSwapChainSize;
-    ID3D12GraphicsCommandList4Ptr	mpCmdList;
-    ID3D12FencePtr					mpFence;
-    HANDLE							mFenceEvent;
-    uint64_t						mFenceValue = 0;
+	//////////////////////////////////////////////////////////////////////////
+	// Tutorial 02 code
+	//////////////////////////////////////////////////////////////////////////
+	void initDXR(HWND winHandle, uint32_t winWidth, uint32_t winHeight);
+	uint32_t beginFrame();
+	void endFrame(uint32_t rtvIndex);
+	HWND							mHwnd = nullptr;
+	ID3D12Device5Ptr				mpDevice;
+	ID3D12CommandQueuePtr			mpCmdQueue;
+	IDXGISwapChain3Ptr				mpSwapChain;
+	uvec2							mSwapChainSize;
+	ID3D12GraphicsCommandList4Ptr	mpCmdList;
+	ID3D12FencePtr					mpFence;
+	HANDLE							mFenceEvent;
+	uint64_t						mFenceValue = 0;
 
-    struct
-    {
-        ID3D12CommandAllocatorPtr	pCmdAllocator;
-        ID3D12ResourcePtr			pSwapChainBuffer;
-        D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
-    } mFrameObjects[kDefaultSwapChainBuffers];
+	struct
+	{
+		ID3D12CommandAllocatorPtr	pCmdAllocator;
+		ID3D12ResourcePtr			pSwapChainBuffer;
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle;
+	} mFrameObjects[kDefaultSwapChainBuffers];
 
 
-    // Heap data
-    struct HeapData
-    {
-        ID3D12DescriptorHeapPtr pHeap;
-        uint32_t				usedEntries = 0;
-    };
-    HeapData mRtvHeap;
-    static const uint32_t		kRtvHeapSize = 3;
+	// Heap data
+	struct HeapData
+	{
+		ID3D12DescriptorHeapPtr pHeap;
+		uint32_t				usedEntries = 0;
+	};
+	HeapData mRtvHeap;
+	static const uint32_t		kRtvHeapSize = 3;
+	void createShaderResources();
+	ID3D12DescriptorHeapPtr mpCbvSrvUavHeap;
 
-    //////////////////////////////////////////////////////////////////////////
-    // Tutorial 03, Tutorial 11
-    //////////////////////////////////////////////////////////////////////////
-    void createAccelerationStructures();
-    ID3D12ResourcePtr			mpVertexBuffer[2];
-	// 3 instances: plane, area light and robot
-	// keep in sync with value hard coded in buildTopLevelAS()
-	static const int			mNumInstances = 14; 
+	D3D12_GPU_DESCRIPTOR_HANDLE mHeapStart;
+	UINT64						mHeapEntrySize;
+
+	//////////////////////////////////////////////////////////////////////////
+	// Scene
+	//////////////////////////////////////////////////////////////////////////
+
+	static const int mNumInstances = 14; // keep in sync with value hard coded in buildTopLevelAS()
+
+	// models
+	std::map<std::string, Model> mModels;
+
 	void buildTransforms(float rotation);
+	float mRotation = 0;
 
 #ifdef HYBRID
 	void updateTransformBuffers();
 #endif
 
-
-    ID3D12ResourcePtr				mpBottomLevelAS[mNumInstances];
-    AccelerationStructureBuffers	mTopLevelBuffers;
-    uint64_t						mTlasSize = 0;
-
-
-    //////////////////////////////////////////////////////////////////////////
-    // Tutorial 04
-    //////////////////////////////////////////////////////////////////////////
-    void createRtPipelineState();
-    ID3D12StateObjectPtr	mpRtPipelineState;
-    ID3D12RootSignaturePtr	mpEmptyRootSig;
-    
-	void rayTrace();
-
-    //////////////////////////////////////////////////////////////////////////
-    // Tutorial 05
-    //////////////////////////////////////////////////////////////////////////
-    void createShaderTable();
-    ID3D12ResourcePtr		mpShaderTable;
-    uint32_t				mShaderTableEntrySize = 0;
-
-    //////////////////////////////////////////////////////////////////////////
-    // Tutorial 06
-    //////////////////////////////////////////////////////////////////////////
-    void createShaderResources();
-    ID3D12ResourcePtr		mpRtOutputResource;
-    ID3D12DescriptorHeapPtr mpCbvSrvUavHeap;
-    static const uint32_t	kSrvUavHeapSize = 2;
-
-    //////////////////////////////////////////////////////////////////////////
-    // Tutorial 14
-    //////////////////////////////////////////////////////////////////////////
-    float mRotation = 0;
+	void createAccelerationStructures();
+	ID3D12ResourcePtr				mpBottomLevelAS[mNumInstances];
+	AccelerationStructureBuffers	mTopLevelBuffers;
+	uint64_t						mTlasSize = 0;
 
 	//////////////////////////////////////////////////////////////////////////
-	// My own stuff
+	// Ray-tracing
+	//////////////////////////////////////////////////////////////////////////
+	void createRtPipelineState();
+	void createShaderTable();
+	void rayTrace();
+	ID3D12StateObjectPtr	mpRtPipelineState;
+	ID3D12RootSignaturePtr	mpEmptyRootSig;
+	ID3D12ResourcePtr		mpShaderTable;
+	uint32_t				mShaderTableEntrySize = 0;
+
+	ID3D12ResourcePtr		mpRtIndirectOutput;
+	ID3D12ResourcePtr		mpRtDirectOutput;
+	uint8_t					mRtIndirectOutputHeapIndex;
+	uint8_t					mRtDirectOutputHeapIndex;
+
+	//////////////////////////////////////////////////////////////////////////
+	// Miscellaneous
 	//////////////////////////////////////////////////////////////////////////
 	void readKeyboardInput(bool *gKeys);
+	Assimp::Importer	importer;
 
+	void createEnvironmentMapBuffer();
+	ID3D12ResourcePtr	mpEnvironmentMapBuffer;
+	uint8_t				mEnvironmentMapHeapIndex;
+
+
+	//////////////////////////////////////////////////////////////////////////
+	// Camera
+	//////////////////////////////////////////////////////////////////////////
 	struct {
 		vec3	cameraPosition = vec3(2.95, 2.12, 7.04);
 		float	cameraAngle = -3.15f;
@@ -146,11 +148,11 @@ private:
 		mat4 viewMat;
 		mat4 viewMatPrev;
 		mat4 projMat;
-		
+
 		mat4 viewMatInv;
 		mat4 projMatInv;
 	}mCamera;
-	
+
 	void createCameraBuffers();
 	void updateCameraBuffers();
 	ID3D12ResourcePtr	mpCameraBuffer;
@@ -160,18 +162,13 @@ private:
 	uint8_t				mCameraMatrixBufferHeapIndex;
 
 
-	Assimp::Importer	importer;
 	float				mCameraSpeed = 1.0f;
 
-	void createEnvironmentMapBuffer();
-	ID3D12ResourcePtr	mpEnvironmentMapBuffer;
-	uint8_t				mEnvironmentMapHeapIndex;
-	
 	//////////////////////////////////////////////////////////////////////////
-	// Hybrid stuff
+	// Shadow map
 	//////////////////////////////////////////////////////////////////////////
 #ifdef HYBRID
-	
+
 	const UINT kShadowMapWidth = 512;
 	const UINT kShadowMapHeight = 512;
 
@@ -186,7 +183,6 @@ private:
 	ID3D12ResourcePtr			mpLightPositionBuffer;
 	uint32_t					mLightPositionBufferSize = sizeof(float3);
 
-
 	ID3D12DescriptorHeapPtr		mpShadowMapDsvHeap;
 	ID3D12DescriptorHeapPtr		mpShadowMapRtvHeap;
 	ID3D12ResourcePtr			mpShadowMapTexture_Depth;
@@ -198,6 +194,7 @@ private:
 	D3D12_CPU_DESCRIPTOR_HANDLE	mShadowMapRtv_Normal;
 	D3D12_CPU_DESCRIPTOR_HANDLE	mShadowMapRtv_Flux;
 	uint8_t						mShadowMapsHeapIndex;
+	uint8_t						mShadowMaps_normal_HeapIndex;
 
 	D3D12_CPU_DESCRIPTOR_HANDLE mShadowMapRTVs[3];
 
@@ -235,7 +232,6 @@ private:
 	ID3D12PipelineStatePtr	mpSpatialFilterStateHorz;
 	ID3D12PipelineStatePtr	mpSpatialFilterStateVert;
 
-	uint8_t					mRTOutputSrvHeapIndex;
 	uint8_t					mBlur1OutputUavHeapIndex;
 	uint8_t					mBlur1OutputSrvHeapIndex;
 	uint8_t					mBlur2OutputUavHeapIndex;
@@ -244,8 +240,13 @@ private:
 	ID3D12ResourcePtr		mpBlurPass1Output;
 	ID3D12ResourcePtr		mpBlurPass2Output;
 
+	ID3D12ResourcePtr		mpFilteredIndirectColor;
+	ID3D12ResourcePtr		mpFilteredDirectColor;
+	uint8_t					mFilteredIndirectColorHeapIndex;
+	uint8_t					mFilteredDirectColorHeapIndex;
+
 	void createSpatialFilterPipeline();
-	void applySpatialFilter();
+	void applySpatialFilter(bool indirect);
 	std::vector<float>		mGaussWeights;
 	int						mBlurRadius;
 	int						mSpatialItr;
@@ -300,19 +301,19 @@ private:
 	ID3D12RootSignaturePtr	mpTemporalFilterRootSig;
 	ID3D12PipelineStatePtr	mpTemporalFilterState;
 
-	ID3D12ResourcePtr		mpColorHistory;
-	ID3D12ResourcePtr		mpPreviousPreviousRtOutput;
-	ID3D12ResourcePtr		mpTemproalFilterOutput;
-	D3D12_CPU_DESCRIPTOR_HANDLE mTemporalFilterRtv;
-	uint8_t					mColorHistorySrvHeapIndex;
-	uint8_t					mPreviousPreviousRtOutputSrvHeapIndex;
-	uint8_t					mTemporalFilterOutputSrvHeapIndex;
+	ID3D12ResourcePtr		mpIndirectColorHistory;
+	ID3D12ResourcePtr		mpDirectColorHistory;
+	ID3D12ResourcePtr		mpTemporalFilterIndirectOutput;
+	ID3D12ResourcePtr		mpTemporalFilterDirectOutput;
+	D3D12_CPU_DESCRIPTOR_HANDLE mTemporalFilterIndirectRtv;
+	D3D12_CPU_DESCRIPTOR_HANDLE mTemporalFilterDirectRtv;
+	uint8_t					mIndirectColorHistoryHeapIndex;
+	uint8_t					mDirectColorHistoryHeapIndex;
+	uint8_t					mTemporalFilterOutputHeapIndex;
+
+	D3D12_CPU_DESCRIPTOR_HANDLE mTemporalFilterRtvs[2];
 
 
 
 
-
-	// models
-	std::map<std::string, Model> mModels;
-	
 };

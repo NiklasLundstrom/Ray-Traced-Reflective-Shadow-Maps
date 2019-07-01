@@ -41,73 +41,47 @@ PSInput VSMain(uint index : SV_VertexID)
 }
 
 
-Texture2D<float4> gInput : register(t0);
-Texture2D<float> gShadowMap_Depth : register(t1);
-Texture2D<float4> gShadowMap_Position : register(t2);
-Texture2D<float4> gShadowMap_Normal : register(t3);
-Texture2D<float4> gShadowMap_Flux : register(t4);
-Texture2D<float4> gMotionVectors : register(t5);
-Texture2D<float4> gGbufferColor : register(t6);
+Texture2D<float4> gIndirectInput : register(t0);
+Texture2D<float4> gDirectInput : register(t1);
+Texture2D<float4> gShadowMap_Normal : register(t2);
+Texture2D<float4> gMotionVectors : register(t3);
+Texture2D<float4> gGbufferColor : register(t4);
 
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
     uint masterWidth;
     uint masterHeight;
-    gInput.GetDimensions(masterWidth, masterHeight);
+    gIndirectInput.GetDimensions(masterWidth, masterHeight);
     float2 crd = input.uv * float2(masterWidth, masterHeight);
-    float3 output = gInput[crd].rgb * gGbufferColor[crd].rgb;
-
+    float3 light = gIndirectInput[crd].rgb + gDirectInput[crd].rgb;
 	// Tone Map
+    float3 output = light * gGbufferColor[crd].rgb;
     output = linearToSrgb(ACESFitted(2.5 * output.rgb));
 
 
 	// Render Shadow map to the side
     uint shadowWidth;
     uint shadowHeight;
-    gShadowMap_Depth.GetDimensions(shadowWidth, shadowHeight);
+    gShadowMap_Normal.GetDimensions(shadowWidth, shadowHeight);
     int scale = 4;
     if (crd.x < shadowWidth / scale && crd.y < shadowHeight / scale)
     {
-  //      float zPrim = gShadowMap_Depth[crd * scale];
-  //      float f = 100.0f; // Sync this value to the C++ code!
-  //      float n = 0.1f;
-		//// Transform to linear view space
-  //      float z = f * n / (f - zPrim * (f - n));
-  //      zPrim = z * zPrim;
-  //      zPrim /= f; // z <- 0..1
-  //      output = zPrim * float3(1.0, 1.0, 1.0);
-    }
-    else if (crd.x < shadowWidth / scale && crd.y < 2 * shadowHeight / scale)
-    {
-        //uint2 coords = crd;
-        //coords.y -= shadowHeight / scale;
-        //float3 cPrim = gShadowMap_Position[coords * scale].rgb;
-        //output = cPrim;
-    }
-    else if (crd.x < shadowWidth / scale && crd.y < 3 * shadowHeight / scale)
-    {
         uint2 coords = crd;
-        coords.y -= 2 * shadowHeight / scale;
+        coords.y -= 0 * shadowHeight / scale;
         float3 cPrim = gShadowMap_Normal[coords * scale].rgb;
         output = cPrim;
     }
-    else if (crd.x < shadowWidth / scale && crd.y < 4 * shadowHeight / scale)
-    {
-        //uint2 coords = crd;
-        //coords.y -= 3 * shadowHeight / scale;
-        //float3 cPrim = gShadowMap_Flux[coords * scale].rgb;
-        //output = cPrim;
-    }
-    else if (crd.x < shadowWidth / scale && crd.y < 5 * shadowHeight / scale)
+    else if (crd.x < shadowWidth / scale && crd.y < 2 * shadowHeight / scale)
     {
         uint2 coords = crd;
-        coords.y -= 4 * shadowHeight / scale;
+        coords.y -= 1 * shadowHeight / scale;
         float4 motionVectors = gMotionVectors[coords * scale * 2];
         motionVectors.y *= -1;
-        float3 cPrim = float3(5.0f * motionVectors.rg + 0.5f, 1.0f - 0.5f*motionVectors.b);
+        float3 cPrim = float3(5.0f * motionVectors.rg + 0.5f, 1.0f - 0.5f * motionVectors.b);
         output = cPrim;
     }
+
 
 
     return float4(output, 1);

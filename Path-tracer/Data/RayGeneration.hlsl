@@ -3,6 +3,7 @@
 
 RaytracingAccelerationStructure gRtScene : register(t0);
 RWTexture2D<float4> gOutput : register(u0);
+RWTexture2D<float4> gDirectOutput : register(u1);
 
 cbuffer Camera : register(b0)
 {
@@ -38,29 +39,24 @@ void rayGen()
     uint randSeed = initRand(launchIndex.x + launchIndex.y * launchDim.x, frameCount, 16);
             
     RayPayload payload;
-    float4 color = float4(0.0, 0.0, 0.0, 0.0);
 
-    int numSamples = 1;
-    for (int i = 0; i < numSamples; i++)
-    {
-        nextRand(randSeed);
+    nextRand(randSeed);
 
-        //payload.depth = 1;
-        payload.seed = randSeed;
-        TraceRay(
-					gRtScene,
-					0 /*rayFlags*/, 
-					0xFF /*ray mask*/, 
-					0 /* ray index*/, 
-					2 /* total nbr of hit groups*/, 
-					0 /* miss shader index*/, 
-					ray, 
-					payload
-				);
-        color += payload.color;
-    }
-    color /= numSamples;
+    payload.seed = randSeed;
+    TraceRay(
+				gRtScene,
+				0 /*rayFlags*/, 
+				0xFF /*ray mask*/, 
+				0 /* ray index*/, 
+				2 /* total nbr of hit groups*/, 
+				0 /* miss shader index*/, 
+				ray, 
+				payload
+			);
+    float4 indirectColor = payload.indirectColor;
+    float4 directColor = float4(payload.directColor, 1.0);
 
-    gOutput[launchIndex.xy] = float4(color);//,1);
+    gOutput[launchIndex.xy] = indirectColor;
+    gDirectOutput[launchIndex.xy] = directColor;
 }
 
