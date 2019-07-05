@@ -1366,7 +1366,7 @@ void PathTracer::createShaderResources()
 	//  - 1 for the light position buffer
 	//  - 4 for the Shadow map (depth, position, normal, flux)
 
-	uint32_t nbrEntries = 28;
+	uint32_t nbrEntries = 27;
 #else
 	uint32_t nbrEntries = 17;
 #endif
@@ -1427,20 +1427,85 @@ void PathTracer::createShaderResources()
 	mpDevice->CreateConstantBufferView(&cbvDesc, handle);
 	mCameraMatrixBufferHeapIndex = handleIndex;
 
-	// Create the SRV for the Environment map.
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvTextureDesc = {};
-	srvTextureDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvTextureDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-	srvTextureDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvTextureDesc.Texture2D.MipLevels = 1;
-	srvTextureDesc.Texture2D.MostDetailedMip = 0;
-	srvTextureDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+	/////////////////
+	// Light buffers
+	/////////////////
+
+	// Create the CBV for the light buffer
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvLightDesc = {};
+	cbvLightDesc.BufferLocation = mpLightBuffer->GetGPUVirtualAddress();
+	cbvLightDesc.SizeInBytes = (mLightBufferSize + 255) & ~255; // align to 256
 
 	handle.ptr += heapEntrySize;
 	handleIndex++;
 
-	mpDevice->CreateShaderResourceView(mpEnvironmentMapBuffer, &srvTextureDesc, handle);
-	mEnvironmentMapHeapIndex = handleIndex;
+	mpDevice->CreateConstantBufferView(&cbvLightDesc, handle);
+	mLightBufferHeapIndex = handleIndex;
+
+	// Create the CBV for the Light Position buffer
+	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvLightPositionDesc = {};
+	cbvLightPositionDesc.BufferLocation = mpLightPositionBuffer->GetGPUVirtualAddress();
+	cbvLightPositionDesc.SizeInBytes = (mLightPositionBufferSize + 255) & ~255; // align to 256
+
+	handle.ptr += heapEntrySize;
+	handleIndex++;
+
+	mpDevice->CreateConstantBufferView(&cbvLightPositionDesc, handle);
+
+	/////////////////
+	// Shadow maps
+	/////////////////
+
+	// Create the SRV for the Shadow map Depth
+	D3D12_SHADER_RESOURCE_VIEW_DESC shadowMapSrvDesc = {};
+	shadowMapSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	shadowMapSrvDesc.Format = DXGI_FORMAT_R32_FLOAT;
+	shadowMapSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	shadowMapSrvDesc.Texture2D.MipLevels = 1;
+
+	handle.ptr += heapEntrySize;
+	handleIndex++;
+
+	mpDevice->CreateShaderResourceView(mpShadowMapTexture_Depth, &shadowMapSrvDesc, handle);
+	mShadowMapsHeapIndex = handleIndex;
+
+	// Create the SRV for the Shadow map Position
+	shadowMapSrvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+
+	handle.ptr += heapEntrySize;
+	handleIndex++;
+
+	mpDevice->CreateShaderResourceView(mpShadowMapTexture_Position, &shadowMapSrvDesc, handle);
+
+	// Create the SRV for the Shadow map Normal
+	handle.ptr += heapEntrySize;
+	handleIndex++;
+
+	mpDevice->CreateShaderResourceView(mpShadowMapTexture_Normal, &shadowMapSrvDesc, handle);
+	mShadowMaps_normal_HeapIndex = handleIndex;
+
+	// Create the SRV for the Shadow map Flux
+	handle.ptr += heapEntrySize;
+	handleIndex++;
+
+	mpDevice->CreateShaderResourceView(mpShadowMapTexture_Flux, &shadowMapSrvDesc, handle);
+
+
+
+	//// Create the SRV for the Environment map.
+	//D3D12_SHADER_RESOURCE_VIEW_DESC srvTextureDesc = {};
+	//srvTextureDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+	//srvTextureDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	//srvTextureDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+	//srvTextureDesc.Texture2D.MipLevels = 1;
+	//srvTextureDesc.Texture2D.MostDetailedMip = 0;
+	//srvTextureDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+
+	//handle.ptr += heapEntrySize;
+	//handleIndex++;
+
+	//mpDevice->CreateShaderResourceView(mpEnvironmentMapBuffer, &srvTextureDesc, handle);
+	//mEnvironmentMapHeapIndex = handleIndex;
 
 	///////////////////
 	// Ray-tracing SRV
@@ -1582,70 +1647,7 @@ void PathTracer::createShaderResources()
 	mGeomteryBuffer_Position_SrvHeapIndex = handleIndex;
 
 #ifdef HYBRID
-	/////////////////
-	// Light buffers
-	/////////////////
-
-	// Create the CBV for the light buffer
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvLightDesc = {};
-	cbvLightDesc.BufferLocation = mpLightBuffer->GetGPUVirtualAddress();
-	cbvLightDesc.SizeInBytes = (mLightBufferSize + 255) & ~255; // align to 256
-
-	handle.ptr += heapEntrySize;
-	handleIndex++;
-
-	mpDevice->CreateConstantBufferView(&cbvLightDesc, handle);
-	mLightBufferHeapIndex = handleIndex;
-
-	// Create the CBV for the Light Position buffer
-	D3D12_CONSTANT_BUFFER_VIEW_DESC cbvLightPositionDesc = {};
-	cbvLightPositionDesc.BufferLocation = mpLightPositionBuffer->GetGPUVirtualAddress();
-	cbvLightPositionDesc.SizeInBytes = (mLightPositionBufferSize + 255) & ~255; // align to 256
-
-	handle.ptr += heapEntrySize;
-	handleIndex++;
-
-	mpDevice->CreateConstantBufferView(&cbvLightPositionDesc, handle);
-
-	/////////////////
-	// Shadow maps
-	/////////////////
-
-	// Create the SRV for the Shadow map Depth
-	D3D12_SHADER_RESOURCE_VIEW_DESC shadowMapSrvDesc = {};
-	shadowMapSrvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	shadowMapSrvDesc.Format = DXGI_FORMAT_R32_FLOAT;
-	shadowMapSrvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	shadowMapSrvDesc.Texture2D.MipLevels = 1;
-
-	handle.ptr += heapEntrySize;
-	handleIndex++;
-
-	mpDevice->CreateShaderResourceView(mpShadowMapTexture_Depth, &shadowMapSrvDesc, handle);
-	mShadowMapsHeapIndex = handleIndex;
-
-	// Create the SRV for the Shadow map Position
-	shadowMapSrvDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
-
-	handle.ptr += heapEntrySize;
-	handleIndex++;
-
-	mpDevice->CreateShaderResourceView(mpShadowMapTexture_Position, &shadowMapSrvDesc, handle);
-
-	// Create the SRV for the Shadow map Normal
-	handle.ptr += heapEntrySize;
-	handleIndex++;
-
-	mpDevice->CreateShaderResourceView(mpShadowMapTexture_Normal, &shadowMapSrvDesc, handle);
-	mShadowMaps_normal_HeapIndex = handleIndex;
-
-	// Create the SRV for the Shadow map Flux
-	handle.ptr += heapEntrySize;
-	handleIndex++;
-
-	mpDevice->CreateShaderResourceView(mpShadowMapTexture_Flux, &shadowMapSrvDesc, handle);
-
-
+	
 
 	////////////////// End of SRV/UAV/CBV descriptor heap //////////////////
 	handleIndex++;

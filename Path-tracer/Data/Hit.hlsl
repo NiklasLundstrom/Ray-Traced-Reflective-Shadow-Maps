@@ -24,7 +24,7 @@ cbuffer lightPosition : register(b1, space1)
     float3 lightPosition;
 };
 
-Texture2D<float> gShadowMap_Depth : register(t0, space1);
+//Texture2D<float> gShadowMap_Depth : register(t0, space1);
 Texture2D<float4> gShadowMap_Position : register(t1, space1);
 Texture2D<float4> gShadowMap_Normal : register(t2, space1);
 Texture2D<float4> gShadowMap_Flux : register(t3, space1);
@@ -121,8 +121,8 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
     int numRaySamples = 0;
     int numTotSamples = 0;
-    int maxNumRays = acceptedReprojection ? 9 : 60;
-    int maxNumTot = acceptedReprojection ? 150 : 1000;
+    int maxNumRays = acceptedReprojection ? 10 : 600;
+    int maxNumTot = acceptedReprojection ? 50 : 600;
     while (numRaySamples < maxNumRays && numTotSamples < maxNumTot)
     {
         if (numTotSamples > 100 && numRaySamples == 0)
@@ -202,7 +202,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         {
             indirectColor += angleHitPoint
 								* angleLightPoint
-								* gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.1f) * xi1 * xi1 * 5.0f;
+								* gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.1f) * xi1 * xi1 * 20.0f;
         }
 
     }
@@ -293,7 +293,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
     if (shadowPayload.hit == false) // no occlusion
     {
         
-        outColor = angle * float3(1.0, 1.0, 1.0) * 0.6f;
+        outColor = angle * float3(1.0, 1.0, 1.0) * 0.3f;
     }
     else // shadow
     {

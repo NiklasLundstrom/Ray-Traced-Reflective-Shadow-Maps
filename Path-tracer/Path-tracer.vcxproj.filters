@@ -61,6 +61,8 @@
     <CustomBuild Include="Data\MotionVectors.hlsl">
       <Filter>Data</Filter>
     </CustomBuild>
-    <CustomBuild Include="Data\GBuffer.hlsl" />
+    <CustomBuild Include="Data\GBuffer.hlsl">
+      <Filter>Data</Filter>
+    </CustomBuild>
   </ItemGroup>
 </Project>
