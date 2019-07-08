@@ -254,7 +254,7 @@ AccelerationStructureBuffers Model::loadModelFromFile(ID3D12Device5Ptr pDevice, 
 		aiProcess_TransformUVCoords |
 		aiProcess_MakeLeftHanded |
 		aiProcess_FindInvalidData);
-	aiMesh* mesh = scene->mMeshes[0];
+	aiMesh* mesh = scene->mMeshes[1];
 
 	// create and set up VB, IB and NB
 	mpVertexBuffer = createVB(pDevice, mesh->mVertices, mesh->mNumVertices);

@@ -121,7 +121,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
     int numRaySamples = 0;
     int numTotSamples = 0;
-    int maxNumRays = acceptedReprojection ? 10 : 600;
+    int maxNumRays = acceptedReprojection ? 50 : 600;
     int maxNumTot = acceptedReprojection ? 50 : 600;
     while (numRaySamples < maxNumRays && numTotSamples < maxNumTot)
     {
