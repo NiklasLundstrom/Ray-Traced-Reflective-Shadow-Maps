@@ -394,6 +394,9 @@ void PathTracer::buildTransforms(float rotation)
 	mModels["Robot"].setTransform(rotationMat * translate(mat4(), vec3(1.5, /*1.39*/0.347499, 0 /** sin(rotation*0.7f)*/)) * scale(0.75f*vec3(1.0f, 1.0f, 1.0f)));
 	mModels["Robot2"].setTransform(translate(mat4(), vec3(4.0, /*1.39*/0.347499, 1.0)) * eulerAngleY(2.0f) * scale(0.75f*vec3(1.0f, 1.0f, 1.0f)));
 
+	//// Sun temple
+	//mModels["Sun temple"].setTransform(translate(mat4(), vec3(0.0, 0.0, 5.0)) * scale(0.005f*vec3(1.0f, 1.0f, 1.0f))*mat4());
+
 }
 
 //#ifdef HYBRID
@@ -462,7 +465,7 @@ AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D1
 
 void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, std::map<std::string, Model> models, AccelerationStructureBuffers& buffers)
 {
-	int numInstances = 14; // keep in sync with mNumInstances
+	int numInstances = 14/*+48*/; // keep in sync with mNumInstances
 
 	// First, get the size of the TLAS buffers and create them
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
@@ -505,15 +508,18 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 	// Create the desc for the models
 	for (auto it = models.begin(); it != models.end(); ++it)
 	{
-		instanceDescs[instanceIdx].InstanceID = it->second.getModelIndex(); // This value will be exposed to the shader via InstanceID()
-		instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2 * instanceIdx;  // hard coded
-		instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE;
-		mat4 m = transpose(it->second.getTransformMatrix()); // GLM is column major, the INSTANCE_DESC is row major
-		memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
-		instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[it->second.getModelIndex()]->GetGPUVirtualAddress();
-		instanceDescs[instanceIdx].InstanceMask = 0xFF;
+		for (uint i = 0; i < it->second.getNumMeshes(); i++)
+		{
+			instanceDescs[instanceIdx].InstanceID = it->second.getModelIndex() + i; // This value will be exposed to the shader via InstanceID()
+			instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2 * instanceIdx;  // hard coded
+			instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE;
+			mat4 m = transpose(it->second.getTransformMatrix()); // GLM is column major, the INSTANCE_DESC is row major
+			memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
+			instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[it->second.getModelIndex() + i]->GetGPUVirtualAddress();
+			instanceDescs[instanceIdx].InstanceMask = 0xFF;
 
-		instanceIdx++;
+			instanceIdx++;
+		}
 	}
 
 	assert(instanceIdx == numInstances);
@@ -550,6 +556,18 @@ void PathTracer::createAccelerationStructures()
 	vec3 red = 0.75f*vec3(1.0f, 0.1f, 0.1f);
 	vec3 green = 0.75f*vec3(0.1f, 1.0f, 0.1f);
 	uint8_t modelIndex = 0;
+
+	//// Sun temple
+	//// Load left wall extended
+	//Model sunTemple(L"Sun temple", modelIndex, white);
+	//mModels["Sun temple"] = sunTemple;
+	//std::vector<AccelerationStructureBuffers> sunTempleAS = mModels["Sun temple"].loadMultipleModelsFromFile(mpDevice, mpCmdList, "Data/Models/SunTemple/SunTempleMerged.fbx", &importer, true);
+	//for (int i = 0; i < sunTempleAS.size(); i++)
+	//{
+	//	mpBottomLevelAS[modelIndex] = sunTempleAS.at(i).pResult;
+	//	mpBottomLevelAS[modelIndex]->SetName((L"BLAS Sun temple sub" + std::to_wstring(i)).c_str());
+	//	modelIndex++;
+	//}
 
 	// Load robot
 	Model robot(L"Robot", modelIndex, white);
@@ -1300,31 +1318,34 @@ void PathTracer::createShaderTable()
 	// Entry 2/3 - Model, primary ray. ProgramID and index-buffer
 	for (auto it = mModels.begin(); it != mModels.end(); ++it)
 	{
-		uint8_t* pEntry4 = pData + mShaderTableEntrySize * entryIndex;
-		memcpy(pEntry4, pRtsoProps->GetShaderIdentifier(kModelHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		pEntry4 += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-		// TLAS
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + 2 * mHeapEntrySize;
-		pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
-		// Index buffer
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = it->second.getIndexBufferGPUAdress();
-		pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
-		// Normal buffer
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = it->second.getNormalBufferGPUAdress();
-		pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
-		// Light buffers and Shadow maps
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + mLightBufferHeapIndex * mHeapEntrySize;
-		pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
-		// Motion vectors (for adaptive sampling)
-		*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + mGeomteryBuffer_MotionVectors_SrvHeapIndex * mHeapEntrySize;
-		entryIndex++;
+		for (uint i = 0; i < it->second.getNumMeshes(); i++)
+		{
+			uint8_t* pEntry4 = pData + mShaderTableEntrySize * entryIndex;
+			memcpy(pEntry4, pRtsoProps->GetShaderIdentifier(kModelHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+			pEntry4 += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+			// TLAS
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + 2 * mHeapEntrySize;
+			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
+			// Index buffer
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = it->second.getIndexBufferGPUAdress(i);
+			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
+			// Normal buffer
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = it->second.getNormalBufferGPUAdress(i);
+			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
+			// Light buffers and Shadow maps
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + mLightBufferHeapIndex * mHeapEntrySize;
+			pEntry4 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
+			// Motion vectors (for adaptive sampling)
+			*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry4 = heapStart + mGeomteryBuffer_MotionVectors_SrvHeapIndex * mHeapEntrySize;
+			entryIndex++;
 
 #ifdef HYBRID
-		// Entry /4 - Model, shadow ray
-		uint8_t* pEntryModelShadow = pData + mShaderTableEntrySize * entryIndex;
-		memcpy(pEntryModelShadow, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
-		entryIndex++;
+			// Entry /4 - Model, shadow ray
+			uint8_t* pEntryModelShadow = pData + mShaderTableEntrySize * entryIndex;
+			memcpy(pEntryModelShadow, pRtsoProps->GetShaderIdentifier(kShadowHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+			entryIndex++;
 #endif
+		}
 	}
 
 	// Unmap
@@ -2028,7 +2049,7 @@ void PathTracer::createLightBuffer()
 	mpLightBuffer->SetName(L"Light Buffer");
 
 	// Set up Light values
-	float fovAngle = glm::quarter_pi<float>();
+	float fovAngle = /*1.5f*glm::half_pi<float>();*/glm::quarter_pi<float>();
 
 	// Left-hand system, depth from 0 to 1
 	float fFar = 100.0f;
@@ -3007,18 +3028,21 @@ void PathTracer::renderShadowMap()
 	// render models
 	for (auto it = mModels.begin(); it != mModels.end(); ++it)
 	{
-		// Model to World Transform
-		mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
-		// Normal buffer
-		mpCmdList->SetGraphicsRootShaderResourceView(2, it->second.getNormalBufferGPUAdress());
-		// Vertex and Index buffers
-		mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView());
-		mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView());
-		// Color
-		mpCmdList->SetGraphicsRoot32BitConstants(3, 3, &it->second.getColor(), 0);
+		for (uint i = 0; i < it->second.getNumMeshes(); i++)
+		{
+			// Model to World Transform
+			mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
+			// Normal buffer
+			mpCmdList->SetGraphicsRootShaderResourceView(2, it->second.getNormalBufferGPUAdress(i));
+			// Vertex and Index buffers
+			mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView(i));
+			mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView(i));
+			// Color
+			mpCmdList->SetGraphicsRoot32BitConstants(3, 3, &it->second.getColor(), 0);
 
-		// Draw
-		mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+			// Draw
+			mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView(i)->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+		}
 	}
 
 
@@ -3143,18 +3167,21 @@ void PathTracer::renderGeometryBuffer()
 	// render models
 	for (auto it = mModels.begin(); it != mModels.end(); ++it)
 	{
-		// Model to World Transform
-		mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
-		// Normal buffer
-		mpCmdList->SetGraphicsRootShaderResourceView(2, it->second.getNormalBufferGPUAdress());
-		// Vertex and Index buffers
-		mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView());
-		mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView());
-		// Color
-		mpCmdList->SetGraphicsRoot32BitConstants(3, 3, &it->second.getColor(), 0);
+		for (uint i = 0; i < it->second.getNumMeshes(); i++)
+		{
+			// Model to World Transform
+			mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
+			// Normal buffer
+			mpCmdList->SetGraphicsRootShaderResourceView(2, it->second.getNormalBufferGPUAdress(i));
+			// Vertex and Index buffers
+			mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView(i));
+			mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView(i));
+			// Color
+			mpCmdList->SetGraphicsRoot32BitConstants(3, 3, &it->second.getColor(), 0);
 
-		// Draw
-		mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+			// Draw
+			mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView(i)->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+		}
 	}
 
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
@@ -3198,14 +3225,17 @@ void PathTracer::renderMotionVectors()
 	// render models
 	for (auto it = mModels.begin(); it != mModels.end(); ++it)
 	{
-		// Model to World Transform
-		mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
-		// Vertex and Index buffers
-		mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView());
-		mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView());
+		for (uint i = 0; i < it->second.getNumMeshes(); i++)
+		{
+			// Model to World Transform
+			mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
+			// Vertex and Index buffers
+			mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView(i));
+			mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView(i));
 
-		// Draw
-		mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView()->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+			// Draw
+			mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView(i)->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+		}
 	}
 
 	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);

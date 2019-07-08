@@ -254,7 +254,7 @@ AccelerationStructureBuffers Model::loadModelFromFile(ID3D12Device5Ptr pDevice, 
 		aiProcess_TransformUVCoords |
 		aiProcess_MakeLeftHanded |
 		aiProcess_FindInvalidData);
-	aiMesh* mesh = scene->mMeshes[1];
+	aiMesh* mesh = scene->mMeshes[0];
 
 	// create and set up VB, IB and NB
 	mpVertexBuffer = createVB(pDevice, mesh->mVertices, mesh->mNumVertices);
@@ -293,6 +293,71 @@ AccelerationStructureBuffers Model::loadModelFromFile(ID3D12Device5Ptr pDevice, 
 															);
 
 	return bottomLevelBuffer;
+}
+
+std::vector<AccelerationStructureBuffers> Model::loadMultipleModelsFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter, bool loadTransform)
+{
+	const aiScene* scene = pImporter->ReadFile(pFileName,
+		aiProcess_CalcTangentSpace |
+		aiProcess_JoinIdenticalVertices |
+		aiProcess_Triangulate |
+		aiProcess_GenNormals |
+		aiProcess_FixInfacingNormals |
+		aiProcess_GenUVCoords |
+		aiProcess_TransformUVCoords |
+		aiProcess_MakeLeftHanded |
+		aiProcess_FindInvalidData);
+
+	mNumMeshes = scene->mNumMeshes;
+	multipleMeshes = true;
+	std::vector<AccelerationStructureBuffers> bottomLevelBuffers;
+	for (uint i = 0; i < scene->mNumMeshes; i++)
+	{
+		aiMesh* mesh = scene->mMeshes[i];
+
+		// create and set up VB, IB and NB
+		mpVertexBuffers.push_back(createVB(pDevice, mesh->mVertices, mesh->mNumVertices));
+		mpVertexBuffers[i]->SetName((std::wstring(mName) + L" sub" + std::to_wstring(i) + L" Vertex Buffer").c_str());
+		mpIndexBuffers.push_back(createIB(pDevice, mesh->mFaces, mesh->mNumFaces));
+		mpIndexBuffers[i]->SetName((std::wstring(mName) + L" sub" + std::to_wstring(i) + L" Index Buffer").c_str());
+		mpNormalBuffers.push_back(createNB(pDevice, mesh->mNormals, mesh->mNumVertices));
+		mpNormalBuffers[i]->SetName((std::wstring(mName) + L" sub" + std::to_wstring(i) + L" Normal Buffer").c_str());
+
+		// VB view
+		D3D12_VERTEX_BUFFER_VIEW vbView;
+		vbView.BufferLocation = mpVertexBuffers[i]->GetGPUVirtualAddress();
+		vbView.StrideInBytes = sizeof(vec3);
+		vbView.SizeInBytes = mesh->mNumVertices * sizeof(vec3);
+		mVertexBufferViews.push_back(vbView);
+
+		// IB view
+		D3D12_INDEX_BUFFER_VIEW ibView;
+		ibView.BufferLocation = mpIndexBuffers[i]->GetGPUVirtualAddress();
+		ibView.Format = DXGI_FORMAT_R32_UINT;
+		ibView.SizeInBytes = mesh->mNumFaces * 3 * sizeof(uint);
+		mIndexBufferViews.push_back(ibView);
+
+		// BLAS
+		bottomLevelBuffers.push_back( createBottomLevelAS(
+			pDevice,
+			pCmdList,
+			mpVertexBuffers[i],
+			mesh->mNumVertices,
+			mpIndexBuffers[i],
+			mesh->mNumFaces * 3
+		));
+	}
+
+	// create transform buffer
+	mpTransformBuffer = createBuffer(pDevice, 2 * sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	mpTransformBuffer->SetName((std::wstring(mName) + L" Transform").c_str());
+	if (loadTransform)
+	{
+		aiMatrix4x4 transform = scene->mRootNode->mChildren[0]->mTransformation;
+		mVertexToModel = aiMatrix4x4ToGlm(&transform);
+	}
+
+	return bottomLevelBuffers;
 }
 
 void Model::updateTransformBuffer()

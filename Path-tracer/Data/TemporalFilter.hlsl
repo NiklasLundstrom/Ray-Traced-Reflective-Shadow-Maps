@@ -57,7 +57,7 @@ PS_OUT PSMain(PSInput input) : SV_TARGET
         float4 indirectColorHistory = gIndirectColorHistory.SampleLevel(gSampler, reprojectedCrd, 0);
         historyLength = indirectColorHistory.a + 1.0f;
 
-        float mixValue = 0.1f; /*max(0.2f, 1.0f / historyLength);*/
+        float mixValue = 0.1f; //0.05f; /*max(0.2f, 1.0f / historyLength);*/
         indirectOutput = mixValue * indirectColorCurrent.rgb + (1 - mixValue) * indirectColorHistory.rgb;
 
 		// direct

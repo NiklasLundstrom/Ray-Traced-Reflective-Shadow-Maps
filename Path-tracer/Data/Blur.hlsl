@@ -126,8 +126,10 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
             weightSum += weights[i + 2] * w;
         }
 
-        blurColor /= weightSum;
-
+        if (weightSum > 0.0f)
+        {
+            blurColor /= weightSum;
+        }
     }
     gOutput[dispatchThreadID.xy] = enableFilter ? blurColor : gCache[groupThreadID.x + blurRadius];
 }
@@ -206,7 +208,10 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
             weightSum += weights[i + 2] * w;
         }
 
-        blurColor /= weightSum;
+        if (weightSum > 0.0f)
+        {
+            blurColor /= weightSum;
+        }
     }
     gOutput[dispatchThreadID.xy] = enableFilter ? blurColor : gCache[groupThreadID.y + blurRadius];
 }

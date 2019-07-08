@@ -12,14 +12,16 @@ public:
 	uint8_t getModelIndex() { return mModelIndex; }
 	vec3	getColor() { return mColor; }
 
-	D3D12_VERTEX_BUFFER_VIEW* getVertexBufferView() { return &mVertexBufferView; }
-	D3D12_INDEX_BUFFER_VIEW* getIndexBufferView() { return &mIndexBufferView; }
+	D3D12_VERTEX_BUFFER_VIEW* getVertexBufferView(int idx) { return multipleMeshes? &mVertexBufferViews[idx] : &mVertexBufferView; }
+	D3D12_INDEX_BUFFER_VIEW* getIndexBufferView(int idx) { return multipleMeshes? &mIndexBufferViews[idx] : &mIndexBufferView; }
 	mat4 getTransformMatrix() { return mModelToWorld; }
-	D3D12_GPU_VIRTUAL_ADDRESS getIndexBufferGPUAdress() { return mpIndexBuffer->GetGPUVirtualAddress(); }
-	D3D12_GPU_VIRTUAL_ADDRESS getNormalBufferGPUAdress() { return mpNormalBuffer->GetGPUVirtualAddress(); }
+	D3D12_GPU_VIRTUAL_ADDRESS getIndexBufferGPUAdress(int idx) { return multipleMeshes? mpIndexBuffers[idx]->GetGPUVirtualAddress() : mpIndexBuffer->GetGPUVirtualAddress(); }
+	D3D12_GPU_VIRTUAL_ADDRESS getNormalBufferGPUAdress(int idx) { return multipleMeshes? mpNormalBuffers[idx]->GetGPUVirtualAddress() : mpNormalBuffer->GetGPUVirtualAddress(); }
 	D3D12_GPU_VIRTUAL_ADDRESS getTransformBufferGPUAdress() { return mpTransformBuffer->GetGPUVirtualAddress(); }
+	uint getNumMeshes() { return mNumMeshes; }
 
 	AccelerationStructureBuffers loadModelFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter, bool loadTransform);
+	std::vector<AccelerationStructureBuffers> loadMultipleModelsFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter, bool loadTransform);
 	void loadModelHardCodedPlane(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList);
 
 	void setTransform(mat4 transform) { mModelToWorldPrev = mModelToWorld; 
@@ -37,6 +39,20 @@ protected:
 	ID3D12ResourcePtr mpIndexBuffer;
 	ID3D12ResourcePtr mpNormalBuffer;
 
+	D3D12_VERTEX_BUFFER_VIEW	mVertexBufferView;
+	D3D12_INDEX_BUFFER_VIEW		mIndexBufferView;
+
+	// Multiple meshes
+	uint mNumMeshes = 1;
+	bool multipleMeshes = false;
+	std::vector<ID3D12ResourcePtr> mpVertexBuffers;
+	std::vector<ID3D12ResourcePtr> mpIndexBuffers;
+	std::vector<ID3D12ResourcePtr> mpNormalBuffers;
+
+	std::vector < D3D12_VERTEX_BUFFER_VIEW>	mVertexBufferViews;
+	std::vector < D3D12_INDEX_BUFFER_VIEW>		mIndexBufferViews;
+
+
 	ID3D12ResourcePtr createBuffer(ID3D12Device5Ptr pDevice, uint64_t size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initState, const D3D12_HEAP_PROPERTIES& heapProps);
 	ID3D12ResourcePtr createVB(ID3D12Device5Ptr pDevice, aiVector3D* aiVertecies, int numVertices);
 	ID3D12ResourcePtr createIB(ID3D12Device5Ptr pDevice, aiFace* aiFaces, int numFaces);
@@ -46,8 +62,6 @@ protected:
 	ID3D12ResourcePtr createPlaneIB(ID3D12Device5Ptr pDevice);
 	ID3D12ResourcePtr createPlaneNB(ID3D12Device5Ptr pDevice);
 
-	D3D12_VERTEX_BUFFER_VIEW	mVertexBufferView;
-	D3D12_INDEX_BUFFER_VIEW		mIndexBufferView;
 
 	AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB, const uint32_t vertexCount, ID3D12ResourcePtr pIB, const uint32_t indexCount);
 
