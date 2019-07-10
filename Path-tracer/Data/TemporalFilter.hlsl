@@ -64,7 +64,7 @@ PS_OUT PSMain(PSInput input) : SV_TARGET
         float4 directColorCurrent = gRtDirectCurrent.SampleLevel(gSampler, crd, 0);
         float4 directColorHistory = gDirectColorHistory.SampleLevel(gSampler, reprojectedCrd, 0);
 
-        mixValue =  0.3f;
+        mixValue = 0.3f;//0.3
         directOutput = mixValue * directColorCurrent.rgb + (1 - mixValue) * directColorHistory.rgb;
 
     }

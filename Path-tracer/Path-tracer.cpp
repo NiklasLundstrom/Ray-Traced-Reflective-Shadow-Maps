@@ -371,7 +371,7 @@ void PathTracer::createEnvironmentMapBuffer()
 void PathTracer::buildTransforms(float rotation)
 {
 	mat4 rotationMat = eulerAngleY(rotation*0.5f);
-	// floor
+	// room
 	mModels["Floor"].setTransform(scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 	mModels["Floor Extended"].setTransform(translate(mat4(), vec3(2.5, 0.0f, 7.5)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 
@@ -465,7 +465,7 @@ AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D1
 
 void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, std::map<std::string, Model> models, AccelerationStructureBuffers& buffers)
 {
-	int numInstances = 14/*+48*/; // keep in sync with mNumInstances
+	int numInstances = 14/*48*/; // keep in sync with mNumInstances
 
 	// First, get the size of the TLAS buffers and create them
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
@@ -1855,11 +1855,11 @@ void PathTracer::readKeyboardInput(bool *gKeys)
 	}
 	if (gKeys['U'])
 	{
-		mLight.phi = max(mLight.phi - 0.1f * mCameraSpeed, 0.0f);
+		mLight.phi = max(mLight.phi - 0.05f * mCameraSpeed, 0.0f);
 	}
 	else if (gKeys['T'])
 	{
-		mLight.phi = min(mLight.phi + 0.1f * mCameraSpeed, pi<float>());
+		mLight.phi = min(mLight.phi + 0.05f * mCameraSpeed, pi<float>());
 	}
 #endif
 
@@ -2248,7 +2248,7 @@ void PathTracer::createSpatialFilterPipeline()
 
 	parameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 	parameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-	parameters[0].Constants.Num32BitValues = 12;
+	parameters[0].Constants.Num32BitValues = 1;
 	parameters[0].Constants.RegisterSpace = 0;
 	parameters[0].Constants.ShaderRegister = 0; // b0
 
@@ -3365,7 +3365,6 @@ void PathTracer::applySpatialFilter(bool indirect)
 
 	// Set constants
 	mpCmdList->SetComputeRoot32BitConstants(0, 1, &mBlurRadius, 0);
-	mpCmdList->SetComputeRoot32BitConstants(0, (UINT)mGaussWeights.size(), mGaussWeights.data(), 1);
 
 	// Set Depth input
 	handle = heapStart;
@@ -3377,7 +3376,7 @@ void PathTracer::applySpatialFilter(bool indirect)
 	handle.ptr += mGeomteryBuffer_Normal_SrvHeapIndex * heapEntrySize;
 	mpCmdList->SetComputeRootDescriptorTable(4, handle); // t2
 
-	for (int i = 0; i < 4; i++)
+	for (int i = 0; i < 5; i++)
 	{
 		mSpatialItr = i + 1;
 		mpCmdList->SetComputeRoot32BitConstants(0, 1, &mSpatialItr, 0);

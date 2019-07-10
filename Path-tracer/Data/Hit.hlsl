@@ -101,7 +101,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         px = saturate(px);
         py = saturate(py);
 		
-        return float4(0.0f, 0.0f, 1.0f, 0.0f);
+        //return float4(0.0f, 0.0f, 1.0f, 0.0f);
     }
     px = px * shadowWidth;
     py = (1 - py) * shadowHeight;
@@ -244,7 +244,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
 	// from Ray-tracing gems, 16.5.1.2
     float xi1 = nextRand(payload.seed);
     float xi2 = nextRand(payload.seed);
-    float R = 2.0f; // Light radius
+    float R = 1.0f; // Light radius
     float a = 2.0 * xi1 - 1.0;
     float b = 2.0 * xi2 - 1.0;
     float r;

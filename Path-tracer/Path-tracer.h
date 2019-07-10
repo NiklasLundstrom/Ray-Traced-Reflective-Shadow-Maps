@@ -89,7 +89,7 @@ private:
 	// Scene
 	//////////////////////////////////////////////////////////////////////////
 
-	static const int mNumInstances = 14 /*+ 48*/; // keep in sync with value hard coded in buildTopLevelAS()
+	static const int mNumInstances = 14 /*48*/; // keep in sync with value hard coded in buildTopLevelAS()
 
 	// models
 	std::map<std::string, Model> mModels;

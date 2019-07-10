@@ -12,32 +12,17 @@ float makeDepthLinear(float oldDepth)
     return zPrim;
 };
 
-// taken from https://github.com/d3dcoder/d3d12book/blob/master/Chapter%2013%20The%20Compute%20Shader/Blur
+// inspired by from https://github.com/d3dcoder/d3d12book/blob/master/Chapter%2013%20The%20Compute%20Shader/Blur
 //=============================================================================
 // Performs a separable Guassian blur with a blur radius up to 5 pixels.
 //=============================================================================
 cbuffer cbSettings : register(b0)
 {
-	// We cannot have an array entry in a constant buffer that gets mapped onto
-	// root constants, so list each element.  	
-
     int itr;
-	// Support up to 11 blur weights.
-    float w0;
-    float w1;
-    float w2;
-    float w3;
-    float w4;
-    float w5;
-    float w6;
-    float w7;
-    float w8;
-    float w9;
-    float w10;
 };
-    //static const int gBlurRadius = 5;
+
 static const float weights[5] = {0.0625f, 0.25f, 0.375f, 0.25f, 0.0625f};
-static const int gMaxBlurRadius = 32;
+static const int gMaxBlurRadius = 32;//TODO: 16?
 
 Texture2D gInput : register(t0);
 Texture2D gDepth : register(t1);
@@ -61,7 +46,7 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
 	// Put in an array for each indexing.
     //float weights[11] =  { w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10 };
 
-    int blurRadius = 1 << itr; // reversed?(5 - itr);
+    int blurRadius = 1 << ((itr == 1) ? 1 : (6 - itr)); // first filter once without luminance check, then do reversed wavelet
     int blurHalfRadius = blurRadius >> 1;
 
 	//
@@ -144,7 +129,7 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
 	// Put in an array for each indexing.
     //float weights[11] = {w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10};
 
-    int blurRadius = 1 << itr; // pow(2, itr)
+    int blurRadius = 1 << ((itr == 1) ? 1 : (6 - itr)); // first filter once without luminance check, then do reversed wavelet
     int blurHalfRadius = blurRadius >> 1;
 
 	//
