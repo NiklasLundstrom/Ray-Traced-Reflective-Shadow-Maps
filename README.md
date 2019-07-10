@@ -1,0 +1,1 @@
+This project shows off a way to use ray-tracing to simulate global illumination in real-time.
