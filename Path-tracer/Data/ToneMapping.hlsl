@@ -82,7 +82,5 @@ float4 PSMain(PSInput input) : SV_TARGET
         output = cPrim;
     }
 
-
-
     return float4(output, 1);
 }

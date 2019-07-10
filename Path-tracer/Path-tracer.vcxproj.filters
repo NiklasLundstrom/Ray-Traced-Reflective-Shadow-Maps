@@ -29,10 +29,10 @@
     <FxCompile Include="Data\ShadowRay.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
-    <FxCompile Include="Data\PostProcessing.hlsl">
+    <FxCompile Include="Data\ShadowMap.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
-    <FxCompile Include="Data\Blur.hlsl">
+    <FxCompile Include="Data\SpatialFilter.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
   </ItemGroup>
@@ -49,9 +49,6 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="Data\RasterShaders.hlsl">
-      <Filter>Data</Filter>
-    </CustomBuild>
     <CustomBuild Include="Data\ToneMapping.hlsl">
       <Filter>Data</Filter>
     </CustomBuild>

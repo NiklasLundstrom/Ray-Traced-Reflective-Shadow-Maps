@@ -29,9 +29,6 @@
 #include "Framework.h"
 #include "Model.h"
 
-#define HYBRID
-
- //using namespace System::Windows::Input;
 
 class PathTracer : public Tutorial
 {
@@ -48,7 +45,7 @@ public:
 	void onShutdown() override;
 private:
 	//////////////////////////////////////////////////////////////////////////
-	// Tutorial 02 code
+	// Basic set up
 	//////////////////////////////////////////////////////////////////////////
 	void initDXR(HWND winHandle, uint32_t winWidth, uint32_t winHeight);
 	uint32_t beginFrame();
@@ -97,9 +94,7 @@ private:
 	void buildTransforms(float rotation);
 	float mRotation = 0;
 
-#ifdef HYBRID
 	void updateTransformBuffers();
-#endif
 
 	void createAccelerationStructures();
 	ID3D12ResourcePtr				mpBottomLevelAS[mNumInstances];
@@ -167,7 +162,6 @@ private:
 	//////////////////////////////////////////////////////////////////////////
 	// Shadow map
 	//////////////////////////////////////////////////////////////////////////
-#ifdef HYBRID
 
 	const UINT kShadowMapWidth = 512;
 	const UINT kShadowMapHeight = 512;
@@ -198,7 +192,7 @@ private:
 
 	D3D12_CPU_DESCRIPTOR_HANDLE mShadowMapRTVs[3];
 
-	void createRasterPipelineState();
+	void createShadowMapPipelineState();
 	void renderShadowMap();
 	void createLightBuffer();
 	void updateLightBuffer();
@@ -221,7 +215,6 @@ private:
 		mat4 projMat;
 	} mLight;
 
-#endif // HYBRID
 
 	//////////////////////////////////////////////////////////////////////////
 	// Post processing stuff

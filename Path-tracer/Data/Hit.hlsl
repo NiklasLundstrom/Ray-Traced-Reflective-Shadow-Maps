@@ -5,8 +5,6 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
 void sampleDiffuseLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload);
 void sampleRay(in float3 hitPoint, in float3 direction, inout RayPayload payload);
 
-#define HYBRID
-
 
 RaytracingAccelerationStructure gRtScene : register(t0);
 
@@ -236,8 +234,6 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
 
     float3 b2 = cross(n, b1);
 
-
-
     float3x3 tbn = float3x3(b1, b2, n);
 
 	// pick random sample
@@ -265,7 +261,6 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
 	
 	// direction from https://github.com/Apress/ray-tracing-gems/blob/master/Ch_13_Ray_Traced_Shadows_Maintaining_Real-Time_Frame_Rates/dxrShadows/Data/DXRShadows.rt.hlsl
     float3 sampleDirection = lightPosition + (mul(float3(diskSample.x, diskSample.y, 0.0f), tbn)) - hitPoint;
-    //float3 sampleDirection = mul(tbn,float3(x, y, z) );
 	
 
     direction = normalize(direction);

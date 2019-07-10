@@ -30,11 +30,10 @@ public:
 
 protected:
 	
-
 	LPCWSTR mName;
 	uint8_t mModelIndex;
 
-	// Mesh
+	// Single mesh
 	ID3D12ResourcePtr mpVertexBuffer;
 	ID3D12ResourcePtr mpIndexBuffer;
 	ID3D12ResourcePtr mpNormalBuffer;
@@ -52,7 +51,7 @@ protected:
 	std::vector < D3D12_VERTEX_BUFFER_VIEW>	mVertexBufferViews;
 	std::vector < D3D12_INDEX_BUFFER_VIEW>		mIndexBufferViews;
 
-
+	// help functions to create the buffers
 	ID3D12ResourcePtr createBuffer(ID3D12Device5Ptr pDevice, uint64_t size, D3D12_RESOURCE_FLAGS flags, D3D12_RESOURCE_STATES initState, const D3D12_HEAP_PROPERTIES& heapProps);
 	ID3D12ResourcePtr createVB(ID3D12Device5Ptr pDevice, aiVector3D* aiVertecies, int numVertices);
 	ID3D12ResourcePtr createIB(ID3D12Device5Ptr pDevice, aiFace* aiFaces, int numFaces);
@@ -61,7 +60,6 @@ protected:
 	ID3D12ResourcePtr createPlaneVB(ID3D12Device5Ptr pDevice);
 	ID3D12ResourcePtr createPlaneIB(ID3D12Device5Ptr pDevice);
 	ID3D12ResourcePtr createPlaneNB(ID3D12Device5Ptr pDevice);
-
 
 	AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB, const uint32_t vertexCount, ID3D12ResourcePtr pIB, const uint32_t indexCount);
 
@@ -76,16 +74,10 @@ protected:
 	LPCWSTR mHitGroup;
 	vec3 mColor;
 
-
 	// for plane only
 	struct VertexType
 	{
 		vec3 position;
 		vec2 uv;
 	};
-
-
-
-
-
 };

@@ -190,7 +190,6 @@ inline glm::mat4 aiMatrix4x4ToGlm(const aiMatrix4x4* from)
 	// from: https://stackoverflow.com/questions/29184311/how-to-rotate-a-skinned-models-bones-in-c-using-assimp
 	glm::mat4 to;
 
-
 	to[0][0] = (f32)from->a1; to[0][1] = (f32)from->b1;  to[0][2] = (f32)from->c1; to[0][3] = (f32)from->d1;
 	to[1][0] = (f32)from->a2; to[1][1] = (f32)from->b2;  to[1][2] = (f32)from->c2; to[1][3] = (f32)from->d2;
 	to[2][0] = (f32)from->a3; to[2][1] = (f32)from->b3;  to[2][2] = (f32)from->c3; to[2][3] = (f32)from->d3;
@@ -241,7 +240,9 @@ void Model::loadModelHardCodedPlane(ID3D12Device5Ptr pDevice, ID3D12GraphicsComm
 	return;// bottomLevelBuffer;
 
 }
-
+/*
+	Load a single mesh from a file using assimp and create all the buffers and BLAS
+*/
 AccelerationStructureBuffers Model::loadModelFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter, bool loadTransform)
 {
 	const aiScene* scene = pImporter->ReadFile(pFileName,
@@ -295,6 +296,9 @@ AccelerationStructureBuffers Model::loadModelFromFile(ID3D12Device5Ptr pDevice, 
 	return bottomLevelBuffer;
 }
 
+/*
+	Load multiple meshes from a file using assimp, and create all the buffers and BLAS
+*/
 std::vector<AccelerationStructureBuffers> Model::loadMultipleModelsFromFile(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, const char* pFileName, Assimp::Importer* pImporter, bool loadTransform)
 {
 	const aiScene* scene = pImporter->ReadFile(pFileName,
