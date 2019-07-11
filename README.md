@@ -1,4 +1,4 @@
-This project shows off a way to use ray tracing to simulate global illumination in real-time using DXR.
+This project shows a way to use ray tracing to simulate global illumination in real-time using DXR.
 
 My approach is inspired by Reflective Shadow Maps, but with ray tracing to determine occlusion. So, instead of shooting a diffuse ray from the hit point, I sample a texture containing all points being hit by direct light, and shoot a ray to some of those points.
 
