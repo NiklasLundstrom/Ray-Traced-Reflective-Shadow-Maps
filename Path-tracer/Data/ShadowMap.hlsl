@@ -45,7 +45,7 @@ PSInput VSMain(float3 position : POSITION, uint index : SV_VertexID)
     vsOutput.normal = normal;
 
 	// color
-    vsOutput.color = float3(r, g, b);
+    vsOutput.color = float3(r, g, b) * float3(1.0f, 1.0f, 1.0f);
 
     return vsOutput;
 }

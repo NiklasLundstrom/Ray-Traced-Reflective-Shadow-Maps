@@ -438,9 +438,9 @@ AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D1
 	return buffers;
 }
 
-void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, std::map<std::string, Model> models, AccelerationStructureBuffers& buffers)
+void PathTracer::buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, std::map<std::string, Model> models, AccelerationStructureBuffers& buffers)
 {
-	int numInstances = 14/*48*/; // keep in sync with mNumInstances
+	int numInstances = mNumInstances;//14/*48*/; // keep in sync with mNumInstances
 
 	// First, get the size of the TLAS buffers and create them
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
@@ -486,7 +486,7 @@ void buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCm
 		for (uint i = 0; i < it->second.getNumMeshes(); i++)
 		{
 			instanceDescs[instanceIdx].InstanceID = it->second.getModelIndex() + i; // This value will be exposed to the shader via InstanceID()
-			instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = 2 * instanceIdx;  // hard coded
+			instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = mNbrHitGroups * instanceIdx;  // hard coded
 			instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE;
 			mat4 m = transpose(it->second.getTransformMatrix()); // GLM is column major, the INSTANCE_DESC is row major
 			memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
@@ -925,6 +925,82 @@ RootSignatureDesc createMissRootDesc(D3D12_STATIC_SAMPLER_DESC* sampler)
 	return desc;
 }
 
+RootSignatureDesc createOfflineRayGenRootDesc()
+{
+	// Create the root-signature
+	RootSignatureDesc desc;
+	desc.range.resize(3);
+
+	// gDirectOutput
+	desc.range[0].BaseShaderRegister = 0;// u0
+	desc.range[0].NumDescriptors = 1;
+	desc.range[0].RegisterSpace = 0;
+	desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_UAV;
+	desc.range[0].OffsetInDescriptorsFromTableStart = 0;
+
+	// gRtScene
+	desc.range[1].BaseShaderRegister = 0; //t0
+	desc.range[1].NumDescriptors = 1;
+	desc.range[1].RegisterSpace = 0;
+	desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[1].OffsetInDescriptorsFromTableStart = 1;
+
+	// Camera
+	desc.range[2].BaseShaderRegister = 0; //b0
+	desc.range[2].NumDescriptors = 1;
+	desc.range[2].RegisterSpace = 0;
+	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+	desc.range[2].OffsetInDescriptorsFromTableStart = 2;
+
+	desc.rootParams.resize(1);
+	// output UAV, TLAS and camera
+	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 3;
+	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
+
+
+	// Create the desc
+	desc.desc.NumParameters = 1;
+	desc.desc.pParameters = desc.rootParams.data();
+	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+
+	return desc;
+}
+
+RootSignatureDesc createOfflineModelHitRootDesc()
+{
+	RootSignatureDesc desc;
+	desc.range.resize(1);
+
+	// gRtScene
+	desc.range[0].BaseShaderRegister = 0; //t0
+	desc.range[0].NumDescriptors = 1;
+	desc.range[0].RegisterSpace = 0;
+	desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	desc.range[0].OffsetInDescriptorsFromTableStart = 0;
+
+	desc.rootParams.resize(3);
+	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
+	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
+	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
+
+	// indices
+	desc.rootParams[1].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	desc.rootParams[1].Descriptor.RegisterSpace = 0;
+	desc.rootParams[1].Descriptor.ShaderRegister = 1;//t1
+
+	// normals
+	desc.rootParams[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	desc.rootParams[2].Descriptor.RegisterSpace = 0;
+	desc.rootParams[2].Descriptor.ShaderRegister = 2;//t2
+
+	desc.desc.NumParameters = 3;
+	desc.desc.pParameters = desc.rootParams.data();
+	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+
+	return desc;
+}
+
 struct DxilLibrary
 {
 	DxilLibrary(ID3DBlobPtr pBlob, const WCHAR* entryPoint[], uint32_t entryPointCount) : pShaderBlob(pBlob)
@@ -1157,7 +1233,7 @@ void PathTracer::createRtPipelineState()
 #pragma region
 // Bind the payload size to all programs
 
-	ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 8);
+	ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 7 + sizeof(uint));
 	subobjects[index] = primaryShaderConfig.subobject; // Payload size
 
 	uint32_t primaryShaderConfigIndex = index++;
@@ -1187,6 +1263,7 @@ void PathTracer::createRtPipelineState()
 	desc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
 
 	d3d_call(mpDevice->CreateStateObject(&desc, IID_PPV_ARGS(&mpRtPipelineState)));
+	mpRtPipelineState->SetName(L"Rt PSO");
 }
 
 void PathTracer::createShaderTable()
@@ -1212,7 +1289,7 @@ void PathTracer::createShaderTable()
 	uint32_t shaderTableSize = mShaderTableEntrySize * numShaderTableEntries;
 	if (mShaderTableEntrySize % D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT != 0)
 	{
-		shaderTableSize += 32; // padding between RayGen and first Miss. Work iff the number of miss entries are even.
+		shaderTableSize += 32; // padding between RayGen and first Miss. Works iff the number of miss entries are even.
 	}
 
 	// For simplicity, we create the shader-table on the upload heap. You can also create it on the default heap
@@ -1260,7 +1337,6 @@ void PathTracer::createShaderTable()
 		memcpy(pEntryShadowMiss, pRtsoProps->GetShaderIdentifier(kShadowMissShader), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
 		entryIndex++;
 
-
 	// pad to align to 64 bytes
 	if (  ( (uint64_t)pData + mShaderTableEntrySize * entryIndex) % D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT != 0)
 	{
@@ -1301,6 +1377,188 @@ void PathTracer::createShaderTable()
 	// Unmap
 	assert(entryIndex == numShaderTableEntries);
 	mpShaderTable->Unmap(0, nullptr);
+}
+
+void PathTracer::createPathTracerPipilineState()
+{
+	const int numSubobjects = 15;
+
+	std::array <D3D12_STATE_SUBOBJECT, numSubobjects> subobjects;
+	uint32_t index = 0;
+
+//----- Create the DXIL libraries -----//
+
+	const WCHAR* entryPointsRayGen[] = { kRayGenShader };
+	DxilLibrary rayGenLib = DxilLibrary(compileLibrary(L"Data/offline shaders/offline_RayGeneration.hlsl", L"", L"lib_6_3"), entryPointsRayGen, arraysize(entryPointsRayGen));
+	subobjects[index++] = rayGenLib.stateSubobject; // RayGen Library
+
+	const WCHAR* entryPointsMiss[] = { kMissShader };
+	DxilLibrary missLib = DxilLibrary(compileLibrary(L"Data/offline shaders/offline_Miss.hlsl", L"", L"lib_6_3"), entryPointsMiss, arraysize(entryPointsMiss));
+	subobjects[index++] = missLib.stateSubobject; // Miss Library
+
+	const WCHAR* entryPointsHit[] = { kModelChs, kAreaLightChs };
+	DxilLibrary hitLib = DxilLibrary(compileLibrary(L"Data/offline shaders/offline_Hit.hlsl", L"", L"lib_6_3"), entryPointsHit, arraysize(entryPointsHit));
+	subobjects[index++] = hitLib.stateSubobject; // Hit Library
+
+//----- Create Hit Programs -----//
+
+	// Create the model HitProgram
+	HitProgram modelHitProgram(nullptr, kModelChs, kModelHitGroup);
+	subobjects[index++] = modelHitProgram.subObject; // Model Hit Group
+
+	// Create the area light HitProgram
+	HitProgram areaLightHitProgram(nullptr, kAreaLightChs, kAreaLightHitGroup);
+	subobjects[index++] = areaLightHitProgram.subObject; // Model Hit Group
+
+//---- Create root-signatures and associations ----//
+
+	// Create the ray-gen root-signature and association
+	LocalRootSignature rgsRootSignature(mpDevice, createOfflineRayGenRootDesc().desc);
+	subobjects[index] = rgsRootSignature.subobject; // Ray Gen Root Sig
+
+	uint32_t rgsRootIndex = index++;
+	ExportAssociation rgsRootAssociation(&kRayGenShader, 1, &(subobjects[rgsRootIndex]));
+	subobjects[index++] = rgsRootAssociation.subobject; // Associate Root Sig to RGS
+
+	// Create the model hit root-signature and association
+	LocalRootSignature modelHitRootSignature(mpDevice, createOfflineModelHitRootDesc().desc);
+	subobjects[index] = modelHitRootSignature.subobject; // Model Hit Root Sig
+
+	uint32_t modelHitRootIndex = index++;
+	ExportAssociation modelHitRootAssociation(&kModelHitGroup, 1, &(subobjects[modelHitRootIndex]));
+	subobjects[index++] = modelHitRootAssociation.subobject; // Associate Model Hit Root Sig to Model Hit Group
+
+	// Create the empty root-signature and associate it with the area light and miss
+	D3D12_ROOT_SIGNATURE_DESC emptyDesc = {};
+	emptyDesc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
+	LocalRootSignature emptyRootSignature(mpDevice, emptyDesc);
+	subobjects[index] = emptyRootSignature.subobject; // Empty Root Sig for Area light and miss
+
+	uint32_t emptyRootIndex = index++;
+	const WCHAR* emptyRootExport[] = { kAreaLightChs, kMissShader };
+	ExportAssociation emptyRootAssociation(emptyRootExport, arraysize(emptyRootExport), &(subobjects[emptyRootIndex]));
+	subobjects[index++] = emptyRootAssociation.subobject; // Associate empty root sig to Area light and Miss
+
+//---- Create Shader config, Pipeline config and Global Root-Signature----//
+
+// Bind the payload size to all programs
+	ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 3 + 2 * sizeof(int));
+	subobjects[index] = primaryShaderConfig.subobject; // Payload size
+
+	uint32_t primaryShaderConfigIndex = index++;
+	const WCHAR* primaryShaderExports[] = { kRayGenShader, kMissShader, kModelChs, kAreaLightChs };
+
+	ExportAssociation primaryConfigAssociation(primaryShaderExports, arraysize(primaryShaderExports), &(subobjects[primaryShaderConfigIndex]));
+	subobjects[index++] = primaryConfigAssociation.subobject; // Associate shader config to all programs
+
+// Create the pipeline config
+	PipelineConfig config(10); // maxRecursionDepth
+	subobjects[index++] = config.subobject; // Recursion depth
+
+// Create the global root signature and store the empty signature
+	GlobalRootSignature root(mpDevice, {});
+	mpPathTracerEmptyRootSig = root.pRootSig;
+	subobjects[index++] = root.subobject; // Global root signature
+
+	assert(index == numSubobjects);
+
+	// Create the state
+	D3D12_STATE_OBJECT_DESC desc;
+	desc.NumSubobjects = index;
+	desc.pSubobjects = subobjects.data();
+	desc.Type = D3D12_STATE_OBJECT_TYPE_RAYTRACING_PIPELINE;
+
+	d3d_call(mpDevice->CreateStateObject(&desc, IID_PPV_ARGS(&mpPathTracerPipelineState)));
+
+}
+
+void PathTracer::createPathTracerShaderTable()
+{
+	const int numShaderTableEntries = 2 + mNumInstances;// raygen + miss + models
+
+	// Calculate the size and create the buffer
+	mPathTracerShaderTableEntrySize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+	mPathTracerShaderTableEntrySize += 3 * sizeof(UINT64); // The hit shader constant-buffer descriptor
+	mPathTracerShaderTableEntrySize = align_to(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT, mPathTracerShaderTableEntrySize);
+	uint32_t shaderTableSize = mPathTracerShaderTableEntrySize * numShaderTableEntries;
+	if (mPathTracerShaderTableEntrySize % D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT != 0)
+	{
+		shaderTableSize += 32; // padding between RayGen and first Miss. Works iff the number of miss entries are even.
+	}
+
+	// For simplicity, we create the shader-table on the upload heap. You can also create it on the default heap
+	mpPathTracerShaderTable = createBuffer(mpDevice, shaderTableSize, D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	mpPathTracerShaderTable->SetName(L"Offline Shader Table");
+
+	// heap info
+	D3D12_GPU_VIRTUAL_ADDRESS heapStart = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart().ptr;
+
+	// Map the buffer
+	uint8_t* pData;
+	d3d_call(mpPathTracerShaderTable->Map(0, nullptr, (void**)&pData));
+
+	MAKE_SMART_COM_PTR(ID3D12StateObjectProperties);
+	ID3D12StateObjectPropertiesPtr pRtsoProps;
+	mpPathTracerPipelineState->QueryInterface(IID_PPV_ARGS(&pRtsoProps));
+
+	int entryIndex = 0;
+	// Entry 0 - ray-gen program ID and descriptor data
+		uint8_t* pEntry0 = pData;
+		memcpy(pEntry0, pRtsoProps->GetShaderIdentifier(kRayGenShader), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		pEntry0 += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+		// output UAV, TLAS and Camera buffer
+		*(uint64_t*)pEntry0 = heapStart + 1 * mHeapEntrySize;
+		entryIndex++;
+
+	// pad to align to 64 bytes
+	if (((int64_t)pData + mPathTracerShaderTableEntrySize * entryIndex) % D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT != 0)
+	{
+		pData += 32;
+	}
+
+	// Entry 1 - miss
+		memcpy(pData + mPathTracerShaderTableEntrySize * entryIndex, pRtsoProps->GetShaderIdentifier(kMissShader), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+		entryIndex++;
+
+	// pad to align to 64 bytes
+	if (((uint64_t)pData + mPathTracerShaderTableEntrySize * entryIndex) % D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT != 0)
+	{
+		pData += 32;
+	}
+
+	// Entry 2 - Model, primary ray. ProgramID and index-buffer
+	for (auto it = mModels.begin(); it != mModels.end(); ++it)
+	{
+		if (it->first == "Robot2")
+		{
+			uint8_t* pEntry2 = pData + mPathTracerShaderTableEntrySize * entryIndex;
+			memcpy(pEntry2, pRtsoProps->GetShaderIdentifier(kAreaLightHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+			entryIndex++;
+		}
+		else {
+			for (uint i = 0; i < it->second.getNumMeshes(); i++)
+			{
+				uint8_t* pEntry2 = pData + mPathTracerShaderTableEntrySize * entryIndex;
+				memcpy(pEntry2, pRtsoProps->GetShaderIdentifier(kModelHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
+				pEntry2 += D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
+				// TLAS
+				*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry2 = heapStart + 2 * mHeapEntrySize;
+				pEntry2 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
+				// Index buffer
+				*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry2 = it->second.getIndexBufferGPUAdress(i);
+				pEntry2 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS);
+				// Normal buffer
+				*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry2 = it->second.getNormalBufferGPUAdress(i);
+				pEntry2 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
+
+				entryIndex++;
+			}
+		}
+	}
+
+	// Unmap
+	assert(entryIndex == numShaderTableEntries);
+	mpPathTracerShaderTable->Unmap(0, nullptr);
 }
 
 void PathTracer::createShaderResources()
@@ -1786,6 +2044,15 @@ void PathTracer::readKeyboardInput(bool *gKeys)
 		mLight.phi = min(mLight.phi + 0.05f * mCameraSpeed, pi<float>());
 	}
 
+	// Drop history (reset)
+	if (gKeys['R'])
+	{
+		mDropHistory = true;
+	}
+	else 
+	{
+		mDropHistory = false;
+	}
 
 }
 
@@ -2750,7 +3017,7 @@ void PathTracer::createTemporalFilterPipeline()
 	ranges[4].OffsetInDescriptorsFromTableStart = 2;
 
 
-	D3D12_ROOT_PARAMETER rootParameters[2];
+	D3D12_ROOT_PARAMETER rootParameters[3];
 	// Current indirect and direct color
 	rootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	rootParameters[0].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
@@ -2761,6 +3028,12 @@ void PathTracer::createTemporalFilterPipeline()
 	rootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 	rootParameters[1].DescriptorTable.NumDescriptorRanges = 3;
 	rootParameters[1].DescriptorTable.pDescriptorRanges = &ranges[2];
+	// constants
+	rootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
+	rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+	rootParameters[2].Constants.Num32BitValues = 2;
+	rootParameters[2].Constants.RegisterSpace = 0;
+	rootParameters[2].Constants.ShaderRegister = 0; // b0
 
 	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
@@ -2785,7 +3058,7 @@ void PathTracer::createTemporalFilterPipeline()
 	sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
 	RootSignatureDesc desc;
-	desc.desc.NumParameters = 2;
+	desc.desc.NumParameters = 3;
 	desc.desc.pParameters = rootParameters;
 	desc.desc.NumStaticSamplers = 1;
 	desc.desc.pStaticSamplers = &sampler;
@@ -2969,11 +3242,11 @@ void PathTracer::renderShadowMap()
 
 	// submit command list and reset
 	mpCmdList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(mpShadowMapTexture_Depth, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE));
-	mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
-	mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
-	WaitForSingleObject(mFenceEvent, INFINITE);
-	mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator->Reset();
-	mpCmdList->Reset(mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator, nullptr);
+	//mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
+	//mpFence->SetEventOnCompletion(mFenceValue, mFenceEvent);
+	//WaitForSingleObject(mFenceEvent, INFINITE);
+	//mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator->Reset();
+	//mpCmdList->Reset(mFrameObjects[mpSwapChain->GetCurrentBackBufferIndex()].pCmdAllocator, nullptr);
 
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
@@ -2989,7 +3262,7 @@ void PathTracer::rayTrace()
 
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Raytrace");
 
-	// Let's raytrace
+	// Let's ray trace
 	resourceBarrier(mpCmdList, mpRtIndirectOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	resourceBarrier(mpCmdList, mpRtDirectOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -3012,9 +3285,7 @@ void PathTracer::rayTrace()
 	size_t hitOffset = align_to(D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, missOffset + 2 * mShaderTableEntrySize);
 	raytraceDesc.HitGroupTable.StartAddress = mpShaderTable->GetGPUVirtualAddress() + hitOffset;
 	raytraceDesc.HitGroupTable.StrideInBytes = mShaderTableEntrySize;
-	raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 2 * mNumInstances;    // 6 hit-entries
-
-
+	raytraceDesc.HitGroupTable.SizeInBytes = mShaderTableEntrySize * 2 * mNumInstances;    // 2 hit-entries per model
 
 	// Bind the empty root signature
 	mpCmdList->SetComputeRootSignature(mpEmptyRootSig);
@@ -3022,6 +3293,47 @@ void PathTracer::rayTrace()
 	// Dispatch
 	mpCmdList->SetPipelineState1(mpRtPipelineState.GetInterfacePtr());
 	mpCmdList->DispatchRays(&raytraceDesc);
+	PIXEndEvent(mpCmdList.GetInterfacePtr());
+}
+
+void PathTracer::offlinePathTrace()
+{
+	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Offline Path trace");
+
+	// Let's path trace
+	resourceBarrier(mpCmdList, mpRtDirectOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	resourceBarrier(mpCmdList, mpRtIndirectOutput, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+	buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, true, mModels, mTopLevelBuffers);
+
+	D3D12_DISPATCH_RAYS_DESC raytraceDesc = {};
+	raytraceDesc.Width = mSwapChainSize.x;
+	raytraceDesc.Height = mSwapChainSize.y;
+	raytraceDesc.Depth = 1;
+
+	// RayGen is the first entry in the shader-table
+	raytraceDesc.RayGenerationShaderRecord.StartAddress = mpPathTracerShaderTable->GetGPUVirtualAddress() + 0 * mPathTracerShaderTableEntrySize;
+	raytraceDesc.RayGenerationShaderRecord.SizeInBytes = mPathTracerShaderTableEntrySize;
+
+	// Miss is the second entry in the shader-table
+	size_t missOffset = align_to(D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, 1 * mPathTracerShaderTableEntrySize);
+	raytraceDesc.MissShaderTable.StartAddress = mpPathTracerShaderTable->GetGPUVirtualAddress() + missOffset;
+	raytraceDesc.MissShaderTable.StrideInBytes = mPathTracerShaderTableEntrySize;
+	raytraceDesc.MissShaderTable.SizeInBytes = mPathTracerShaderTableEntrySize;   // 1 miss-entry
+
+	// Hit is the third entry in the shader-table
+	size_t hitOffset = align_to(D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT, missOffset + mPathTracerShaderTableEntrySize);
+	raytraceDesc.HitGroupTable.StartAddress = mpPathTracerShaderTable->GetGPUVirtualAddress() + hitOffset;
+	raytraceDesc.HitGroupTable.StrideInBytes = mPathTracerShaderTableEntrySize;
+	raytraceDesc.HitGroupTable.SizeInBytes = mPathTracerShaderTableEntrySize * mNumInstances;    // 1 hit-entry per model
+
+	// Bind the empty root signature
+	mpCmdList->SetComputeRootSignature(mpPathTracerEmptyRootSig);
+
+	// Dispatch
+	mpCmdList->SetPipelineState1(mpPathTracerPipelineState.GetInterfacePtr());
+	mpCmdList->DispatchRays(&raytraceDesc);
+
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
@@ -3167,9 +3479,9 @@ void PathTracer::applyTemporalFilter()
 	// Set Root signature
 	mpCmdList->SetGraphicsRootSignature(mpTemporalFilterRootSig.GetInterfacePtr());
 
-	// Set descriptor heaps
-	/*ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
-	mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);*/
+	// //Set descriptor heaps
+	//ID3D12DescriptorHeap* ppHeaps[] = { mpCbvSrvUavHeap.GetInterfacePtr() };
+	//mpCmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
 
 	// set "Shader Table", i.e. resources for root signature
 	D3D12_GPU_DESCRIPTOR_HANDLE handle = mHeapStart;
@@ -3179,6 +3491,11 @@ void PathTracer::applyTemporalFilter()
 	handle = mHeapStart;
 	handle.ptr += mIndirectColorHistoryHeapIndex * mHeapEntrySize;
 	mpCmdList->SetGraphicsRootDescriptorTable(1, handle); // t2-4, color history and motion vector
+
+	// set constants
+	mpCmdList->SetGraphicsRoot32BitConstants(2, 1, &mDropHistory, 0);
+	mpCmdList->SetGraphicsRoot32BitConstants(2, 1, &mOffline, 1);
+
 
 	// viewport
 	mpCmdList->RSSetViewports(1, &mPostProcessingViewPort);
@@ -3432,7 +3749,8 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 	initDXR(winHandle, winWidth, winHeight);        
 	createAccelerationStructures();                 // Load models and build AS
 	buildTransforms(mRotation);
-	createRtPipelineState();                        
+	createRtPipelineState();       
+	createPathTracerPipilineState();
 	createShadowMapPipelineState();
 	createLightBuffer();
 	createShadowMapTextures();
@@ -3443,7 +3761,8 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 	createCameraBuffers();							
 	createEnvironmentMapBuffer();
 	createShaderResources();                        // Create heap
-	createShaderTable();                            
+	createShaderTable();    
+	createPathTracerShaderTable();
 
 	// Submit command list and wait for completion
 	mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
@@ -3463,7 +3782,7 @@ void PathTracer::onFrameRender(bool *gKeys)
 
 	// Update object transforms
 	buildTransforms(mRotation);
-	mRotation += 0.5f*mCameraSpeed;
+	//mRotation += 0.5f*mCameraSpeed;
 
 	// Update camera
 	updateCameraBuffers();
@@ -3474,11 +3793,6 @@ void PathTracer::onFrameRender(bool *gKeys)
 	// Update light buffer
 	updateLightBuffer();
 
-	//////////////////////
-	// Rasterize
-	//////////////////////
-	renderShadowMap();
-
 	uint32_t rtvIndex = beginFrame();
 
 	//////////////////////
@@ -3488,9 +3802,18 @@ void PathTracer::onFrameRender(bool *gKeys)
 	renderMotionVectors();
 
 	//////////////////////
+	// Shadow map
+	//////////////////////
+	renderShadowMap();
+
+	//////////////////////
 	// ray-trace
 	//////////////////////
+#ifdef OFFLINE
+	offlinePathTrace();
+#else
 	rayTrace();
+#endif // OFFLINE
 
 	//////////////////////
 	// Temporal filter

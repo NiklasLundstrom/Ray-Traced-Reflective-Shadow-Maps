@@ -62,9 +62,6 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
     float3 indirectColor = indirectColorNumRays.rgb;
     float numRays = indirectColorNumRays.a;
 
-        //float3 incomingColor = directColor + indirectColor;
-
-
     payload.indirectColor = float4(indirectColor, numRays);
     payload.directColor = float3(directColor);
 }
@@ -119,8 +116,8 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
     int numRaySamples = 0;
     int numTotSamples = 0;
-    int maxNumRays = acceptedReprojection ? 50 : 600;
-    int maxNumTot = acceptedReprojection ? 50 : 600;
+    int maxNumRays = acceptedReprojection ? 100 : 600;
+    int maxNumTot = acceptedReprojection ? 100 : 600;
     while (numRaySamples < maxNumRays && numTotSamples < maxNumTot)
     {
         if (numTotSamples > 100 && numRaySamples == 0)
@@ -135,17 +132,35 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         float rMax = 400.0f;
         int i = floor(rMax * xi1 * sin(2 * PI * xi2));
         int j = floor(rMax * xi1 * cos(2 * PI * xi2));
-			//int i = xi1 * shadowWidth;
-			//int j = xi2 * shadowHeight;
+		// uniform over square
+        //int i = xi1 * shadowWidth;
+        //int j = xi2 * shadowHeight;
+
+		//// uniform disk
+        //float a = 2.0 * xi1 - 1.0;
+        //float b = 2.0 * xi2 - 1.0;
+        //float r;
+        //float phi;
+        //if (a * a > b * b)
+        //{
+        //    r = rMax * a;
+        //    phi = (PI / 4.0) * (b / a);
+        //}
+        //else
+        //{
+        //    r = rMax * b;
+        //    phi = (PI / 2.0) - (PI / 4.0) * (a / b);
+        //}
+        //int i = r * cos(phi);
+        //int j = r * sin(phi);
 
 
+        numTotSamples++;
 		// outside shadow map texture
         if ((crd.x + i) < 0 || (crd.y + j) < 0 || (crd.x + i) >= shadowWidth || (crd.y + j) >= shadowHeight)
         {
-            //return float3(0.0, 1.0, 0.0);
             continue;
         }
-        numTotSamples++;
 
 		// sample shadow map
         float4 lightPosData = gShadowMap_Position[crd + uint2(i, j)];
@@ -182,7 +197,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         numRaySamples++;
 
 		// set up ray
-        rayShadow.TMax = distance - 0.0001; // minus 0.0001?
+        rayShadow.TMax = distance - 0.0001; 
         rayShadow.Direction = direction;
 
         TraceRay(
@@ -207,7 +222,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
     if (numRaySamples > 0)
     {
-        indirectColor /= numTotSamples; // (shadowWidth * shadowHeight / 25); //numSamples;
+        indirectColor /= numTotSamples;
     }
     return float4(indirectColor, numRaySamples);
 

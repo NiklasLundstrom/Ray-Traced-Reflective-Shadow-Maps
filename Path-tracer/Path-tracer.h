@@ -29,6 +29,12 @@
 #include "Framework.h"
 #include "Model.h"
 
+#define OFFLINE
+#ifdef OFFLINE
+	const bool mOffline = true;
+#else
+	const bool mOffline = false;
+#endif
 
 class PathTracer : public Tutorial
 {
@@ -97,12 +103,19 @@ private:
 	void updateTransformBuffers();
 
 	void createAccelerationStructures();
+	void buildTopLevelAS(ID3D12Device5Ptr pDevice, 
+						ID3D12GraphicsCommandList4Ptr pCmdList, 
+						ID3D12ResourcePtr pBottomLevelAS[], 
+						uint64_t& tlasSize, 
+						bool update, 
+						std::map<std::string, Model> models, 
+						AccelerationStructureBuffers& buffers);
 	ID3D12ResourcePtr				mpBottomLevelAS[mNumInstances];
 	AccelerationStructureBuffers	mTopLevelBuffers;
 	uint64_t						mTlasSize = 0;
 
 	//////////////////////////////////////////////////////////////////////////
-	// Ray-tracing
+	// Ray tracing
 	//////////////////////////////////////////////////////////////////////////
 	void createRtPipelineState();
 	void createShaderTable();
@@ -116,6 +129,23 @@ private:
 	ID3D12ResourcePtr		mpRtDirectOutput;
 	uint8_t					mRtIndirectOutputHeapIndex;
 	uint8_t					mRtDirectOutputHeapIndex;
+
+	//////////////////////////////////////////////////////////////////////////
+	// offline path tracer
+	//////////////////////////////////////////////////////////////////////////
+	void createPathTracerPipilineState();
+	void createPathTracerShaderTable();
+	void offlinePathTrace();
+	ID3D12StateObjectPtr	mpPathTracerPipelineState;
+	ID3D12RootSignaturePtr	mpPathTracerEmptyRootSig;
+	ID3D12ResourcePtr		mpPathTracerShaderTable;
+	uint32_t				mPathTracerShaderTableEntrySize = 0;
+#ifdef OFFLINE
+	const int mNbrHitGroups = 1;
+#else
+	const int mNbrHitGroups = 2;
+#endif // OFFLINE
+
 
 	//////////////////////////////////////////////////////////////////////////
 	// Miscellaneous
@@ -305,6 +335,8 @@ private:
 	uint8_t					mTemporalFilterOutputHeapIndex;
 
 	D3D12_CPU_DESCRIPTOR_HANDLE mTemporalFilterRtvs[2];
+
+	bool mDropHistory = false;
 
 
 

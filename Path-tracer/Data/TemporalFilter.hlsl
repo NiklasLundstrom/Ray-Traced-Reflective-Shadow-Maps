@@ -27,6 +27,12 @@ Texture2D<float4> gIndirectColorHistory : register(t2);
 Texture2D<float4> gDirectColorHistory : register(t3);
 Texture2D<float4> gMotionVectors : register(t4);
 
+cbuffer cbSettings : register(b0)
+{
+    bool dropHistory;
+    bool OFFLINE;
+};
+
 SamplerState gSampler : register(s0);
 
 struct PS_OUT
@@ -50,7 +56,7 @@ PS_OUT PSMain(PSInput input) : SV_TARGET
     float3 indirectOutput;
     float3 directOutput;
     float historyLength;
-    if (acceptReprojection)
+    if (acceptReprojection && !dropHistory)
     {
 		// indirect
         float4 indirectColorCurrent = gRtIndirectCurrent.SampleLevel(gSampler, crd, 0);
@@ -64,7 +70,14 @@ PS_OUT PSMain(PSInput input) : SV_TARGET
         float4 directColorCurrent = gRtDirectCurrent.SampleLevel(gSampler, crd, 0);
         float4 directColorHistory = gDirectColorHistory.SampleLevel(gSampler, reprojectedCrd, 0);
 
-        mixValue = 0.3f;//0.3
+        if (OFFLINE)
+        {
+            mixValue = 1.0f / historyLength;
+        }
+        else
+        {
+            mixValue = 0.3f;
+        }
         directOutput = mixValue * directColorCurrent.rgb + (1 - mixValue) * directColorHistory.rgb;
 
     }

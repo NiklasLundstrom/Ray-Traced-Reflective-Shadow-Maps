@@ -4,6 +4,9 @@
     <Filter Include="Data">
       <UniqueIdentifier>{5feff271-1653-48df-a5a7-dc26fac70e96}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Data\offline shaders">
+      <UniqueIdentifier>{a00d3ef7-19b8-439f-b6db-6c2712b8018f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Path-tracer.cpp" />
@@ -35,6 +38,15 @@
     <FxCompile Include="Data\SpatialFilter.hlsl">
       <Filter>Data</Filter>
     </FxCompile>
+    <FxCompile Include="Data\offline shaders\offline_Hit.hlsl">
+      <Filter>Data\offline shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Data\offline shaders\offline_Miss.hlsl">
+      <Filter>Data\offline shaders</Filter>
+    </FxCompile>
+    <FxCompile Include="Data\offline shaders\offline_RayGeneration.hlsl">
+      <Filter>Data\offline shaders</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
@@ -55,10 +67,10 @@
     <CustomBuild Include="Data\TemporalFilter.hlsl">
       <Filter>Data</Filter>
     </CustomBuild>
-    <CustomBuild Include="Data\MotionVectors.hlsl">
+    <CustomBuild Include="Data\GBuffer.hlsl">
       <Filter>Data</Filter>
     </CustomBuild>
-    <CustomBuild Include="Data\GBuffer.hlsl">
+    <CustomBuild Include="Data\MotionVectors.hlsl">
       <Filter>Data</Filter>
     </CustomBuild>
   </ItemGroup>

@@ -1,4 +1,4 @@
-static const bool enableFilter = true;
+static const bool enableFilter = false;
 
 float makeDepthLinear(float oldDepth)
 {
@@ -43,10 +43,9 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
     uint height;
     gInput.GetDimensions(width, height);
 
-	// Put in an array for each indexing.
-    //float weights[11] =  { w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10 };
-
-    int blurRadius = 1 << ((itr == 1) ? 1 : (6 - itr)); // first filter once without luminance check, then do reversed wavelet
+	// first pre-filter once without luminance check, 
+	// then do reversed à-trous as in https://ieeexplore.ieee.org/document/6221770
+    int blurRadius = 1 << ((itr == 1) ? 1 : (6 - itr));
     int blurHalfRadius = blurRadius >> 1;
 
 	//
@@ -86,8 +85,9 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
 	// Now blur each pixel.
 	//
 
-        float4 blurColor = float4(0, 0, 0, 0);
-        float weightSum = 0.0f;
+    float4 blurColor = float4(0, 0, 0, 0);
+    float weightSum = 0.0f;
+
     if (gNormalCache[groupThreadID.x + blurRadius].a == 0.0f)// sky, don't blend
     {
         blurColor = gCache[groupThreadID.x + blurRadius];
@@ -102,9 +102,9 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
         for (int i = -2; i <= 2; i++)
         {
             int k = groupThreadID.x + blurRadius + i * blurHalfRadius;
-            float w_n = pow(max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2.0f - 1.0f))), 128.0f); //^sigma
-            float w_z = exp(-abs(depthCenter - makeDepthLinear(gDepthCache[k])) / 0.01f); // /(sigma * gradient)
-            float w_l = ((itr == 1) ? 1.0f : exp(-length(colorCenter - gCache[k].rgb) / 0.1f)); // /(sigma*var)
+            float w_n = pow(max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2.0f - 1.0f))), 128.0f); 
+            float w_z = exp(-abs(depthCenter - makeDepthLinear(gDepthCache[k])) / 0.01f); 
+            float w_l = ((itr == 1) ? 1.0f : exp(-length(colorCenter - gCache[k].rgb) / 0.1f)); 
             float w = w_n * w_z * w_l;
 
             blurColor += weights[i + 2] * w * gCache[k];
@@ -126,10 +126,9 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
     uint height;
     gInput.GetDimensions(width, height);
 
-	// Put in an array for each indexing.
-    //float weights[11] = {w0, w1, w2, w3, w4, w5, w6, w7, w8, w9, w10};
-
-    int blurRadius = 1 << ((itr == 1) ? 1 : (6 - itr)); // first filter once without luminance check, then do reversed wavelet
+	// first pre-filter once without luminance check, 
+	// then do reversed à-trous as in https://ieeexplore.ieee.org/document/6221770
+    int blurRadius = 1 << ((itr == 1) ? 1 : (6 - itr)); 
     int blurHalfRadius = blurRadius >> 1;
 
 	//
@@ -184,9 +183,9 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
         for (int i = -2; i <= 2; i++)
         {
             int k = groupThreadID.y + blurRadius + i * blurHalfRadius;
-            float w_n = pow(max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2.0f - 1.0f))), 128.0f); //^sigma
-            float w_z = exp(-abs(depthCenter - makeDepthLinear(gDepthCache[k])) / 0.01f); // /(sigma * gradient)
-            float w_l = ((itr == 1) ? 1.0f : exp(-length(colorCenter - gCache[k].rgb) / 0.1f)); // /(sigma*var)
+            float w_n = pow(max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2.0f - 1.0f))), 128.0f);
+            float w_z = exp(-abs(depthCenter - makeDepthLinear(gDepthCache[k])) / 0.01f); 
+            float w_l = ((itr == 1) ? 1.0f : exp(-length(colorCenter - gCache[k].rgb) / 0.1f)); 
             float w = w_n * w_z * w_l;
 
             blurColor += weights[i + 2] * w * gCache[k];
