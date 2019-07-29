@@ -137,6 +137,16 @@ ID3D12ResourcePtr Model::createNB(ID3D12Device5Ptr pDevice, aiVector3D* aiNormal
 	return pBuffer;
 }
 
+ID3D12ResourcePtr Model::createCB(ID3D12Device5Ptr pDevice)
+{
+	ID3D12ResourcePtr pBuffer = createBuffer(pDevice, mNumMeshes * sizeof(vec3), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
+	uint8_t* pData;
+	pBuffer->Map(0, nullptr, (void**)&pData);
+		memcpy(pData, multipleMeshes? mColors.data() : &mColor, mNumMeshes * sizeof(vec3));
+	pBuffer->Unmap(0, nullptr);
+	return pBuffer;
+}
+
 AccelerationStructureBuffers Model::createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB, const uint32_t vertexCount, ID3D12ResourcePtr pIB, const uint32_t indexCount)
 {
 	D3D12_RAYTRACING_GEOMETRY_DESC geomDesc;
@@ -275,6 +285,10 @@ AccelerationStructureBuffers Model::loadModelFromFile(ID3D12Device5Ptr pDevice, 
 	mIndexBufferView.Format = DXGI_FORMAT_R32_UINT;
 	mIndexBufferView.SizeInBytes = mesh->mNumFaces * 3 * sizeof(uint);
 
+	// Color buffer
+	mpColorBuffer = createCB(pDevice);
+	mpColorBuffer->SetName((std::wstring(mName) + L" Color").c_str());
+
 	// create transform buffer
 	mpTransformBuffer = createBuffer(pDevice, 2*sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);
 	mpTransformBuffer->SetName((std::wstring(mName) + L" Transform").c_str());
@@ -350,7 +364,14 @@ std::vector<AccelerationStructureBuffers> Model::loadMultipleModelsFromFile(ID3D
 			mpIndexBuffers[i],
 			mesh->mNumFaces * 3
 		));
+
+		// colour
+		mColors.push_back(mColor);
 	}
+
+	// create colour buffer
+	mpColorBuffer = createCB(pDevice);
+	mpColorBuffer->SetName((std::wstring(mName) + L" Colors").c_str());
 
 	// create transform buffer
 	mpTransformBuffer = createBuffer(pDevice, 2 * sizeof(mat4), D3D12_RESOURCE_FLAG_NONE, D3D12_RESOURCE_STATE_GENERIC_READ, kUploadHeapProps);

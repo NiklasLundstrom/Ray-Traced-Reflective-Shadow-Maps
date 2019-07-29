@@ -47,6 +47,7 @@ PSInput VSMain(float3 position : POSITION, uint index : SV_VertexID)
 		positionScreenPrev = mul(projection, positionScreenPrev);
 		vsOutput.position_xy_Prev = positionScreenPrev.xyw;
 
+
     return vsOutput;
 }
 

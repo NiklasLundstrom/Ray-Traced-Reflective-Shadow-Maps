@@ -112,7 +112,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
     RayDesc rayShadow;
     rayShadow.Origin = hitPoint;
-    rayShadow.TMin = 0.0001;
+    rayShadow.TMin = 0.001;
 
     int numRaySamples = 0;
     int numTotSamples = 0;
@@ -129,7 +129,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 		// pick random sample
         float xi1 = nextRand(payload.seed);
         float xi2 = nextRand(payload.seed);
-        float rMax = 400.0f;
+        float rMax = 150.0f;
         int i = floor(rMax * xi1 * sin(2 * PI * xi2));
         int j = floor(rMax * xi1 * cos(2 * PI * xi2));
 		// uniform over square
@@ -215,7 +215,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         {
             indirectColor += angleHitPoint
 								* angleLightPoint
-								* gShadowMap_Flux[crd + uint2(i, j)].rgb * 625.0f / max((distance * distance), 0.1f) * xi1 * xi1 * 20.0f;
+								* gShadowMap_Flux[crd + uint2(i, j)].rgb / max((distance * distance), 0.1f) * xi1 * sqrt(xi1);
         }
 
     }
@@ -285,7 +285,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
         return float3(0.0, 0.0, 0.0);
     }
     rayShadow.Direction = /*direction*/sampleDirection;
-    rayShadow.TMin = 0.0001;
+    rayShadow.TMin = 0.001;
     rayShadow.TMax = distance - 0.0001;
 
     TraceRay(
@@ -303,7 +303,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
     if (shadowPayload.hit == false) // no occlusion
     {
         
-        outColor = angle * float3(1.0, 1.0, 1.0) * 0.3f;
+        outColor = angle * float3(1.0, 1.0, 1.0) * 4.0f; //0.3f;
     }
     else // shadow
     {

@@ -16,7 +16,9 @@ cbuffer color : register(b2)
     float r;
     float g;
     float b;
+    int meshID;
 };
+
 
 StructuredBuffer<float3> normals : register(t0);
 
@@ -26,6 +28,7 @@ struct PSInput
     float3 normal : NORMAL;
     float3 color : TEXCOORD0;
     float4 worldPosition : TEXCOORD1;
+    int meshID : TEXCOORD2;
 };
 
 PSInput VSMain(float3 position : POSITION, uint index : SV_VertexID)
@@ -46,6 +49,8 @@ PSInput VSMain(float3 position : POSITION, uint index : SV_VertexID)
 		vsOutput.normal = normal;
 	// color
 		vsOutput.color = float3(r, g, b);
+	// mesh ID
+		vsOutput.meshID = meshID;
 
     return vsOutput;
 }
@@ -60,7 +65,7 @@ struct PS_OUTPUT
 PS_OUTPUT PSMain(PSInput input) : SV_TARGET
 {
     PS_OUTPUT output;
-    output.Normal = float4(input.normal, 1.0);
+    output.Normal = float4(input.normal, input.meshID);
     output.Color = float4(input.color, 1.0);
     output.Position = input.worldPosition;
 

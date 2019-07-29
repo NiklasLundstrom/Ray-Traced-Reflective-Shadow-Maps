@@ -1,4 +1,4 @@
-static const bool enableFilter = false;
+static const bool enableFilter = true;
 
 float makeDepthLinear(float oldDepth)
 {
@@ -102,7 +102,7 @@ void HorzBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
         for (int i = -2; i <= 2; i++)
         {
             int k = groupThreadID.x + blurRadius + i * blurHalfRadius;
-            float w_n = pow(max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2.0f - 1.0f))), 128.0f); 
+            float w_n = pow(max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2.0f - 1.0f))), 16.0f); 
             float w_z = exp(-abs(depthCenter - makeDepthLinear(gDepthCache[k])) / 0.01f); 
             float w_l = ((itr == 1) ? 1.0f : exp(-length(colorCenter - gCache[k].rgb) / 0.1f)); 
             float w = w_n * w_z * w_l;
@@ -183,7 +183,7 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
         for (int i = -2; i <= 2; i++)
         {
             int k = groupThreadID.y + blurRadius + i * blurHalfRadius;
-            float w_n = pow(max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2.0f - 1.0f))), 128.0f);
+            float w_n = pow(max(0.0f, dot(normalCenter, (gNormalCache[k].xyz * 2.0f - 1.0f))), 16.0f);
             float w_z = exp(-abs(depthCenter - makeDepthLinear(gDepthCache[k])) / 0.01f); 
             float w_l = ((itr == 1) ? 1.0f : exp(-length(colorCenter - gCache[k].rgb) / 0.1f)); 
             float w = w_n * w_z * w_l;

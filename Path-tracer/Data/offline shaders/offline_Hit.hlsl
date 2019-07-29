@@ -8,6 +8,7 @@ RaytracingAccelerationStructure gRtScene : register(t0);
 
 StructuredBuffer<uint> indices : register(t1);
 StructuredBuffer<float3> normals : register(t2);
+StructuredBuffer<float3> color : register(t3);
 
 
 
@@ -38,13 +39,13 @@ void modelChs(inout OfflineRayPayload payload, in BuiltInTriangleIntersectionAtt
     else
     {
 		// get material color
-        float3 materialColor = float3(1.0, 1.0, 1.0) * 0.9;
+        float3 materialColor = color[InstanceID()];
 
 		// set up ray
         RayDesc rayDiffuse;
         rayDiffuse.Origin = hitPoint;
         rayDiffuse.Direction = getCosHemisphereSample(payload.seed, normal);
-        rayDiffuse.TMin = 0.0001; // watch out for this value
+        rayDiffuse.TMin = 0.0001;
         rayDiffuse.TMax = 100000;
 
         payload.depth -= 1;
@@ -62,14 +63,20 @@ void modelChs(inout OfflineRayPayload payload, in BuiltInTriangleIntersectionAtt
 
         float3 incomingColor = payload.color;
 
-        payload.color = materialColor * incomingColor;
+        if (payload.depth == 1)
+        {
+            payload.color = incomingColor;
+        }
+        else
+        {
+            payload.color = materialColor * incomingColor;
+        }
     }
 }
-
 [shader("closesthit")]
 void areaLightChs(inout OfflineRayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
 {
-    payload.color = float3(1.0f, 1.0f, 1.0f) * 5.0f;
+    payload.color = float3(1.0f, 1.0f, 0.984f) * 8000.0f; //12500.0f;
 }
 
 

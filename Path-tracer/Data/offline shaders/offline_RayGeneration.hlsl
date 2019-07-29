@@ -33,7 +33,7 @@ void rayGen()
     float4 target = mul(projMatInv, float4(d.x * aspectRatio, -d.y, 1, 1));
     ray.Direction = mul(viewMatInv, float4(target.xyz, 0)); //normalize(mul(float3(d.x * aspectRatio, -d.y, 1), yRotMat));
 
-    ray.TMin = 0;
+    ray.TMin = 0.0001;
     ray.TMax = 100000;
 
     uint randSeed = initRand(launchIndex.x + launchIndex.y * launchDim.x, frameCount, 16);
@@ -44,7 +44,7 @@ void rayGen()
     for (int i = 0; i < numSamples; i++)
     {
         nextRand(randSeed);
-        payload.depth = 3;
+        payload.depth = 2;
         payload.seed = randSeed;
         TraceRay(
 				gRtScene,

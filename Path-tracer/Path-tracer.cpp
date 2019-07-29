@@ -379,9 +379,13 @@ void PathTracer::buildTransforms(float rotation)
 	mModels["Left wall extended"].setTransform(translate(mat4(), vec3(0, 0, 13.5)) * scale(1.0f*vec3(1.00f, 1.0f, 1.0f)));
 
 	// robot
-	mModels["Robot"].setTransform(rotationMat * translate(mat4(), vec3(1.5, /*1.39*/0.347499, 0 /** sin(rotation*0.7f)*/)) * scale(0.75f*vec3(1.0f, 1.0f, 1.0f)));
-	mModels["Robot2"].setTransform(translate(mat4(), vec3(4.0, /*1.39*/0.347499, 1.0)) * eulerAngleY(2.0f) * scale(0.75f*vec3(1.0f, 1.0f, 1.0f)));
+	mModels["Robot"].setTransform(rotationMat * translate(mat4(), vec3(1.5, /*1.39*/0.347499, 0 * sin(rotation*0.7f))) * scale(0.75f*vec3(1.0f, 1.0f, 1.0f)));
+	mModels["Teapot"].setTransform(translate(mat4(), vec3(3.5, 9.32*0.055f, 1.5)) * eulerAngleY(0.0f) * scale(0.055f*vec3(1.0f, 1.0f, 1.0f)));
 
+#ifdef OFFLINE
+	// area light
+	mModels["Area light"].setTransform(translate(mat4(), mLight.eye) * scale((0.00517905410f/0.255999625f)*vec3(1.0f, 1.0f, 1.0f)));
+#endif
 	//// Sun temple
 	//mModels["Sun temple"].setTransform(translate(mat4(), vec3(0.0, 0.0, 5.0)) * scale(0.005f*vec3(1.0f, 1.0f, 1.0f))*mat4());
 
@@ -485,7 +489,7 @@ void PathTracer::buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommand
 	{
 		for (uint i = 0; i < it->second.getNumMeshes(); i++)
 		{
-			instanceDescs[instanceIdx].InstanceID = it->second.getModelIndex() + i; // This value will be exposed to the shader via InstanceID()
+			instanceDescs[instanceIdx].InstanceID = i; // This value will be exposed to the shader via InstanceID()
 			instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = mNbrHitGroups * instanceIdx;  // hard coded
 			instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE;
 			mat4 m = transpose(it->second.getTransformMatrix()); // GLM is column major, the INSTANCE_DESC is row major
@@ -530,6 +534,7 @@ void PathTracer::createAccelerationStructures()
 	vec3 white = 0.75f*vec3(1.0f, 1.0f, 1.0f);
 	vec3 red = 0.75f*vec3(1.0f, 0.1f, 0.1f);
 	vec3 green = 0.75f*vec3(0.1f, 1.0f, 0.1f);
+	vec3 pureWhite = vec3(1.0f, 1.0f, 1.0f);
 	uint8_t modelIndex = 0;
 
 	//// Sun temple
@@ -552,12 +557,12 @@ void PathTracer::createAccelerationStructures()
 	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Robot");
 	modelIndex++;
 
-	// Load robot
-	Model robot2(L"Robot2", modelIndex, white);
-	mModels["Robot2"] = robot2;
-	AccelerationStructureBuffers robot2AS = mModels["Robot2"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/robot.fbx", &importer, false);
-	mpBottomLevelAS[modelIndex] = robot2AS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Robot2");
+	// Load teapot
+	Model teapot(L"Teapot", modelIndex, white);
+	mModels["Teapot"] = teapot;
+	AccelerationStructureBuffers teapotAS = mModels["Teapot"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/utah-teapot.obj", &importer, false);
+	mpBottomLevelAS[modelIndex] = teapotAS.pResult;
+	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Teapot");
 	modelIndex++;
 
 	// Load floor
@@ -656,6 +661,15 @@ void PathTracer::createAccelerationStructures()
 	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Left wall extended");
 	modelIndex++;
 
+#ifdef OFFLINE
+	// Load sphere for area light
+	Model areaLight(L"Area light", modelIndex, pureWhite);
+	mModels["Area light"] = areaLight;
+	AccelerationStructureBuffers areaLightAS = mModels["Area light"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/sphere.fbx", &importer, true);
+	mpBottomLevelAS[modelIndex] = areaLightAS.pResult;
+	mpBottomLevelAS[modelIndex]->SetName(L"Area light");
+	modelIndex++;
+#endif
 
 	// Create the TLAS
 	buildTopLevelAS(mpDevice, mpCmdList, mpBottomLevelAS, mTlasSize, false, mModels, mTopLevelBuffers);
@@ -979,7 +993,7 @@ RootSignatureDesc createOfflineModelHitRootDesc()
 	desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[0].OffsetInDescriptorsFromTableStart = 0;
 
-	desc.rootParams.resize(3);
+	desc.rootParams.resize(4);
 	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
 	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
@@ -994,7 +1008,13 @@ RootSignatureDesc createOfflineModelHitRootDesc()
 	desc.rootParams[2].Descriptor.RegisterSpace = 0;
 	desc.rootParams[2].Descriptor.ShaderRegister = 2;//t2
 
-	desc.desc.NumParameters = 3;
+	// color
+	desc.rootParams[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
+	desc.rootParams[3].Descriptor.RegisterSpace = 0;
+	desc.rootParams[3].Descriptor.ShaderRegister = 3;//t3
+
+
+	desc.desc.NumParameters = 4;
 	desc.desc.pParameters = desc.rootParams.data();
 	desc.desc.Flags = D3D12_ROOT_SIGNATURE_FLAG_LOCAL_ROOT_SIGNATURE;
 
@@ -1478,7 +1498,7 @@ void PathTracer::createPathTracerShaderTable()
 
 	// Calculate the size and create the buffer
 	mPathTracerShaderTableEntrySize = D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES;
-	mPathTracerShaderTableEntrySize += 3 * sizeof(UINT64); // The hit shader constant-buffer descriptor
+	mPathTracerShaderTableEntrySize += 4 * sizeof(UINT64); // The hit shader constant-buffer descriptor
 	mPathTracerShaderTableEntrySize = align_to(D3D12_RAYTRACING_SHADER_RECORD_BYTE_ALIGNMENT, mPathTracerShaderTableEntrySize);
 	uint32_t shaderTableSize = mPathTracerShaderTableEntrySize * numShaderTableEntries;
 	if (mPathTracerShaderTableEntrySize % D3D12_RAYTRACING_SHADER_TABLE_BYTE_ALIGNMENT != 0)
@@ -1529,7 +1549,7 @@ void PathTracer::createPathTracerShaderTable()
 	// Entry 2 - Model, primary ray. ProgramID and index-buffer
 	for (auto it = mModels.begin(); it != mModels.end(); ++it)
 	{
-		if (it->first == "Robot2")
+		if (it->first == "Area light")
 		{
 			uint8_t* pEntry2 = pData + mPathTracerShaderTableEntrySize * entryIndex;
 			memcpy(pEntry2, pRtsoProps->GetShaderIdentifier(kAreaLightHitGroup), D3D12_SHADER_IDENTIFIER_SIZE_IN_BYTES);
@@ -1550,6 +1570,8 @@ void PathTracer::createPathTracerShaderTable()
 				// Normal buffer
 				*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry2 = it->second.getNormalBufferGPUAdress(i);
 				pEntry2 += sizeof(D3D12_GPU_VIRTUAL_ADDRESS*);
+				// Color
+				*(D3D12_GPU_VIRTUAL_ADDRESS*)pEntry2 = it->second.getColorBufferGPUAdress();
 
 				entryIndex++;
 			}
@@ -1590,9 +1612,9 @@ void PathTracer::createShaderResources()
 	//	- 2 UAV for spatial filter
 	//	- 4 SRV for spatial filter
 	//  - 2 SRV for the temporal filter
-	//  - 6 for the G-buffer and motion vectors
+	//  - 7 for the G-buffer and motion vectors
 
-	uint32_t nbrEntries = 27;
+	uint32_t nbrEntries = 28;
 
 	mpCbvSrvUavHeap = createDescriptorHeap(mpDevice, nbrEntries, D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, true);
 	mHeapEntrySize = mpDevice->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
@@ -1838,6 +1860,13 @@ void PathTracer::createShaderResources()
 
 	mpDevice->CreateShaderResourceView(mpGeometryBuffer_Normal, &rtOutputSrvDesc, handle);
 	mGeomteryBuffer_Normal_SrvHeapIndex = handleIndex;
+
+	// Create the SRV for the Previous G-buffer Normal
+	handle.ptr += heapEntrySize;
+	handleIndex++;
+
+	mpDevice->CreateShaderResourceView(mpGeometryBuffer_Previous_Normal, &rtOutputSrvDesc, handle);
+	mGeomteryBuffer_Previous_Normal_SrvHeapIndex = handleIndex;
 
 	// Create the SRV for the G-buffer Color
 	handle.ptr += heapEntrySize;
@@ -2711,12 +2740,13 @@ void PathTracer::createGeometryBufferPipeline()
 	rootParameters[2].Descriptor.ShaderRegister = 0;//t0
 	rootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
-	// color
+	// color and mesh id
 	rootParameters[3].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 	rootParameters[3].Constants.RegisterSpace = 0;
 	rootParameters[3].Constants.ShaderRegister = 2;//b2
-	rootParameters[3].Constants.Num32BitValues = 3;
+	rootParameters[3].Constants.Num32BitValues = 4;
 	rootParameters[3].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
+
 
 	D3D12_ROOT_SIGNATURE_FLAGS rootSignatureFlags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
@@ -2822,6 +2852,7 @@ void PathTracer::createGeometryBufferPipeline()
 	mvRootParameters[2].DescriptorTable.pDescriptorRanges = &ranges[1];
 	mvRootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
+
 	D3D12_ROOT_SIGNATURE_FLAGS mvRootSignatureFlags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
@@ -2901,7 +2932,7 @@ void PathTracer::createGeometryBufferPipeline()
 	));
 	mpGeometryBuffer_MotionVectors->SetName(L"G-buffer Motion Vectors");
 
-	// Normal
+	// Normal and Mesh ID
 	d3d_call(mpDevice->CreateCommittedResource(
 		&kDefaultHeapProps,
 		D3D12_HEAP_FLAG_NONE,
@@ -2911,6 +2942,17 @@ void PathTracer::createGeometryBufferPipeline()
 		IID_PPV_ARGS(&mpGeometryBuffer_Normal)
 	));
 	mpGeometryBuffer_Normal->SetName(L"G-buffer Normal");
+
+	// Previous Normal and Mesh ID
+	d3d_call(mpDevice->CreateCommittedResource(
+		&kDefaultHeapProps,
+		D3D12_HEAP_FLAG_NONE,
+		&texDesc,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
+		&colorClearValue,
+		IID_PPV_ARGS(&mpGeometryBuffer_Previous_Normal)
+	));
+	mpGeometryBuffer_Previous_Normal->SetName(L"G-buffer Previous Normal");
 
 	// Color
 	d3d_call(mpDevice->CreateCommittedResource(
@@ -2962,7 +3004,7 @@ void PathTracer::createGeometryBufferPipeline()
 		&depthClearValue,
 		IID_PPV_ARGS(&mpGeometryBuffer_Previous_Depth)
 	));
-	mpGeometryBuffer_Previous_Depth->SetName(L"Previous G-buffer Depth");
+	mpGeometryBuffer_Previous_Depth->SetName(L"G-buffer Previous Depth");
 
 	// Motion vectors depth stencil
 	d3d_call(mpDevice->CreateCommittedResource(
@@ -3222,20 +3264,23 @@ void PathTracer::renderShadowMap()
 	// render models
 	for (auto it = mModels.begin(); it != mModels.end(); ++it)
 	{
-		for (uint i = 0; i < it->second.getNumMeshes(); i++)
+		if (it->first != "Area light")
 		{
-			// Model to World Transform
-			mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
-			// Normal buffer
-			mpCmdList->SetGraphicsRootShaderResourceView(2, it->second.getNormalBufferGPUAdress(i));
-			// Vertex and Index buffers
-			mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView(i));
-			mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView(i));
-			// Color
-			mpCmdList->SetGraphicsRoot32BitConstants(3, 3, &it->second.getColor(), 0);
+			for (uint i = 0; i < it->second.getNumMeshes(); i++)
+			{
+				// Model to World Transform
+				mpCmdList->SetGraphicsRootConstantBufferView(1, it->second.getTransformBufferGPUAdress());
+				// Normal buffer
+				mpCmdList->SetGraphicsRootShaderResourceView(2, it->second.getNormalBufferGPUAdress(i));
+				// Vertex and Index buffers
+				mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView(i));
+				mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView(i));
+				// Color
+				mpCmdList->SetGraphicsRoot32BitConstants(3, 3, &it->second.getColor(i), 0);
 
-			// Draw
-			mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView(i)->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+				// Draw
+				mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView(i)->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
+			}
 		}
 	}
 
@@ -3383,6 +3428,7 @@ void PathTracer::renderGeometryBuffer()
 	mpCmdList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	// render models
+	int meshID = 1;
 	for (auto it = mModels.begin(); it != mModels.end(); ++it)
 	{
 		for (uint i = 0; i < it->second.getNumMeshes(); i++)
@@ -3395,7 +3441,10 @@ void PathTracer::renderGeometryBuffer()
 			mpCmdList->IASetVertexBuffers(0, 1, it->second.getVertexBufferView(i));
 			mpCmdList->IASetIndexBuffer(it->second.getIndexBufferView(i));
 			// Color
-			mpCmdList->SetGraphicsRoot32BitConstants(3, 3, &it->second.getColor(), 0);
+			mpCmdList->SetGraphicsRoot32BitConstants(3, 3, &it->second.getColor(i), 0);
+			// mesh id
+			mpCmdList->SetGraphicsRoot32BitConstants(3, 1, &meshID, 3);
+			meshID++;
 
 			// Draw
 			mpCmdList->DrawIndexedInstanced(it->second.getIndexBufferView(i)->SizeInBytes / sizeof(uint), 1, 0, 0, 0);
@@ -3780,9 +3829,12 @@ void PathTracer::onFrameRender(bool *gKeys)
 {
 	readKeyboardInput(gKeys);
 
+	// Update light buffer
+	updateLightBuffer();
+
 	// Update object transforms
 	buildTransforms(mRotation);
-	//mRotation += 0.5f*mCameraSpeed;
+	mRotation += 0.5f*mCameraSpeed;
 
 	// Update camera
 	updateCameraBuffers();
@@ -3790,8 +3842,6 @@ void PathTracer::onFrameRender(bool *gKeys)
 	// Update transform buffer
 	updateTransformBuffers();
 
-	// Update light buffer
-	updateLightBuffer();
 
 	uint32_t rtvIndex = beginFrame();
 

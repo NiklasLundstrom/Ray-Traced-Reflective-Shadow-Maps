@@ -35,7 +35,7 @@ float4 PSMain(PSInput input) : SV_TARGET
     float2 crd = input.uv * float2(masterWidth, masterHeight);
     float3 light = gIndirectInput[crd].rgb + gDirectInput[crd].rgb;
 	// Tone Map
-    float3 output = light * gGbufferColor[crd].rgb;
+    float3 output = light * gGbufferColor[crd].rgb * gGbufferColor[crd].rgb;
     output = linearToSrgb(ACESFitted(2.5 * output.rgb));
 
 

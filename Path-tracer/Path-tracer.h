@@ -28,8 +28,17 @@
 #pragma once
 #include "Framework.h"
 #include "Model.h"
+///////////////////////////////
+/* To swich between offline path tracer and real-time ray tracer with RSM, 
+simply define/undefine OFFLINE. Also note that you choose if you want 
+the spatial filter or not inside that shader.
 
-#define OFFLINE
+Control camera with WASDQE
+Control light with YGHJTU
+Reset accumulated color history with R
+*/
+///////////////////////////////
+//#define OFFLINE
 #ifdef OFFLINE
 	const bool mOffline = true;
 #else
@@ -92,7 +101,7 @@ private:
 	// Scene
 	//////////////////////////////////////////////////////////////////////////
 
-	static const int mNumInstances = 14 /*48*/; // keep in sync with value hard coded in buildTopLevelAS()
+	static const int mNumInstances = 14 /*48*/ + mOffline; // keep in sync with value hard coded in buildTopLevelAS()
 
 	// models
 	std::map<std::string, Model> mModels;
@@ -301,22 +310,28 @@ private:
 	ID3D12ResourcePtr		mpGeometryBuffer_Depth;
 	ID3D12ResourcePtr		mpGeometryBuffer_Previous_Depth;
 	ID3D12ResourcePtr		mpGeometryBuffer_Normal;
+	ID3D12ResourcePtr		mpGeometryBuffer_Previous_Normal;
 	ID3D12ResourcePtr		mpGeometryBuffer_Color;
 	ID3D12ResourcePtr		mpGeometryBuffer_Position;
+
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_MotionVectors;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferDsv_MotionVectors;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferDsv_Depth;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_Normal;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_Color;
 	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRtv_Position;
+
 	uint8_t					mGeomteryBuffer_MotionVectors_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Depth_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Previous_Depth_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Normal_SrvHeapIndex;
+	uint8_t					mGeomteryBuffer_Previous_Normal_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Color_SrvHeapIndex;
 	uint8_t					mGeomteryBuffer_Position_SrvHeapIndex;
 
-	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRTVs[3];
+
+
+	D3D12_CPU_DESCRIPTOR_HANDLE mGeometryBufferRTVs[4];
 
 	// temporal filter
 	void createTemporalFilterPipeline();
