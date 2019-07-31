@@ -15,6 +15,8 @@ cbuffer ModelTransform : register(b1)
 
 Texture2D<float> gDepthCurrent : register(t0);
 Texture2D<float> gDepthPrevious : register(t1);
+Texture2D<float4> gNormalCurrent : register(t2);
+Texture2D<float4> gNormalPrevious : register(t3);
 SamplerState gSampler : register(s0);
 
 
@@ -67,7 +69,7 @@ PS_OUTPUT PSMain(PSInput input) : SV_TARGET
    
     float2 crd = ndcCurr*0.5f + 0.5f;
     crd.y = 1.0f - crd.y;
-    float accepted = (float) acceptReprojection(output.MotionVectors.xy, gSampler, crd, gDepthCurrent, gDepthPrevious);
+    float accepted = (float) acceptReprojection(output.MotionVectors.xy, gSampler, crd, gDepthCurrent, gDepthPrevious, gNormalCurrent, gNormalPrevious);
     
 	
 	output.MotionVectors.zw = float2(accepted, 1.0f);

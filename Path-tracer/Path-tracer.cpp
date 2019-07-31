@@ -412,7 +412,7 @@ AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D1
 	// Get the size requirements for the scratch and AS buffers
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
 	inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-	inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
+	inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;//D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
 	inputs.NumDescs = geometryCount;
 	inputs.pGeometryDescs = geomDesc.data();
 	inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
@@ -449,7 +449,7 @@ void PathTracer::buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommand
 	// First, get the size of the TLAS buffers and create them
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
 	inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-	inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
+	inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
 	inputs.NumDescs = numInstances;
 	inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
 
@@ -512,7 +512,6 @@ void PathTracer::buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommand
 	asDesc.Inputs.InstanceDescs = buffers.pInstanceDesc->GetGPUVirtualAddress();
 	asDesc.DestAccelerationStructureData = buffers.pResult->GetGPUVirtualAddress();
 	asDesc.ScratchAccelerationStructureData = buffers.pScratch->GetGPUVirtualAddress();
-
 	// If this is an update operation, set the source buffer and the perform_update flag
 	if (update)
 	{
@@ -1203,7 +1202,7 @@ void PathTracer::createRtPipelineState()
 	subobjects[index++] = modelHitProgram.subObject; // Model Hit Group
 
 	// Create the Shadow-ray HitProgram
-	HitProgram shadowHitProgram(kShadowChs, nullptr, kShadowHitGroup);
+	HitProgram shadowHitProgram(nullptr, kShadowChs, kShadowHitGroup);
 	subobjects[index++] = shadowHitProgram.subObject; // Shadow Hit Group
 #pragma endregion
 
@@ -1253,7 +1252,7 @@ void PathTracer::createRtPipelineState()
 #pragma region
 // Bind the payload size to all programs
 
-	ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) * 7 + sizeof(uint));
+	ShaderConfig primaryShaderConfig(sizeof(float) * 2, sizeof(float) *4 + sizeof(uint));
 	subobjects[index] = primaryShaderConfig.subobject; // Payload size
 
 	uint32_t primaryShaderConfigIndex = index++;
@@ -1264,7 +1263,7 @@ void PathTracer::createRtPipelineState()
 
 // Create the pipeline config
 
-	PipelineConfig config(2); // maxRecursionDepth
+	PipelineConfig config(8); // maxRecursionDepth
 	subobjects[index++] = config.subobject; // Recursion depth
 
 // Create the global root signature and store the empty signature
@@ -2505,14 +2504,14 @@ void PathTracer::createSpatialFilterPipeline()
 	// horz
 	ID3DBlobPtr computeShaderHorzBlob = nullptr;
 	ID3DBlobPtr errorHorzBlob = nullptr;
-	d3d_call(D3DCompileFromFile(L"Data/SpatialFilter.hlsl", NULL, NULL, "HorzBlurCS", "cs_5_0", 0, 0, &computeShaderHorzBlob, &errorHorzBlob));
+	d3d_call(D3DCompileFromFile(L"Data/SpatialFilter.hlsl", NULL, NULL, "HorzBlurCS", "cs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3 | D3DCOMPILE_ALL_RESOURCES_BOUND, 0, &computeShaderHorzBlob, &errorHorzBlob));
 	psoDesc.CS = CD3DX12_SHADER_BYTECODE(computeShaderHorzBlob.GetInterfacePtr());
 	d3d_call(mpDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&mpSpatialFilterStateHorz)));
 
 	// vert
 	ID3DBlobPtr computeShaderVertBlob = nullptr;
 	ID3DBlobPtr errorVertBlob = nullptr;
-	d3d_call(D3DCompileFromFile(L"Data/SpatialFilter.hlsl", NULL, NULL, "VertBlurCS", "cs_5_0", 0, 0, &computeShaderVertBlob, &errorVertBlob));
+	d3d_call(D3DCompileFromFile(L"Data/SpatialFilter.hlsl", NULL, NULL, "VertBlurCS", "cs_5_0", D3DCOMPILE_OPTIMIZATION_LEVEL3 | D3DCOMPILE_ALL_RESOURCES_BOUND, 0, &computeShaderVertBlob, &errorVertBlob));
 	psoDesc.CS = CD3DX12_SHADER_BYTECODE(computeShaderVertBlob.GetInterfacePtr());
 	d3d_call(mpDevice->CreateComputePipelineState(&psoDesc, IID_PPV_ARGS(&mpSpatialFilterStateVert)));
 
@@ -2812,7 +2811,7 @@ void PathTracer::createGeometryBufferPipeline()
 	// motion vectors state
 	////////////////////////
 
-	D3D12_DESCRIPTOR_RANGE ranges[3];
+	D3D12_DESCRIPTOR_RANGE ranges[5];
 	// Camera Matrix buffer
 	ranges[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
 	ranges[0].NumDescriptors = 1;
@@ -2834,6 +2833,20 @@ void PathTracer::createGeometryBufferPipeline()
 	ranges[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	ranges[2].OffsetInDescriptorsFromTableStart = 1;
 
+	// Current Normal+meshID
+	ranges[3].BaseShaderRegister = 2; //t2
+	ranges[3].NumDescriptors = 1;
+	ranges[3].RegisterSpace = 0;
+	ranges[3].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[3].OffsetInDescriptorsFromTableStart = 2;
+
+	// Previous Normal+meshID
+	ranges[4].BaseShaderRegister = 3; //t3
+	ranges[4].NumDescriptors = 1;
+	ranges[4].RegisterSpace = 0;
+	ranges[4].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
+	ranges[4].OffsetInDescriptorsFromTableStart = 3;
+
 	D3D12_ROOT_PARAMETER mvRootParameters[3];
 	mvRootParameters[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
 	mvRootParameters[0].DescriptorTable.NumDescriptorRanges = 1;
@@ -2846,9 +2859,9 @@ void PathTracer::createGeometryBufferPipeline()
 	mvRootParameters[1].Descriptor.ShaderRegister = 1; // b1
 	mvRootParameters[1].ShaderVisibility = D3D12_SHADER_VISIBILITY_VERTEX;
 
-	// depth, current and previous
+	// depth, normal+meshID, current and previous
 	mvRootParameters[2].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	mvRootParameters[2].DescriptorTable.NumDescriptorRanges = 2;
+	mvRootParameters[2].DescriptorTable.NumDescriptorRanges = 4;
 	mvRootParameters[2].DescriptorTable.pDescriptorRanges = &ranges[1];
 	mvRootParameters[2].ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
@@ -3505,9 +3518,28 @@ void PathTracer::renderMotionVectors()
 		}
 	}
 
-	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	resourceBarrier(mpCmdList, mpGeometryBuffer_MotionVectors, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
+
+	// copy depth, and normal+meshID to history
+	// depth
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Previous_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+
+	mpCmdList->CopyResource(mpGeometryBuffer_Previous_Depth, mpGeometryBuffer_Depth);
+
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Previous_Depth, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+	// normal+meshID
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Normal, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Previous_Normal, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
+
+	mpCmdList->CopyResource(mpGeometryBuffer_Previous_Normal, mpGeometryBuffer_Normal);
+
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Normal, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Previous_Normal, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
 }
 
 void PathTracer::applyTemporalFilter()
@@ -3581,17 +3613,6 @@ void PathTracer::applyTemporalFilter()
 	resourceBarrier(mpCmdList, mpTemporalFilterDirectOutput, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_COPY_SOURCE);
 	resourceBarrier(mpCmdList, mpDirectColorHistory, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
 		mpCmdList->CopyResource(mpDirectColorHistory, mpTemporalFilterDirectOutput);
-
-
-	// copy current depth to prev depth
-	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
-	resourceBarrier(mpCmdList, mpGeometryBuffer_Previous_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
-
-	mpCmdList->CopyResource(mpGeometryBuffer_Previous_Depth, mpGeometryBuffer_Depth);
-
-	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	resourceBarrier(mpCmdList, mpGeometryBuffer_Previous_Depth, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
 
 
 	PIXEndEvent(mpCmdList.GetInterfacePtr());

@@ -19,7 +19,5 @@ void miss(inout RayPayload payload)
         
     //payload.color = c.rgb;
 	
-    payload.indirectColor = float4(0.0, 0.0, 0.0, 0.0);
-    payload.directColor = float4(0.0, 0.0, 0.0, 0.0);
-
+    payload.color = float4(0.0, 0.0, 0.0, 0.0);
     }

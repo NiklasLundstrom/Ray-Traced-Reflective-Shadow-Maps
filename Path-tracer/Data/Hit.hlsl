@@ -1,7 +1,7 @@
 #include "Common.hlsli"
 #include "hlslUtils.hlsli"
 float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload, in float acceptedReprojection);
-float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload);
+float sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload);
 void sampleDiffuseLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload);
 void sampleRay(in float3 hitPoint, in float3 direction, inout RayPayload payload);
 
@@ -52,7 +52,8 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 	// get motion vector info
     float acceptedReprojection = gMotionVector[pixelCrd].z;
 
-    float3 directColor = float3(0.0, 0.0, 0.0);
+    float directColor = float3(0.0, 0.0, 0.0);
+	[loop]
     for (int i = 0; i < 10; i++)
     {
         directColor += sampleDirectLight(hitPoint, normal, payload);
@@ -62,18 +63,8 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
     float3 indirectColor = indirectColorNumRays.rgb;
     float numRays = indirectColorNumRays.a;
 
-    payload.indirectColor = float4(indirectColor, numRays);
-    payload.directColor = float3(directColor);
+    payload.color = float4(indirectColor, directColor);
 }
-
-[shader("closesthit")]
-void areaLightChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attribs)
-{
-    payload.indirectColor = float4(0.0f, 0.0f, 0.0f, 0.0f);
-    payload.directColor = float3(1.0f, 0.0f, 1.0f) * 15.0f;
-}
-
-
 
 float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload, in float acceptedReprojection)
 {
@@ -102,9 +93,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
     py = (1 - py) * shadowHeight;
     uint2 crd;
     crd.x = floor(px);
-    crd.y = floor(py);
-
-    
+    crd.y = floor(py);    
 
 	// set up shadow rays
     ShadowPayload shadowPayload;
@@ -118,51 +107,52 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
     int numTotSamples = 0;
     int maxNumRays = acceptedReprojection ? 100 : 600;
     int maxNumTot = acceptedReprojection ? 100 : 600;
-    while (numRaySamples < maxNumRays && numTotSamples < maxNumTot)
+	[loop]
+    for (int i = 0; i < 100; i++)
+    //while (numRaySamples < maxNumRays && numTotSamples < maxNumTot)
     {
         if (numTotSamples > 100 && numRaySamples == 0)
         {
             break;
         }
 
-
-		// pick random sample
+	// pick random sample
         float xi1 = nextRand(payload.seed);
         float xi2 = nextRand(payload.seed);
         float rMax = 150.0f;
         int i = floor(rMax * xi1 * sin(2 * PI * xi2));
         int j = floor(rMax * xi1 * cos(2 * PI * xi2));
-		// uniform over square
-        //int i = xi1 * shadowWidth;
-        //int j = xi2 * shadowHeight;
+	// uniform over square
+    //int i = xi1 * shadowWidth;
+    //int j = xi2 * shadowHeight;
 
-		//// uniform disk
-        //float a = 2.0 * xi1 - 1.0;
-        //float b = 2.0 * xi2 - 1.0;
-        //float r;
-        //float phi;
-        //if (a * a > b * b)
-        //{
-        //    r = rMax * a;
-        //    phi = (PI / 4.0) * (b / a);
-        //}
-        //else
-        //{
-        //    r = rMax * b;
-        //    phi = (PI / 2.0) - (PI / 4.0) * (a / b);
-        //}
-        //int i = r * cos(phi);
-        //int j = r * sin(phi);
+	//// uniform disk
+    //float a = 2.0 * xi1 - 1.0;
+    //float b = 2.0 * xi2 - 1.0;
+    //float r;
+    //float phi;
+    //if (a * a > b * b)
+    //{
+    //    r = rMax * a;
+    //    phi = (PI / 4.0) * (b / a);
+    //}
+    //else
+    //{
+    //    r = rMax * b;
+    //    phi = (PI / 2.0) - (PI / 4.0) * (a / b);
+    //}
+    //int i = r * cos(phi);
+    //int j = r * sin(phi);
 
 
         numTotSamples++;
-		// outside shadow map texture
+	// outside shadow map texture
         if ((crd.x + i) < 0 || (crd.y + j) < 0 || (crd.x + i) >= shadowWidth || (crd.y + j) >= shadowHeight)
         {
             continue;
         }
 
-		// sample shadow map
+	// sample shadow map
         float4 lightPosData = gShadowMap_Position[crd + uint2(i, j)];
         if (lightPosData.w == 0)
         {
@@ -175,15 +165,15 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         float distance = length(direction);
         direction = normalize(direction);
 
-		// do not sample if light is below the surface or
-		// on the same plane as the hit point 
+	// do not sample if light is below the surface or
+	// on the same plane as the hit point 
         float angleHitPoint = saturate(dot(direction, hitPointNormal));
         if (angleHitPoint < 0.0001)
         {
             continue;
         }
-		// do not sample if hit point is below the pixel light's surface,
-		// or on the same plane
+	// do not sample if hit point is below the pixel light's surface,
+	// or on the same plane
         float3 pixelLightNormal = gShadowMap_Normal[crd + uint2(i, j)].rgb;
         pixelLightNormal = pixelLightNormal * 2 - 1;
 
@@ -193,29 +183,29 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
             continue;
         }
 
-		//else 
+	//else 
         numRaySamples++;
 
-		// set up ray
-        rayShadow.TMax = distance - 0.0001; 
+	// set up ray
+        rayShadow.TMax = distance - 0.0001;
         rayShadow.Direction = direction;
 
         TraceRay(
-				gRtScene,
-				0 /*rayFlags*/,
-				0xFF, /* ray mask*/
-				1 /* ray index*/,
-				2 /* total nbr of hitgroups*/,
-				1 /*miss shader index*/,
-				rayShadow,
-				shadowPayload
-			);
+			gRtScene,
+			RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH /*rayFlags*/,
+			0xFF, /* ray mask*/
+			1 /* ray index*/,
+			2 /* total nbr of hitgroups*/,
+			1 /*miss shader index*/,
+			rayShadow,
+			shadowPayload
+		);
 
         if (shadowPayload.hit == false)// we reached the light point
         {
             indirectColor += angleHitPoint
-								* angleLightPoint
-								* gShadowMap_Flux[crd + uint2(i, j)].rgb / max((distance * distance), 0.1f) * xi1 * sqrt(xi1);
+							* angleLightPoint
+							* gShadowMap_Flux[crd + uint2(i, j)].rgb / max((distance * distance), 0.1f) * xi1 * sqrt(xi1);
         }
 
     }
@@ -228,7 +218,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
 }
 
-float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload)
+float sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload)
 {
     ShadowPayload shadowPayload;
  
@@ -290,7 +280,7 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
 
     TraceRay(
 				gRtScene,
-				0 /*rayFlags*/,
+				RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH /*rayFlags*/,
 				0xFF, /* ray mask*/
 				1 /* ray index*/,
 				2 /* total nbr of hitgroups*/,
@@ -299,15 +289,15 @@ float3 sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout Ray
 				shadowPayload
 			);
 
-    float3 outColor;
+    float outColor;
     if (shadowPayload.hit == false) // no occlusion
     {
         
-        outColor = angle * float3(1.0, 1.0, 1.0) * 4.0f; //0.3f;
+        outColor = angle * 1.0f;
     }
     else // shadow
     {
-        outColor = float3(0.0, 0.0, 0.0);
+        outColor = 0.0f;
     }
 
     return outColor;
