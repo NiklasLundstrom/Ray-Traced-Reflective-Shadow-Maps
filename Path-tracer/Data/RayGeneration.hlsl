@@ -53,10 +53,10 @@ void rayGen()
 				ray, 
 				payload
 			);
-    float4 indirectColor = float4(payload.color.rgb, 1.0f);
-    float4 directColor = float4(payload.color.a * float3(1.0, 1.0, 1.0) * 4.0f /*0.3f*/, 1.0);
+    float4 color = payload.color.rgba; //[rgb=indirect, a=direct]
+    //float4 directColor = float4(payload.color.a * float3(1.0, 1.0, 1.0) * 4.0f /*0.3f*/, 1.0);
 
-    gOutput[launchIndex.xy] = indirectColor;
-    gDirectOutput[launchIndex.xy] = directColor;
+    gOutput[launchIndex.xy] = color;
+    //gDirectOutput[launchIndex.xy] = directColor;
 }
 

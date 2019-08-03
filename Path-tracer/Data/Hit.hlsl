@@ -54,11 +54,11 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 
     float directColor = float3(0.0, 0.0, 0.0);
 	[loop]
-    for (int i = 0; i < 10; i++)
+    for (int i = 0; i < 20; i++)
     {
         directColor += sampleDirectLight(hitPoint, normal, payload);
     }
-    directColor /= 10.0f;
+    directColor /= 20.0f;
     float4 indirectColorNumRays = sampleIndirectLight(hitPoint, normal, payload, acceptedReprojection);
     float3 indirectColor = indirectColorNumRays.rgb;
     float numRays = indirectColorNumRays.a;
@@ -105,10 +105,10 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
     int numRaySamples = 0;
     int numTotSamples = 0;
-    int maxNumRays = acceptedReprojection ? 100 : 600;
-    int maxNumTot = acceptedReprojection ? 100 : 600;
+    int maxNumRays = acceptedReprojection ? 10 : 600;
+    int maxNumTot = acceptedReprojection ? 20 : 200;
 	[loop]
-    for (int i = 0; i < 100; i++)
+    for (int i = 0; i < maxNumTot; i++)
     //while (numRaySamples < maxNumRays && numTotSamples < maxNumTot)
     {
         if (numTotSamples > 100 && numRaySamples == 0)
@@ -116,33 +116,34 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
             break;
         }
 
-	// pick random sample
+	// pick random sample, importance sampling with density 1/r
         float xi1 = nextRand(payload.seed);
         float xi2 = nextRand(payload.seed);
         float rMax = 150.0f;
         int i = floor(rMax * xi1 * sin(2 * PI * xi2));
         int j = floor(rMax * xi1 * cos(2 * PI * xi2));
-	// uniform over square
-    //int i = xi1 * shadowWidth;
-    //int j = xi2 * shadowHeight;
 
-	//// uniform disk
-    //float a = 2.0 * xi1 - 1.0;
-    //float b = 2.0 * xi2 - 1.0;
-    //float r;
-    //float phi;
-    //if (a * a > b * b)
-    //{
-    //    r = rMax * a;
-    //    phi = (PI / 4.0) * (b / a);
-    //}
-    //else
-    //{
-    //    r = rMax * b;
-    //    phi = (PI / 2.0) - (PI / 4.0) * (a / b);
-    //}
-    //int i = r * cos(phi);
-    //int j = r * sin(phi);
+        ////uniform over square
+        //int i = xi1 * shadowWidth;
+        //int j = xi2 * shadowHeight;
+
+		//// uniform disk
+		//float a = 2.0 * xi1 - 1.0;
+		//float b = 2.0 * xi2 - 1.0;
+		//float r;
+		//float phi;
+		//if (a * a > b * b)
+		//{
+		//    r = rMax * a;
+		//    phi = (PI / 4.0) * (b / a);
+		//}
+		//else
+		//{
+		//    r = rMax * b;
+		//    phi = (PI / 2.0) - (PI / 4.0) * (a / b);
+		//}
+		//int i = r * cos(phi);
+		//int j = r * sin(phi);
 
 
         numTotSamples++;
@@ -205,7 +206,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         {
             indirectColor += angleHitPoint
 							* angleLightPoint
-							* gShadowMap_Flux[crd + uint2(i, j)].rgb / max((distance * distance), 0.1f) * xi1 * sqrt(xi1);
+							* gShadowMap_Flux[crd + uint2(i, j)].rgb * xi1 * 150.0f * (1.75f / 3.0f) / max((distance * distance), 0.01f);
         }
 
     }
@@ -293,7 +294,7 @@ float sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayP
     if (shadowPayload.hit == false) // no occlusion
     {
         
-        outColor = angle * 1.0f;
+        outColor = angle * 8.0f;// intensity
     }
     else // shadow
     {

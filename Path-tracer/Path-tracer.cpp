@@ -360,34 +360,34 @@ void PathTracer::buildTransforms(float rotation)
 {
 	mat4 rotationMat = eulerAngleY(rotation*0.5f);
 	// room
-	mModels["Floor"].setTransform(scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
-	mModels["Floor Extended"].setTransform(translate(mat4(), vec3(2.5, 0.0f, 7.5)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	//mModels["Floor"].setTransform(scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	//mModels["Floor Extended"].setTransform(translate(mat4(), vec3(2.5, 0.0f, 7.5)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 
-	mModels["Back wall"].setTransform(translate(mat4(), vec3(2.5, 0.0f, -2.475)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
-	mModels["Back wall extended"].setTransform(translate(mat4(), vec3(5.05, 0.0f, -0.04)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	//mModels["Back wall"].setTransform(translate(mat4(), vec3(2.5, 0.0f, -2.475)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	//mModels["Back wall extended"].setTransform(translate(mat4(), vec3(5.05, 0.0f, -0.04)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 
-	mModels["Ceiling"].setTransform(translate(mat4(), vec3(-0.01f, 0, 0)) * scale(1.0f*vec3(1.002f, 1.0f, 1.0f)));
-	mModels["Ceiling extended"].setTransform(translate(mat4(), vec3(-4.325, 5.1f, 8.5f)) * eulerAngleY(half_pi<float>()) * scale(1.0f*vec3(1.00f, 1.0f, 1.0f)));
+	//mModels["Ceiling"].setTransform(translate(mat4(), vec3(-0.01f, 0, 0)) * scale(1.0f*vec3(1.002f, 1.0f, 1.0f)));
+	//mModels["Ceiling extended"].setTransform(translate(mat4(), vec3(-4.325, 5.1f, 8.5f)) * eulerAngleY(half_pi<float>()) * scale(1.0f*vec3(1.00f, 1.0f, 1.0f)));
 
-	mModels["Window"].setTransform(translate(mat4(), vec3(0.0, -0.5f, 0.0)) * scale(0.2f*vec3(21.25f, 1.0f, 1.0f)));
-	mModels["Front wall extended"].setTransform(translate(mat4(), vec3(0.0075, 0, -0.05)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	//mModels["Window"].setTransform(translate(mat4(), vec3(0.0, -0.5f, 0.0)) * scale(0.2f*vec3(21.25f, 1.0f, 1.0f)));
+	//mModels["Front wall extended"].setTransform(translate(mat4(), vec3(0.0075, 0, -0.05)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 
-	mModels["Left wall outside"].setTransform(translate(mat4(), vec3(0.01f, -0.05f, 0.0)) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
-	mModels["Right wall outside"].setTransform(translate(mat4(), vec3(-5.1, 0, 5)) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	//mModels["Left wall outside"].setTransform(translate(mat4(), vec3(0.01f, -0.05f, 0.0)) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	//mModels["Right wall outside"].setTransform(translate(mat4(), vec3(-5.1, 0, 5)) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 
-	mModels["Right wall inside"].setTransform(translate(mat4(), vec3(-0.01f, 0, 0)) * scale(1.0f*vec3(1.002f, 1.0f, 1.0f)));
-	mModels["Left wall extended"].setTransform(translate(mat4(), vec3(0, 0, 13.5)) * scale(1.0f*vec3(1.00f, 1.0f, 1.0f)));
+	//mModels["Right wall inside"].setTransform(translate(mat4(), vec3(-0.01f, 0, 0)) * scale(1.0f*vec3(1.002f, 1.0f, 1.0f)));
+	//mModels["Left wall extended"].setTransform(translate(mat4(), vec3(0, 0, 13.5)) * scale(1.0f*vec3(1.00f, 1.0f, 1.0f)));
 
-	// robot
-	mModels["Robot"].setTransform(rotationMat * translate(mat4(), vec3(1.5, /*1.39*/0.347499, 0 * sin(rotation*0.7f))) * scale(0.75f*vec3(1.0f, 1.0f, 1.0f)));
-	mModels["Teapot"].setTransform(translate(mat4(), vec3(3.5, 9.32*0.055f, 1.5)) * eulerAngleY(0.0f) * scale(0.055f*vec3(1.0f, 1.0f, 1.0f)));
+	//// robot
+	//mModels["Robot"].setTransform(rotationMat * translate(mat4(), vec3(1.5f, 0.347499f, 0.0f)) * scale(0.75f*vec3(1.0f, 1.0f, 1.0f)));
+	//mModels["Teapot"].setTransform(translate(mat4(), vec3(3.5f, 9.32*0.05f, 1.5f)) * eulerAngleY(0.0f) * scale(0.055f*vec3(1.0f, 1.0f, 1.0f)));
 
 #ifdef OFFLINE
 	// area light
 	mModels["Area light"].setTransform(translate(mat4(), mLight.eye) * scale((0.00517905410f/0.255999625f)*vec3(1.0f, 1.0f, 1.0f)));
 #endif
-	//// Sun temple
-	//mModels["Sun temple"].setTransform(translate(mat4(), vec3(0.0, 0.0, 5.0)) * scale(0.005f*vec3(1.0f, 1.0f, 1.0f))*mat4());
+	// Sun temple
+	mModels["Sun temple"].setTransform(translate(mat4(), vec3(0.0, 0.0, 5.0)) * scale(/*0.005f*/0.01f*vec3(1.0f, 1.0f, 1.0f))*mat4());
 
 }
 
@@ -491,7 +491,7 @@ void PathTracer::buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommand
 		{
 			instanceDescs[instanceIdx].InstanceID = i; // This value will be exposed to the shader via InstanceID()
 			instanceDescs[instanceIdx].InstanceContributionToHitGroupIndex = mNbrHitGroups * instanceIdx;  // hard coded
-			instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_NON_OPAQUE;
+			instanceDescs[instanceIdx].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE;
 			mat4 m = transpose(it->second.getTransformMatrix()); // GLM is column major, the INSTANCE_DESC is row major
 			memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
 			instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[it->second.getModelIndex() + i]->GetGPUVirtualAddress();
@@ -536,129 +536,129 @@ void PathTracer::createAccelerationStructures()
 	vec3 pureWhite = vec3(1.0f, 1.0f, 1.0f);
 	uint8_t modelIndex = 0;
 
-	//// Sun temple
-	//// Load left wall extended
-	//Model sunTemple(L"Sun temple", modelIndex, white);
-	//mModels["Sun temple"] = sunTemple;
-	//std::vector<AccelerationStructureBuffers> sunTempleAS = mModels["Sun temple"].loadMultipleModelsFromFile(mpDevice, mpCmdList, "Data/Models/SunTemple/SunTempleMerged.fbx", &importer, true);
-	//for (int i = 0; i < sunTempleAS.size(); i++)
-	//{
-	//	mpBottomLevelAS[modelIndex] = sunTempleAS.at(i).pResult;
-	//	mpBottomLevelAS[modelIndex]->SetName((L"BLAS Sun temple sub" + std::to_wstring(i)).c_str());
-	//	modelIndex++;
-	//}
-
-	// Load robot
-	Model robot(L"Robot", modelIndex, white);
-	mModels["Robot"] = robot;
-	AccelerationStructureBuffers robotAS = mModels["Robot"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/robot.fbx", &importer, false);
-	mpBottomLevelAS[modelIndex] = robotAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Robot");
-	modelIndex++;
-
-	// Load teapot
-	Model teapot(L"Teapot", modelIndex, white);
-	mModels["Teapot"] = teapot;
-	AccelerationStructureBuffers teapotAS = mModels["Teapot"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/utah-teapot.obj", &importer, false);
-	mpBottomLevelAS[modelIndex] = teapotAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Teapot");
-	modelIndex++;
-
-	// Load floor
-	Model floor(L"Floor", modelIndex, white);
-	mModels["Floor"] = floor;
-	AccelerationStructureBuffers floorAS = mModels["Floor"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/floor2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = floorAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Floor");
-	modelIndex++;
-
-	// Load extended floor
-	Model floorExt(L"Floor Extended", modelIndex, white);
-	mModels["Floor Extended"] = floorExt;
-	AccelerationStructureBuffers floorExtAS = mModels["Floor Extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/floor_extended2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = floorExtAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Floor Extended");
-	modelIndex++;
-
-	// Load back wall
-	Model backWall(L"Back wall", modelIndex, red);
-	mModels["Back wall"] = backWall;
-	AccelerationStructureBuffers backWallAS = mModels["Back wall"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/back_wall2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = backWallAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Back wall");
-	modelIndex++;
-
-	// Load extended back wall
-	Model backWallExt(L"Back wall extended", modelIndex, white);
-	mModels["Back wall extended"] = backWallExt;
-	AccelerationStructureBuffers backWallExtAS = mModels["Back wall extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/back_wall_extended2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = backWallExtAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Back wall extended");
-	modelIndex++;
-
-	// Load ceiling
-	Model ceiling(L"Ceiling", modelIndex, white);
-	mModels["Ceiling"] = ceiling;
-	AccelerationStructureBuffers ceilingAS = mModels["Ceiling"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/ceiling2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = ceilingAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Ceiling");
-	modelIndex++;
-
-	// Load extended ceiling
-	Model ceilingExt(L"Ceiling extended", modelIndex, white);
-	mModels["Ceiling extended"] = ceilingExt;
-	AccelerationStructureBuffers ceilingExtAS = mModels["Ceiling extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/ceiling_extended2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = ceilingExtAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Ceiling extended");
-	modelIndex++;
-
-	// Load window
-	Model window(L"Window", modelIndex, white);
-	mModels["Window"] = window;
-	AccelerationStructureBuffers windowAS = mModels["Window"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/wall_window2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = windowAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Window");
-	modelIndex++;
-
-	// Load extended front wall
-	Model frontWallExt(L"Front wall extended", modelIndex, white);
-	mModels["Front wall extended"] = frontWallExt;
-	AccelerationStructureBuffers frontWallExtAS = mModels["Front wall extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/front_wall_extended2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = frontWallExtAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Front wall extended");
-	modelIndex++;
-
-	// Load left wall outside
-	Model leftWallOutside(L"Left wall outside", modelIndex, green);
-	mModels["Left wall outside"] = leftWallOutside;
-	AccelerationStructureBuffers leftWallOutsideAS = mModels["Left wall outside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/left_wall_outside2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = leftWallOutsideAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Left wall outside");
-	modelIndex++;
-
-	// Load right wall outside
-	Model rightWallOutside(L"Right wall outside", modelIndex, white);
-	mModels["Right wall outside"] = rightWallOutside;
-	AccelerationStructureBuffers rightWallOutsideAS = mModels["Right wall outside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/right_wall_outside2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = rightWallOutsideAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Right wall outside");
-	modelIndex++;
-
-	// Load right wall inside
-	Model rightWallInside(L"Right wall inside", modelIndex, white);
-	mModels["Right wall inside"] = rightWallInside;
-	AccelerationStructureBuffers rightWallInsideAS = mModels["Right wall inside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/right_wall_inside2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = rightWallInsideAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Right wall inside");
-	modelIndex++;
-
+	// Sun temple
 	// Load left wall extended
-	Model leftWallExtended(L"Left wall extended", modelIndex, white);
-	mModels["Left wall extended"] = leftWallExtended;
-	AccelerationStructureBuffers leftWallExtendedAS = mModels["Left wall extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/left_wall_extended2.fbx", &importer, true);
-	mpBottomLevelAS[modelIndex] = leftWallExtendedAS.pResult;
-	mpBottomLevelAS[modelIndex]->SetName(L"BLAS Left wall extended");
-	modelIndex++;
+	Model sunTemple(L"Sun temple", modelIndex, white);
+	mModels["Sun temple"] = sunTemple;
+	std::vector<AccelerationStructureBuffers> sunTempleAS = mModels["Sun temple"].loadMultipleModelsFromFile(mpDevice, mpCmdList, "Data/Models/bistro_interior_with_street.fbx", &importer, true);
+	for (int i = 0; i < sunTempleAS.size(); i++)
+	{
+		mpBottomLevelAS[modelIndex] = sunTempleAS.at(i).pResult;
+		mpBottomLevelAS[modelIndex]->SetName((L"BLAS Sun temple sub" + std::to_wstring(i)).c_str());
+		modelIndex++;
+	}
+
+	//// Load robot
+	//Model robot(L"Robot", modelIndex, white);
+	//mModels["Robot"] = robot;
+	//AccelerationStructureBuffers robotAS = mModels["Robot"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/robot.fbx", &importer, false);
+	//mpBottomLevelAS[modelIndex] = robotAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Robot");
+	//modelIndex++;
+
+	//// Load teapot
+	//Model teapot(L"Teapot", modelIndex, white);
+	//mModels["Teapot"] = teapot;
+	//AccelerationStructureBuffers teapotAS = mModels["Teapot"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/teapot.fbx", &importer, false);
+	//mpBottomLevelAS[modelIndex] = teapotAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Teapot");
+	//modelIndex++;
+
+	//// Load floor
+	//Model floor(L"Floor", modelIndex, white);
+	//mModels["Floor"] = floor;
+	//AccelerationStructureBuffers floorAS = mModels["Floor"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/floor2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = floorAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Floor");
+	//modelIndex++;
+
+	//// Load extended floor
+	//Model floorExt(L"Floor Extended", modelIndex, white);
+	//mModels["Floor Extended"] = floorExt;
+	//AccelerationStructureBuffers floorExtAS = mModels["Floor Extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/floor_extended2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = floorExtAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Floor Extended");
+	//modelIndex++;
+
+	//// Load back wall
+	//Model backWall(L"Back wall", modelIndex, red);
+	//mModels["Back wall"] = backWall;
+	//AccelerationStructureBuffers backWallAS = mModels["Back wall"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/back_wall2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = backWallAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Back wall");
+	//modelIndex++;
+
+	//// Load extended back wall
+	//Model backWallExt(L"Back wall extended", modelIndex, white);
+	//mModels["Back wall extended"] = backWallExt;
+	//AccelerationStructureBuffers backWallExtAS = mModels["Back wall extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/back_wall_extended2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = backWallExtAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Back wall extended");
+	//modelIndex++;
+
+	//// Load ceiling
+	//Model ceiling(L"Ceiling", modelIndex, white);
+	//mModels["Ceiling"] = ceiling;
+	//AccelerationStructureBuffers ceilingAS = mModels["Ceiling"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/ceiling2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = ceilingAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Ceiling");
+	//modelIndex++;
+
+	//// Load extended ceiling
+	//Model ceilingExt(L"Ceiling extended", modelIndex, white);
+	//mModels["Ceiling extended"] = ceilingExt;
+	//AccelerationStructureBuffers ceilingExtAS = mModels["Ceiling extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/ceiling_extended2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = ceilingExtAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Ceiling extended");
+	//modelIndex++;
+
+	//// Load window
+	//Model window(L"Window", modelIndex, white);
+	//mModels["Window"] = window;
+	//AccelerationStructureBuffers windowAS = mModels["Window"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/wall_window2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = windowAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Window");
+	//modelIndex++;
+
+	//// Load extended front wall
+	//Model frontWallExt(L"Front wall extended", modelIndex, white);
+	//mModels["Front wall extended"] = frontWallExt;
+	//AccelerationStructureBuffers frontWallExtAS = mModels["Front wall extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/front_wall_extended2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = frontWallExtAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Front wall extended");
+	//modelIndex++;
+
+	//// Load left wall outside
+	//Model leftWallOutside(L"Left wall outside", modelIndex, green);
+	//mModels["Left wall outside"] = leftWallOutside;
+	//AccelerationStructureBuffers leftWallOutsideAS = mModels["Left wall outside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/left_wall_outside2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = leftWallOutsideAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Left wall outside");
+	//modelIndex++;
+
+	//// Load right wall outside
+	//Model rightWallOutside(L"Right wall outside", modelIndex, white);
+	//mModels["Right wall outside"] = rightWallOutside;
+	//AccelerationStructureBuffers rightWallOutsideAS = mModels["Right wall outside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/right_wall_outside2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = rightWallOutsideAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Right wall outside");
+	//modelIndex++;
+
+	//// Load right wall inside
+	//Model rightWallInside(L"Right wall inside", modelIndex, white);
+	//mModels["Right wall inside"] = rightWallInside;
+	//AccelerationStructureBuffers rightWallInsideAS = mModels["Right wall inside"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/right_wall_inside2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = rightWallInsideAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Right wall inside");
+	//modelIndex++;
+
+	//// Load left wall extended
+	//Model leftWallExtended(L"Left wall extended", modelIndex, white);
+	//mModels["Left wall extended"] = leftWallExtended;
+	//AccelerationStructureBuffers leftWallExtendedAS = mModels["Left wall extended"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/room/left_wall_extended2.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = leftWallExtendedAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"BLAS Left wall extended");
+	//modelIndex++;
 
 #ifdef OFFLINE
 	// Load sphere for area light
@@ -3848,14 +3848,15 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 
 void PathTracer::onFrameRender(bool *gKeys)
 {
+//#ifndef OFFLINE
 	readKeyboardInput(gKeys);
-
+//#endif
 	// Update light buffer
 	updateLightBuffer();
 
 	// Update object transforms
 	buildTransforms(mRotation);
-	mRotation += 0.5f*mCameraSpeed;
+	//mRotation += 0.5f*mCameraSpeed;
 
 	// Update camera
 	updateCameraBuffers();
@@ -3895,7 +3896,7 @@ void PathTracer::onFrameRender(bool *gKeys)
 	// Spatial filter
 	//////////////////////
 	applySpatialFilter(true);//indirect
-	applySpatialFilter(false);//direct
+	//applySpatialFilter(false);//direct
 
 	//////////////////////
 	// Tone Map

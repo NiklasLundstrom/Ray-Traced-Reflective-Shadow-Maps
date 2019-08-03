@@ -320,7 +320,7 @@ std::vector<AccelerationStructureBuffers> Model::loadMultipleModelsFromFile(ID3D
 		aiProcess_JoinIdenticalVertices |
 		aiProcess_Triangulate |
 		aiProcess_GenNormals |
-		aiProcess_FixInfacingNormals |
+		/*aiProcess_FixInfacingNormals |*/
 		aiProcess_GenUVCoords |
 		aiProcess_TransformUVCoords |
 		aiProcess_MakeLeftHanded |
@@ -356,7 +356,7 @@ std::vector<AccelerationStructureBuffers> Model::loadMultipleModelsFromFile(ID3D
 		mIndexBufferViews.push_back(ibView);
 
 		// BLAS
-		bottomLevelBuffers.push_back( createBottomLevelAS(
+		bottomLevelBuffers.push_back(createBottomLevelAS(
 			pDevice,
 			pCmdList,
 			mpVertexBuffers[i],
@@ -366,7 +366,18 @@ std::vector<AccelerationStructureBuffers> Model::loadMultipleModelsFromFile(ID3D
 		));
 
 		// colour
-		mColors.push_back(mColor);
+		vec3 color;
+		switch (i)
+		{
+			case 3:color = vec3(1.0f, 0.2f, 1.0f);break;
+			case 7:color = vec3(0.1f, 0.5f, 1.0f); break;
+			case 8:color = vec3(1.0f, 1.0f, 0.1f); break;
+			case 38:color = vec3(0.3f, 0.3f, 1.0f); break;
+
+			case 21:color = vec3(1.0f, 0.2f, 0.2f); break;
+			default: color = mColor;
+		}
+		mColors.push_back(color);
 	}
 
 	// create colour buffer

@@ -38,10 +38,10 @@ bool acceptReprojection(float2 motionVectors, SamplerState gSampler, float2 crd,
                 acceptReprojection = false;
             }
 			//compare normals
-            else if (abs(dot(normalAndMeshID_Current.xyz * 2.0f - 1.0f, normalAndMeshID_Previous.xyz * 2.0f - 1.0f)) < 0.9f)
-            {
-                acceptReprojection = false;
-            }
+            //else if (abs(dot(normalAndMeshID_Current.xyz * 2.0f - 1.0f, normalAndMeshID_Previous.xyz * 2.0f - 1.0f)) < 0.9f)
+            //{
+            //    acceptReprojection = false;
+            //}
             else
             {
 			// get previous depth

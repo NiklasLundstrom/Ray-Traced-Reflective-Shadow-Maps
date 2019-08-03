@@ -21,9 +21,9 @@ PSInput VSMain(uint index : SV_VertexID)
 }
 
 
-Texture2D<float4> gRtIndirectCurrent : register(t0);
+Texture2D<float4> gRtCurrent : register(t0);
 Texture2D<float4> gRtDirectCurrent : register(t1);
-Texture2D<float4> gIndirectColorHistory : register(t2);
+Texture2D<float4> gColorHistory : register(t2);
 Texture2D<float4> gDirectColorHistory : register(t3);
 Texture2D<float4> gMotionVectors : register(t4);
 
@@ -37,8 +37,7 @@ SamplerState gSampler : register(s0);
 
 struct PS_OUT
 {
-    float4 indirectOutput : SV_TARGET0;
-    float4 directOutput : SV_TARGET1;
+    float4 output : SV_TARGET0;
 };
 
 PS_OUT PSMain(PSInput input) : SV_TARGET
@@ -53,47 +52,55 @@ PS_OUT PSMain(PSInput input) : SV_TARGET
 // accepted reprojection
     float acceptReprojection = motionVector.z;
 
-    float3 indirectOutput;
-    float3 directOutput;
-    float historyLength;
-    if (acceptReprojection && !dropHistory)
+    float4 colorOutput;
+    //float directOutput;
+    if (/*OFFLINE ||*/ (acceptReprojection && !dropHistory))
     {
-		// indirect
-        float4 indirectColorCurrent = gRtIndirectCurrent.SampleLevel(gSampler, crd, 0);
-        float4 indirectColorHistory = gIndirectColorHistory.SampleLevel(gSampler, reprojectedCrd, 0);
-        historyLength = indirectColorHistory.a + 1.0f;
-
-        float mixValue = 0.1f; //0.05f; /*max(0.2f, 1.0f / historyLength);*/
-        indirectOutput = mixValue * indirectColorCurrent.rgb + (1 - mixValue) * indirectColorHistory.rgb;
-
-		// direct
-        float4 directColorCurrent = gRtDirectCurrent.SampleLevel(gSampler, crd, 0);
-        float4 directColorHistory = gDirectColorHistory.SampleLevel(gSampler, reprojectedCrd, 0);
-
         if (OFFLINE)
         {
-            mixValue = 1.0f / historyLength;
+            float4 colorCurrent = gRtDirectCurrent.SampleLevel(gSampler, crd, 0);
+            float4 colorHistory = gColorHistory.SampleLevel(gSampler, crd, 0);
+
+            float historyLength = colorHistory.a + 1.0f;
+            float mixValue = 1.0f / historyLength;
+            colorOutput.rgb = mixValue * colorCurrent.rgb + (1 - mixValue) * colorHistory.rgb;
+            colorOutput.a = historyLength;
         }
         else
         {
-            mixValue = 0.3f;
-        }
-        directOutput = mixValue * directColorCurrent.rgb + (1 - mixValue) * directColorHistory.rgb;
+			float4 colorCurrent = gRtCurrent.SampleLevel(gSampler, crd, 0);
+            float4 colorHistory = gColorHistory.SampleLevel(gSampler, reprojectedCrd, 0);
 
+		// indirect
+            float3 indirectColorCurrent = colorCurrent.rgb;
+            float3 indirectColorHistory = colorHistory.rgb;
+
+            float mixValue = 0.04f; 
+            colorOutput.rgb = mixValue * indirectColorCurrent + (1 - mixValue) * indirectColorHistory;
+
+		// direct
+            float directColorCurrent = colorCurrent.a;
+            float directColorHistory = colorHistory.a;
+
+            mixValue = 0.3f;
+            colorOutput.a = mixValue * directColorCurrent + (1 - mixValue) * directColorHistory;
+        }
     }
     else // discard old samples
     {
-		// indirect
-        indirectOutput = gRtIndirectCurrent.SampleLevel(gSampler, crd, 0);
-        historyLength = 1.0f;
-
-		// direct
-        directOutput = gRtDirectCurrent.SampleLevel(gSampler, crd, 0);
+        if (OFFLINE)
+        {
+            colorOutput.rgb = gRtDirectCurrent.SampleLevel(gSampler, crd, 0);
+            colorOutput.a = 1.0f;
+        }
+        else
+        {
+            colorOutput = gRtCurrent.SampleLevel(gSampler, crd, 0);
+        }
     }
 
     PS_OUT output;
-    output.indirectOutput = float4(indirectOutput, historyLength);
-    output.directOutput = float4(directOutput, 1.0f);
+    output.output = colorOutput;
     return output;
 
 }
