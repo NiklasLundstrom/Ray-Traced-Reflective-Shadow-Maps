@@ -359,7 +359,7 @@ void PathTracer::createEnvironmentMapBuffer()
 void PathTracer::buildTransforms(float rotation)
 {
 	mat4 rotationMat = eulerAngleY(rotation*0.5f);
-	// room
+	//// room
 	//mModels["Floor"].setTransform(scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 	//mModels["Floor Extended"].setTransform(translate(mat4(), vec3(2.5, 0.0f, 7.5)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 
@@ -387,7 +387,7 @@ void PathTracer::buildTransforms(float rotation)
 	mModels["Area light"].setTransform(translate(mat4(), mLight.eye) * scale((0.00517905410f/0.255999625f)*vec3(1.0f, 1.0f, 1.0f)));
 #endif
 	// Sun temple
-	mModels["Sun temple"].setTransform(translate(mat4(), vec3(0.0, 0.0, 5.0)) * scale(/*0.005f*/0.01f*vec3(1.0f, 1.0f, 1.0f))*mat4());
+	mModels["Sun temple"].setTransform(translate(mat4(), vec3(0.0, 0.0, 0.0/*5.0*/)) * scale(/*0.005f*//*0.01f**/vec3(1.0f, 1.0f, 1.0f))*mat4());
 
 }
 
@@ -496,6 +496,13 @@ void PathTracer::buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommand
 			memcpy(instanceDescs[instanceIdx].Transform, &m, sizeof(instanceDescs[instanceIdx].Transform));
 			instanceDescs[instanceIdx].AccelerationStructure = pBottomLevelAS[it->second.getModelIndex() + i]->GetGPUVirtualAddress();
 			instanceDescs[instanceIdx].InstanceMask = 0xFF;
+#ifdef OFFLINE
+			if (it->first == "Area light")
+			{
+				instanceDescs[instanceIdx].InstanceMask = 0x01;
+			}
+#endif // OFFLINE
+
 
 			instanceIdx++;
 		}
@@ -540,7 +547,7 @@ void PathTracer::createAccelerationStructures()
 	// Load left wall extended
 	Model sunTemple(L"Sun temple", modelIndex, white);
 	mModels["Sun temple"] = sunTemple;
-	std::vector<AccelerationStructureBuffers> sunTempleAS = mModels["Sun temple"].loadMultipleModelsFromFile(mpDevice, mpCmdList, "Data/Models/bistro_interior_with_street.fbx", &importer, true);
+	std::vector<AccelerationStructureBuffers> sunTempleAS = mModels["Sun temple"].loadMultipleModelsFromFile(mpDevice, mpCmdList, "Data/Models/sponza2.fbx", &importer, false);
 	for (int i = 0; i < sunTempleAS.size(); i++)
 	{
 		mpBottomLevelAS[modelIndex] = sunTempleAS.at(i).pResult;
@@ -983,7 +990,7 @@ RootSignatureDesc createOfflineRayGenRootDesc()
 RootSignatureDesc createOfflineModelHitRootDesc()
 {
 	RootSignatureDesc desc;
-	desc.range.resize(1);
+	desc.range.resize(3);
 
 	// gRtScene
 	desc.range[0].BaseShaderRegister = 0; //t0
@@ -992,9 +999,23 @@ RootSignatureDesc createOfflineModelHitRootDesc()
 	desc.range[0].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_SRV;
 	desc.range[0].OffsetInDescriptorsFromTableStart = 0;
 
+	// Light
+	desc.range[1].BaseShaderRegister = 0; //b0
+	desc.range[1].NumDescriptors = 1;
+	desc.range[1].RegisterSpace = 0;
+	desc.range[1].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+	desc.range[1].OffsetInDescriptorsFromTableStart = 3;
+
+	// Light Position
+	desc.range[2].BaseShaderRegister = 1; //b1
+	desc.range[2].NumDescriptors = 1;
+	desc.range[2].RegisterSpace = 0;
+	desc.range[2].RangeType = D3D12_DESCRIPTOR_RANGE_TYPE_CBV;
+	desc.range[2].OffsetInDescriptorsFromTableStart = 4;
+
 	desc.rootParams.resize(4);
 	desc.rootParams[0].ParameterType = D3D12_ROOT_PARAMETER_TYPE_DESCRIPTOR_TABLE;
-	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 1;
+	desc.rootParams[0].DescriptorTable.NumDescriptorRanges = 3;
 	desc.rootParams[0].DescriptorTable.pDescriptorRanges = desc.range.data();
 
 	// indices
@@ -2265,7 +2286,7 @@ void PathTracer::createLightBuffer()
 	mpLightBuffer->SetName(L"Light Buffer");
 
 	// Set up Light values
-	float fovAngle = /*1.5f*glm::half_pi<float>();*/glm::quarter_pi<float>();
+	float fovAngle = /*1.5f*glm::half_pi<float>();*/glm::quarter_pi<float>()*1.5f;
 
 	// Left-hand system, depth from 0 to 1
 	float fFar = 100.0f;
@@ -2950,7 +2971,7 @@ void PathTracer::createGeometryBufferPipeline()
 		&kDefaultHeapProps,
 		D3D12_HEAP_FLAG_NONE,
 		&texDesc,
-		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		&colorClearValue,
 		IID_PPV_ARGS(&mpGeometryBuffer_Normal)
 	));
@@ -2972,7 +2993,7 @@ void PathTracer::createGeometryBufferPipeline()
 		&kDefaultHeapProps,
 		D3D12_HEAP_FLAG_NONE,
 		&texDesc,
-		D3D12_RESOURCE_STATE_RENDER_TARGET,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		&colorClearValue,
 		IID_PPV_ARGS(&mpGeometryBuffer_Color)
 	));
@@ -3222,7 +3243,7 @@ void PathTracer::createTemporalFilterPipeline()
 		&kDefaultHeapProps,
 		D3D12_HEAP_FLAG_NONE,
 		&texDesc,
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE,
 		nullptr,
 		IID_PPV_ARGS(&mpDirectColorHistory)
 	));
@@ -3400,6 +3421,8 @@ void PathTracer::renderGeometryBuffer()
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render G-buffer");
 
 	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Normal, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Color, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 
 	// Set pipeline state
@@ -3470,6 +3493,8 @@ void PathTracer::renderMotionVectors()
 {
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render Motion Vectors");
 	resourceBarrier(mpCmdList, mpGeometryBuffer_MotionVectors, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Normal, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 	// Set pipeline state
 	mpCmdList->SetPipelineState(mpMotionVectorsState);
@@ -3523,7 +3548,7 @@ void PathTracer::renderMotionVectors()
 
 	// copy depth, and normal+meshID to history
 	// depth
-	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_DEPTH_WRITE, D3D12_RESOURCE_STATE_COPY_SOURCE);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_SOURCE);
 	resourceBarrier(mpCmdList, mpGeometryBuffer_Previous_Depth, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_COPY_DEST);
 
 	mpCmdList->CopyResource(mpGeometryBuffer_Previous_Depth, mpGeometryBuffer_Depth);
@@ -3550,7 +3575,7 @@ void PathTracer::applyTemporalFilter()
 	resourceBarrier(mpCmdList, mpRtIndirectOutput, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	resourceBarrier(mpCmdList, mpRtDirectOutput,   D3D12_RESOURCE_STATE_UNORDERED_ACCESS, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	resourceBarrier(mpCmdList, mpIndirectColorHistory, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	resourceBarrier(mpCmdList, mpDirectColorHistory, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	resourceBarrier(mpCmdList, mpDirectColorHistory, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	resourceBarrier(mpCmdList, mpTemporalFilterIndirectOutput, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	resourceBarrier(mpCmdList, mpTemporalFilterDirectOutput,   D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
@@ -3747,7 +3772,8 @@ void PathTracer::applyToneMapping()
 
 	resourceBarrier(mpCmdList, mpToneMappingOutput, D3D12_RESOURCE_STATE_COPY_SOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
 	resourceBarrier(mpCmdList, mpFilteredIndirectColor, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	resourceBarrier(mpCmdList, mpFilteredDirectColor, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	//resourceBarrier(mpCmdList, mpFilteredDirectColor, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+	resourceBarrier(mpCmdList, mpGeometryBuffer_Color, D3D12_RESOURCE_STATE_RENDER_TARGET, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE );
 
 
 	// Set pipeline state
@@ -3863,7 +3889,6 @@ void PathTracer::onFrameRender(bool *gKeys)
 
 	// Update transform buffer
 	updateTransformBuffers();
-
 
 	uint32_t rtvIndex = beginFrame();
 

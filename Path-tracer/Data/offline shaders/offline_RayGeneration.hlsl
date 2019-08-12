@@ -30,7 +30,7 @@ void rayGen()
     
     RayDesc ray;
     ray.Origin = mul(viewMatInv, float4(0, 0, 0, 1)); // cameraPosition.xyz;
-    float4 target = mul(projMatInv, float4(d.x * aspectRatio, -d.y, 1, 1));
+    float4 target = mul(projMatInv, float4(d.x /** aspectRatio*/, -d.y, 1, 1));
     ray.Direction = mul(viewMatInv, float4(target.xyz, 0)); //normalize(mul(float3(d.x * aspectRatio, -d.y, 1), yRotMat));
 
     ray.TMin = 0.0001;

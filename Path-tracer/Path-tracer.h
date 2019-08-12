@@ -101,7 +101,7 @@ private:
 	// Scene
 	//////////////////////////////////////////////////////////////////////////
 
-	static const int mNumInstances = 39/*20*//*14*/ /*48*/ + mOffline; // keep in sync with value hard coded in buildTopLevelAS()
+	static const int mNumInstances = 5 + mOffline; // Bistro: 39, Sponza: 20, Room: 14, Sun temple: 48
 
 	// models
 	std::map<std::string, Model> mModels;
@@ -171,8 +171,8 @@ private:
 	// Camera
 	//////////////////////////////////////////////////////////////////////////
 	struct {
-		vec3	cameraPosition = vec3(6.0, 6.3, 11.0);
-		float	cameraAngle = -2.0f;
+		vec3	cameraPosition = vec3(15.75, 7.5, 6.75);
+		float	cameraAngle = 2.18166f;
 		vec3	cameraDirection = vec3(sin(-cameraAngle), 0, cos(-cameraAngle));
 
 		vec3 eye;
@@ -239,10 +239,10 @@ private:
 
 	struct
 	{
-		vec3 center = vec3(10.8, 2.5, 10.0);// the point we look at
-		float radius = 28.0f;
-		float phi = 0.85f;
-		float theta = 4.7f;// 0.0f;
+		vec3 center = vec3(0.0, 0.0, 0.0);// the point we look at
+		float radius = 31.7256f;
+		float phi = 0.5817966f;
+		float theta = glm::pi<float>() + 0.38422367f;// 0.0f;
 
 		vec3 eye;
 		vec3 at;

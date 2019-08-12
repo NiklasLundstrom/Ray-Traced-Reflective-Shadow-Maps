@@ -1,3 +1,5 @@
+#include "Common.hlsli"
+
 cbuffer LightBuffer : register(b0)
 {
     float4x4 worldToView;
@@ -41,7 +43,7 @@ PSInput VSMain(float3 position : POSITION, uint index : SV_VertexID)
 	// normal
     float3 normal = normals[index];
     normal = normalize(mul(modelToWorld, float4(normal, 0.0f)).xyz);
-    normal = normal * 0.5 + 0.5;
+    //normal = normal * 0.5 + 0.5;
     vsOutput.normal = normal;
 
 	// color
@@ -61,7 +63,7 @@ PS_OUTPUT PSMain(PSInput input) : SV_TARGET
 {
     PS_OUTPUT output;
 
-    output.Position = input.worldPosition;
+    output.Position = float4(input.worldPosition.xyz, asfloat(dirToOct(input.normal)));
     output.Normal = float4(input.normal, 1.0);
     output.Flux = float4(input.color, 1.0);
 

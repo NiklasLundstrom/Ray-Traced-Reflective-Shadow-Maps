@@ -24,7 +24,7 @@ cbuffer lightPosition : register(b1, space1)
 
 //Texture2D<float> gShadowMap_Depth : register(t0, space1);
 Texture2D<float4> gShadowMap_Position : register(t1, space1);
-Texture2D<float4> gShadowMap_Normal : register(t2, space1);
+//Texture2D<float4> gShadowMap_Normal : register(t2, space1);
 Texture2D<float4> gShadowMap_Flux : register(t3, space1);
 Texture2D<float4> gMotionVector : register(t4, space1);
 
@@ -52,7 +52,7 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 	// get motion vector info
     float acceptedReprojection = gMotionVector[pixelCrd].z;
 
-    float directColor = float3(0.0, 0.0, 0.0);
+    float directColor = 0.0f;
 	[loop]
     for (int i = 0; i < 20; i++)
     {
@@ -105,7 +105,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
     int numRaySamples = 0;
     int numTotSamples = 0;
-    int maxNumRays = acceptedReprojection ? 10 : 600;
+    //int maxNumRays = acceptedReprojection ? 10 : 600;
     int maxNumTot = acceptedReprojection ? 20 : 200;
 	[loop]
     for (int i = 0; i < maxNumTot; i++)
@@ -175,8 +175,8 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         }
 	// do not sample if hit point is below the pixel light's surface,
 	// or on the same plane
-        float3 pixelLightNormal = gShadowMap_Normal[crd + uint2(i, j)].rgb;
-        pixelLightNormal = pixelLightNormal * 2 - 1;
+        float3 pixelLightNormal = oct_to_dir(asuint(lightPosData.w)); 
+        //pixelLightNormal = pixelLightNormal * 2 - 1;
 
         float angleLightPoint = saturate(dot(-direction, pixelLightNormal));
         if (angleLightPoint < 0.0001)
@@ -208,7 +208,6 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 							* angleLightPoint
 							* gShadowMap_Flux[crd + uint2(i, j)].rgb * xi1 * 150.0f * (1.75f / 3.0f) / max((distance * distance), 0.01f);
         }
-
     }
 
     if (numRaySamples > 0)
@@ -231,15 +230,10 @@ float sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayP
 
 
 	// Construct TBN matrix to position disk samples towards shadow ray direction
-
     float3 n = normalize(lightPosition - hitPoint);
-
-    float3 rvec = normalize(mul(float4(hitPoint, 1.0f), worldToView));
-
+    float3 rvec = normalize(mul(float4(hitPoint, 1.0f), worldToView));//.xyz
     float3 b1 = normalize(rvec - n * dot(rvec, n));
-
     float3 b2 = cross(n, b1);
-
     float3x3 tbn = float3x3(b1, b2, n);
 
 	// pick random sample

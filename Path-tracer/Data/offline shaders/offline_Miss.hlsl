@@ -19,6 +19,6 @@ void miss(inout OfflineRayPayload payload)
         
     //payload.color = c.rgb;
 	
-    payload.color = float3(0.0, 0.0, 0.0);//  float3(201.0, 226.0, 255.0) * 5 / 255.0;
+    payload.color = float3(0.0, 0.0, 0.0); //float3(201.0, 226.0, 255.0) * 5 / 255.0;
 
     }

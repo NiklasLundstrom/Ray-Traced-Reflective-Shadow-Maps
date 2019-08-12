@@ -30,7 +30,7 @@ bool acceptReprojection(float2 motionVectors, SamplerState gSampler, float2 crd,
         else
         {
 			// get normal and mesh ID
-            float4 normalAndMeshID_Previous = gNormalPrevious.SampleLevel(gSampler, reprojectedCrd, 0);
+                float4 normalAndMeshID_Previous = gNormalPrevious.SampleLevel(gSampler, reprojectedCrd, 0);
             float4 normalAndMeshID_Current = gNormalCurrent.SampleLevel(gSampler, crd, 0);
 			//compare mesh ID
             if (abs(normalAndMeshID_Current.a - normalAndMeshID_Previous.a) > 0.1f)
@@ -38,10 +38,10 @@ bool acceptReprojection(float2 motionVectors, SamplerState gSampler, float2 crd,
                 acceptReprojection = false;
             }
 			//compare normals
-            //else if (abs(dot(normalAndMeshID_Current.xyz * 2.0f - 1.0f, normalAndMeshID_Previous.xyz * 2.0f - 1.0f)) < 0.9f)
-            //{
-            //    acceptReprojection = false;
-            //}
+            else if (abs(dot(normalAndMeshID_Current.xyz * 2.0f - 1.0f, normalAndMeshID_Previous.xyz * 2.0f - 1.0f)) < 0.5f)
+            {
+                acceptReprojection = false;
+            }
             else
             {
 			// get previous depth

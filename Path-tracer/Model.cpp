@@ -165,7 +165,7 @@ AccelerationStructureBuffers Model::createBottomLevelAS(ID3D12Device5Ptr pDevice
 	// Get the size requirements for the scratch and AS buffers
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_INPUTS inputs = {};
 	inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-	inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_NONE;
+	inputs.Flags = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE | D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION;
 	inputs.NumDescs = 1;
 	inputs.pGeometryDescs = &geomDesc;
 	inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
@@ -323,7 +323,7 @@ std::vector<AccelerationStructureBuffers> Model::loadMultipleModelsFromFile(ID3D
 		/*aiProcess_FixInfacingNormals |*/
 		aiProcess_GenUVCoords |
 		aiProcess_TransformUVCoords |
-		aiProcess_MakeLeftHanded |
+		/*aiProcess_MakeLeftHanded |*/
 		aiProcess_FindInvalidData);
 
 	mNumMeshes = scene->mNumMeshes;
@@ -367,15 +367,24 @@ std::vector<AccelerationStructureBuffers> Model::loadMultipleModelsFromFile(ID3D
 
 		// colour
 		vec3 color;
-		switch (i)
+		switch (mesh->mMaterialIndex)
 		{
+			/*
+			// bistro
 			case 3:color = vec3(1.0f, 0.2f, 1.0f);break;
 			case 7:color = vec3(0.1f, 0.5f, 1.0f); break;
 			case 8:color = vec3(1.0f, 1.0f, 0.1f); break;
 			case 38:color = vec3(0.3f, 0.3f, 1.0f); break;
 
 			case 21:color = vec3(1.0f, 0.2f, 0.2f); break;
-			default: color = mColor;
+			default: color = mColor;*/
+		case 0:color = vec3(0.9f, 0.9f, 0.9f); break;
+		case 1:color = vec3(0.9f, 0.3f, 0.9f); break;
+		case 2:color = vec3(0.9f, 0.9f, 0.2f); break;
+		case 3:color = vec3(0.2f, 0.4f, 0.9f); break;
+		case 4:color = vec3(0.2f, 0.9f, 0.2f); break;
+
+		default: color = mColor;
 		}
 		mColors.push_back(color);
 	}

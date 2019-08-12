@@ -3,7 +3,6 @@
 
 RaytracingAccelerationStructure gRtScene : register(t0);
 RWTexture2D<float4> gOutput : register(u0);
-RWTexture2D<float4> gDirectOutput : register(u1);
 
 cbuffer Camera : register(b0)
 {
@@ -30,7 +29,7 @@ void rayGen()
     
     RayDesc ray;
     ray.Origin = mul(viewMatInv, float4(0, 0, 0, 1));// cameraPosition.xyz;
-    float4 target = mul(projMatInv, float4(d.x * aspectRatio, -d.y, 1, 1));
+    float4 target = mul(projMatInv, float4(d.x /** aspectRatio*/, -d.y, 1, 1));
     ray.Direction = mul(viewMatInv, float4(target.xyz, 0)); //normalize(mul(float3(d.x * aspectRatio, -d.y, 1), yRotMat));
 
     ray.TMin = 0;
@@ -54,9 +53,7 @@ void rayGen()
 				payload
 			);
     float4 color = payload.color.rgba; //[rgb=indirect, a=direct]
-    //float4 directColor = float4(payload.color.a * float3(1.0, 1.0, 1.0) * 4.0f /*0.3f*/, 1.0);
 
     gOutput[launchIndex.xy] = color;
-    //gDirectOutput[launchIndex.xy] = directColor;
 }
 

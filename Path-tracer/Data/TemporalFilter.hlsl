@@ -54,12 +54,12 @@ PS_OUT PSMain(PSInput input) : SV_TARGET
 
     float4 colorOutput;
     //float directOutput;
-    if (/*OFFLINE ||*/ (acceptReprojection && !dropHistory))
+    if (OFFLINE || (acceptReprojection && !dropHistory))
     {
         if (OFFLINE)
         {
             float4 colorCurrent = gRtDirectCurrent.SampleLevel(gSampler, crd, 0);
-            float4 colorHistory = gColorHistory.SampleLevel(gSampler, crd, 0);
+            float4 colorHistory = gColorHistory.SampleLevel(gSampler, reprojectedCrd, 0);
 
             float historyLength = colorHistory.a + 1.0f;
             float mixValue = 1.0f / historyLength;
