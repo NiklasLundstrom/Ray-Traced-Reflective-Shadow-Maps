@@ -547,7 +547,7 @@ void PathTracer::createAccelerationStructures()
 	// Load left wall extended
 	Model sunTemple(L"Sun temple", modelIndex, white);
 	mModels["Sun temple"] = sunTemple;
-	std::vector<AccelerationStructureBuffers> sunTempleAS = mModels["Sun temple"].loadMultipleModelsFromFile(mpDevice, mpCmdList, "Data/Models/sponza2.fbx", &importer, false);
+	std::vector<AccelerationStructureBuffers> sunTempleAS = mModels["Sun temple"].loadMultipleModelsFromFile(mpDevice, mpCmdList, "Data/Models/room_complete.fbx", &importer, false);
 	for (int i = 0; i < sunTempleAS.size(); i++)
 	{
 		mpBottomLevelAS[modelIndex] = sunTempleAS.at(i).pResult;

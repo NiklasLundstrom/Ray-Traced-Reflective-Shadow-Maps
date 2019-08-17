@@ -101,7 +101,7 @@ private:
 	// Scene
 	//////////////////////////////////////////////////////////////////////////
 
-	static const int mNumInstances = 5 + mOffline; // Bistro: 39, Sponza: 20, Room: 14, Sun temple: 48
+	static const int mNumInstances = 3 + mOffline; // Bistro: 39, Sponza: 20, Room: 14, Sun temple: 48
 
 	// models
 	std::map<std::string, Model> mModels;
