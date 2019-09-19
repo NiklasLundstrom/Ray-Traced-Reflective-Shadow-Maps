@@ -54,16 +54,16 @@ void modelChs(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes
 
     float directColor = 0.0f;
 	[loop]
-    for (int i = 0; i < 20; i++)
+    for (int i = 0; i < 50; i++)
     {
         directColor += sampleDirectLight(hitPoint, normal, payload);
     }
-    directColor /= 20.0f;
+    directColor /= 50.0f;
     float4 indirectColorNumRays = sampleIndirectLight(hitPoint, normal, payload, acceptedReprojection);
     float3 indirectColor = indirectColorNumRays.rgb;
     float numRays = indirectColorNumRays.a;
 
-    payload.color = float4(indirectColor, directColor);
+    payload.color = float4( indirectColor, directColor);
 }
 
 float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayPayload payload, in float acceptedReprojection)
@@ -155,7 +155,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
 
 	// sample shadow map
         float4 lightPosData = gShadowMap_Position[crd + uint2(i, j)];
-        if (lightPosData.w == 0)
+        if (/*(gMotionVector[crd + uint2(i, j)].w)  == 0*/lightPosData.w == 2.0f)
         {
             continue;
         }
@@ -175,8 +175,9 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         }
 	// do not sample if hit point is below the pixel light's surface,
 	// or on the same plane
+        //float3 pixelLightNormal = gShadowMap_Normal[crd + uint2(i, j)].xyz;
         float3 pixelLightNormal = oct_to_dir(asuint(lightPosData.w)); 
-        //pixelLightNormal = pixelLightNormal * 2 - 1;
+        //pixelLightNormal = pixelLightNormal * 2.0f - 1.0f;
 
         float angleLightPoint = saturate(dot(-direction, pixelLightNormal));
         if (angleLightPoint < 0.0001)
@@ -206,7 +207,7 @@ float4 sampleIndirectLight(in float3 hitPoint, in float3 hitPointNormal, inout R
         {
             indirectColor += angleHitPoint
 							* angleLightPoint
-							* gShadowMap_Flux[crd + uint2(i, j)].rgb * xi1 * 150.0f * (1.75f / 3.0f) / max((distance * distance), 0.01f);
+							* gShadowMap_Flux[crd + uint2(i, j)].rgb * xi1 * 150.0f /** (1.75f / 3.0f)*/ / max((distance * distance), 0.01f);
         }
     }
 
@@ -240,7 +241,7 @@ float sampleDirectLight(in float3 hitPoint, in float3 hitPointNormal, inout RayP
 	// from Ray-tracing gems, 16.5.1.2
     float xi1 = nextRand(payload.seed);
     float xi2 = nextRand(payload.seed);
-    float R = 1.0f; // Light radius
+    float R = 0.5f; // Light radius
     float a = 2.0 * xi1 - 1.0;
     float b = 2.0 * xi2 - 1.0;
     float r;

@@ -36,9 +36,10 @@ float4 PSMain(PSInput input) : SV_TARGET
     float3 indirectLight = light.rgb;
     float3 directLight = light.a * float3(1.0f, 1.0f, 0.984f); // color
 	// Tone Map
-    float3 output = (indirectLight + directLight) * gGbufferColor[crd].rgb;
-    //output = linearToSrgb(ACESFitted(6.0 * output.rgb));
-    output = linearToSrgb(FilmicToneMapping(3.5 * output.rgb));
+    float3 output = (indirectLight + directLight*0.5f) * gGbufferColor[crd].rgb;
+    output = gMotionVectors[crd].w < 0.5f ? float3(1.0f, 1.0f, 1.0f)*10 : output;
+    //output = linearToSrgb(ACESFitted(2.5 * output.rgb));
+    output = linearToSrgb(FilmicToneMapping(2.5 * output.rgb));
 
 
 	 //Render Shadow map to the side
@@ -63,5 +64,5 @@ float4 PSMain(PSInput input) : SV_TARGET
         output = cPrim;
     }
 
-    return float4(output, 1);
+    return float4(output.rgb, 1);
 }

@@ -43,7 +43,7 @@ PSInput VSMain(float3 position : POSITION, uint index : SV_VertexID)
 	// normal
     float3 normal = normals[index];
     normal = normalize(mul(modelToWorld, float4(normal, 0.0f)).xyz);
-    //normal = normal * 0.5 + 0.5;
+    normal = normal; // * 0.5 + 0.5;
     vsOutput.normal = normal;
 
 	// color
@@ -63,8 +63,10 @@ PS_OUTPUT PSMain(PSInput input) : SV_TARGET
 {
     PS_OUTPUT output;
 
-    output.Position = float4(input.worldPosition.xyz, asfloat(dirToOct(input.normal)));
-    output.Normal = float4(input.normal, 1.0);
+    output.Position = float4(input.worldPosition.xyz, asfloat(dirToOct(normalize(input.normal))));
+    //float tempNormal = asfloat(dirToOct(normalize(input.normal)));
+    //float3 newNormal = oct_to_dir(asuint(tempNormal)); //*2.0f-1.0f;
+    output.Normal = float4(input.normal*0.5f+0.5f, 1.0);
     output.Flux = float4(input.color, 1.0);
 
     return output;

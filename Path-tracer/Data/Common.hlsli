@@ -48,7 +48,7 @@ static const float2 gTexCoords[6] =
 // pack/unpack normals
 uint dirToOct(float3 normal)
 {
-    float2 p = normal.xy * (1.0 / dot(abs(normal), float3(1.0f, 1.0f, 1.0f)));
+    float2 p = normal.xy * (1.0 / dot(abs(normal), 1.0.xxx /*float3(1.0f, 1.0f, 1.0f)*/));
     float2 e = normal.z > 0.0 ? p : (1.0 - abs(p.yx)) * (step(0.0, p) * 2.0 - (float2) (1.0));
     return (asuint(f32tof16(e.y)) << 16) + (asuint(f32tof16(e.x)));
 }

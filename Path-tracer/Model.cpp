@@ -369,20 +369,38 @@ std::vector<AccelerationStructureBuffers> Model::loadMultipleModelsFromFile(ID3D
 		vec3 color;
 		switch (mesh->mMaterialIndex)
 		{
-			/*
-			// bistro
-			case 3:color = vec3(1.0f, 0.2f, 1.0f);break;
-			case 7:color = vec3(0.1f, 0.5f, 1.0f); break;
-			case 8:color = vec3(1.0f, 1.0f, 0.1f); break;
-			case 38:color = vec3(0.3f, 0.3f, 1.0f); break;
+			
+			//// bistro
+			//case 3:color = vec3(1.0f, 0.2f, 1.0f);break;//3
+			//case 7:color = vec3(0.1f, 0.5f, 1.0f); break;//7
+			//case 8:color = vec3(1.0f, 1.0f, 0.1f); break;//8
+			//case 38:color = vec3(0.3f, 0.3f, 1.0f); break;//38
+			//case 21:color = vec3(1.0f, 0.2f, 0.2f); break;//21
 
-			case 21:color = vec3(1.0f, 0.2f, 0.2f); break;
-			default: color = mColor;*/
-		case 0:color = vec3(0.9f, 0.9f, 0.9f); break;
-		case 1:color = vec3(0.9f, 0.3f, 0.9f); break;
-		case 2:color = vec3(0.9f, 0.9f, 0.2f); break;
-		case 3:color = vec3(0.2f, 0.4f, 0.9f); break;
-		case 4:color = vec3(0.2f, 0.9f, 0.2f); break;
+			//// sponza
+			//case 0:color = vec3(0.9f, 0.9f, 0.9f); break;
+			//case 1:color = vec3(0.9f, 0.3f, 0.9f); break;
+			//case 2:color = vec3(0.9f, 0.9f, 0.2f); break;
+			//case 3:color = vec3(0.2f, 0.4f, 0.9f); break;
+			//case 4:color = vec3(0.2f, 0.9f, 0.2f); break;
+
+				//sun temple
+			case 0:color = vec3(0.9f, 0.9f, 0.9f); break;
+			case 1:color = vec3(0.9f, 0.2f, 0.2f); break;
+			case 2:color = vec3(0.9f, 0.9f, 0.2f); break;
+			case 3:color = vec3(0.2f, 0.4f, 0.9f); break;
+			case 4:color = vec3(0.2f, 0.9f, 0.2f); break;
+			case 5:color = vec3(0.9f, 0.2f, 0.2f); break;
+			case 6:color = vec3(0.9f, 0.2f, 0.2f); break;
+			case 7:color = vec3(0.9f, 0.2f, 0.2f); break;
+			case 8:color = vec3(0.9f, 0.2f, 0.2f); break;
+
+
+
+			//// room
+			//case 0:color = vec3(0.75f, 0.75f, 0.75f); break;
+			//case 1:color = vec3(0.1f, 0.75f, 0.1f); break;
+			//case 2:color = vec3(0.75f, 0.1f, 0.1f); break;
 
 		default: color = mColor;
 		}

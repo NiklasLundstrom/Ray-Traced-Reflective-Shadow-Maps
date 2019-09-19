@@ -359,26 +359,26 @@ void PathTracer::createEnvironmentMapBuffer()
 void PathTracer::buildTransforms(float rotation)
 {
 	mat4 rotationMat = eulerAngleY(rotation*0.5f);
-	//// room
-	//mModels["Floor"].setTransform(scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
-	//mModels["Floor Extended"].setTransform(translate(mat4(), vec3(2.5, 0.0f, 7.5)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	// room
+	/*mModels["Floor"].setTransform(scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	mModels["Floor Extended"].setTransform(translate(mat4(), vec3(2.5, 0.0f, 7.5)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 
-	//mModels["Back wall"].setTransform(translate(mat4(), vec3(2.5, 0.0f, -2.475)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
-	//mModels["Back wall extended"].setTransform(translate(mat4(), vec3(5.05, 0.0f, -0.04)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	mModels["Back wall"].setTransform(translate(mat4(), vec3(2.5, 0.0f, -2.475)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	mModels["Back wall extended"].setTransform(translate(mat4(), vec3(5.05, 0.0f, -0.04)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 
-	//mModels["Ceiling"].setTransform(translate(mat4(), vec3(-0.01f, 0, 0)) * scale(1.0f*vec3(1.002f, 1.0f, 1.0f)));
-	//mModels["Ceiling extended"].setTransform(translate(mat4(), vec3(-4.325, 5.1f, 8.5f)) * eulerAngleY(half_pi<float>()) * scale(1.0f*vec3(1.00f, 1.0f, 1.0f)));
+	mModels["Ceiling"].setTransform(translate(mat4(), vec3(-0.01f, 0, 0)) * scale(1.0f*vec3(1.002f, 1.0f, 1.0f)));
+	mModels["Ceiling extended"].setTransform(translate(mat4(), vec3(-4.325, 5.1f, 8.5f)) * eulerAngleY(half_pi<float>()) * scale(1.0f*vec3(1.00f, 1.0f, 1.0f)));
 
-	//mModels["Window"].setTransform(translate(mat4(), vec3(0.0, -0.5f, 0.0)) * scale(0.2f*vec3(21.25f, 1.0f, 1.0f)));
-	//mModels["Front wall extended"].setTransform(translate(mat4(), vec3(0.0075, 0, -0.05)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	mModels["Window"].setTransform(translate(mat4(), vec3(0.0, -0.5f, 0.0)) * scale(0.2f*vec3(21.25f, 1.0f, 1.0f)));
+	mModels["Front wall extended"].setTransform(translate(mat4(), vec3(0.0075, 0, -0.05)) * eulerAngleY(-half_pi<float>()) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 
-	//mModels["Left wall outside"].setTransform(translate(mat4(), vec3(0.01f, -0.05f, 0.0)) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
-	//mModels["Right wall outside"].setTransform(translate(mat4(), vec3(-5.1, 0, 5)) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	mModels["Left wall outside"].setTransform(translate(mat4(), vec3(0.01f, -0.05f, 0.0)) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
+	mModels["Right wall outside"].setTransform(translate(mat4(), vec3(-5.1, 0, 5)) * scale(1.0f*vec3(1.0f, 1.0f, 1.0f)));
 
-	//mModels["Right wall inside"].setTransform(translate(mat4(), vec3(-0.01f, 0, 0)) * scale(1.0f*vec3(1.002f, 1.0f, 1.0f)));
-	//mModels["Left wall extended"].setTransform(translate(mat4(), vec3(0, 0, 13.5)) * scale(1.0f*vec3(1.00f, 1.0f, 1.0f)));
-
-	//// robot
+	mModels["Right wall inside"].setTransform(translate(mat4(), vec3(-0.01f, 0, 0)) * scale(1.0f*vec3(1.002f, 1.0f, 1.0f)));
+	mModels["Left wall extended"].setTransform(translate(mat4(), vec3(0, 0, 13.5)) * scale(1.0f*vec3(1.00f, 1.0f, 1.0f)));
+*/
+	// robot
 	//mModels["Robot"].setTransform(rotationMat * translate(mat4(), vec3(1.5f, 0.347499f, 0.0f)) * scale(0.75f*vec3(1.0f, 1.0f, 1.0f)));
 	//mModels["Teapot"].setTransform(translate(mat4(), vec3(3.5f, 9.32*0.05f, 1.5f)) * eulerAngleY(0.0f) * scale(0.055f*vec3(1.0f, 1.0f, 1.0f)));
 
@@ -387,8 +387,8 @@ void PathTracer::buildTransforms(float rotation)
 	mModels["Area light"].setTransform(translate(mat4(), mLight.eye) * scale((0.00517905410f/0.255999625f)*vec3(1.0f, 1.0f, 1.0f)));
 #endif
 	// Sun temple
-	mModels["Sun temple"].setTransform(translate(mat4(), vec3(0.0, 0.0, 0.0/*5.0*/)) * scale(/*0.005f*//*0.01f**/vec3(1.0f, 1.0f, 1.0f))*mat4());
-
+	mModels["Sun temple"].setTransform(translate(mat4(), vec3(0.0, 0.0, -25.0/*5.0*/)) * scale(/*0.005f*/0.01f*vec3(1.0f, 1.0f, 1.0f))*mat4());
+	//mModels["Sphere"].setTransform(translate(mat4(), vec3(13.0, 6.5, 6.0*sin(rotation*0.3f)))* scale(0.025f*vec3(1.0f, 1.0f, 1.0f)));
 }
 
 AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pVB[], const uint32_t vertexCount[], ID3D12ResourcePtr pIB[], const uint32_t indexCount[], uint32_t geometryCount)
@@ -537,23 +537,32 @@ void PathTracer::buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommand
 
 void PathTracer::createAccelerationStructures()
 {
-	vec3 white = 0.75f*vec3(1.0f, 1.0f, 1.0f);
-	vec3 red = 0.75f*vec3(1.0f, 0.1f, 0.1f);
-	vec3 green = 0.75f*vec3(0.1f, 1.0f, 0.1f);
+	vec3 white = vec3(0.75f, 0.75f, 0.75f);
+	vec3 red = vec3(0.75f, 0.1f, 0.1f);
+	vec3 green = vec3(0.1f, 0.75f, 0.1f);
 	vec3 pureWhite = vec3(1.0f, 1.0f, 1.0f);
+	vec3 pureRed = vec3(1.0f, 0.0f, 0.0f);
 	uint8_t modelIndex = 0;
 
 	// Sun temple
 	// Load left wall extended
 	Model sunTemple(L"Sun temple", modelIndex, white);
 	mModels["Sun temple"] = sunTemple;
-	std::vector<AccelerationStructureBuffers> sunTempleAS = mModels["Sun temple"].loadMultipleModelsFromFile(mpDevice, mpCmdList, "Data/Models/room_complete.fbx", &importer, false);
+	std::vector<AccelerationStructureBuffers> sunTempleAS = mModels["Sun temple"].loadMultipleModelsFromFile(mpDevice, mpCmdList, "Data/Models/SunTemple/sunTemple2.fbx", &importer, false);
 	for (int i = 0; i < sunTempleAS.size(); i++)
 	{
 		mpBottomLevelAS[modelIndex] = sunTempleAS.at(i).pResult;
 		mpBottomLevelAS[modelIndex]->SetName((L"BLAS Sun temple sub" + std::to_wstring(i)).c_str());
 		modelIndex++;
 	}
+
+	//// Load sphere for area light
+	//Model sphere(L"Sphere", modelIndex, pureRed);
+	//mModels["Sphere"] = sphere;
+	//AccelerationStructureBuffers sphereAS = mModels["Sphere"].loadModelFromFile(mpDevice, mpCmdList, "Data/Models/sphere.fbx", &importer, true);
+	//mpBottomLevelAS[modelIndex] = sphereAS.pResult;
+	//mpBottomLevelAS[modelIndex]->SetName(L"Sphere");
+	//modelIndex++;
 
 	//// Load robot
 	//Model robot(L"Robot", modelIndex, white);
@@ -2382,7 +2391,7 @@ void PathTracer::createShadowMapTextures()
 	colorClearValue.Color[0] = 0.0f;
 	colorClearValue.Color[1] = 0.0f;
 	colorClearValue.Color[2] = 0.0f;
-	colorClearValue.Color[3] = 0.0f;
+	colorClearValue.Color[3] = 2.0f;
 
 	// position
 	d3d_call(mpDevice->CreateCommittedResource(
@@ -2394,6 +2403,8 @@ void PathTracer::createShadowMapTextures()
 		IID_PPV_ARGS(&mpShadowMapTexture_Position)
 	));
 	mpShadowMapTexture_Position->SetName(L"RSM Position");
+
+	colorClearValue.Color[3] = 0.0f;
 
 	// normal
 	d3d_call(mpDevice->CreateCommittedResource(
@@ -3280,8 +3291,9 @@ void PathTracer::renderShadowMap()
 
 	// clear shadow map
 	mpCmdList->ClearDepthStencilView(mShadowMapDsv_Depth, D3D12_CLEAR_FLAG_DEPTH, 1.0f, 0, 0, nullptr);
+	float clearColorPos[4] = { 0.0f, 0.0f, 0.0f, 2.0f };
+	mpCmdList->ClearRenderTargetView(mShadowMapRtv_Position, clearColorPos, 0, nullptr);
 	float clearColor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
-	mpCmdList->ClearRenderTargetView(mShadowMapRtv_Position, clearColor, 0, nullptr);
 	mpCmdList->ClearRenderTargetView(mShadowMapRtv_Flux, clearColor, 0, nullptr);
 	mpCmdList->ClearRenderTargetView(mShadowMapRtv_Normal, clearColor, 0, nullptr);
 
@@ -3882,6 +3894,7 @@ void PathTracer::onFrameRender(bool *gKeys)
 
 	// Update object transforms
 	buildTransforms(mRotation);
+	//if(frameCount>250)
 	//mRotation += 0.5f*mCameraSpeed;
 
 	// Update camera

@@ -144,7 +144,7 @@ void VertBlurCS(int3 groupThreadID : SV_GroupThreadID, int3 dispatchThreadID : S
 
 	// first pre-filter once without luminance check, 
 	// then do reversed à-trous as in https://ieeexplore.ieee.org/document/6221770
-    int blurRadius = 1 << ((itr == 1) ? 1 : (6 - itr)); 
+    int blurRadius = 1 << ((itr == 1) ? 1 : (6 - itr));
     int blurHalfRadius = blurRadius >> 1;
 
 	//
