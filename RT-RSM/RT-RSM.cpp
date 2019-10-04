@@ -25,7 +25,7 @@
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ***************************************************************************/
-#include "Path-tracer.h"
+#include "RT-RSM.h"
 #include <sstream>
 
 static dxc::DxcDllSupport gDxcDllHelper;
@@ -153,7 +153,7 @@ uint64_t submitCommandList(ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12Command
 	return fenceValue;
 }
 
-void PathTracer::initDXR(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
+void RtRsm::initDXR(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 {
 	mHwnd = winHandle;
 	mSwapChainSize = uvec2(winWidth, winHeight);
@@ -218,7 +218,7 @@ void PathTracer::initDXR(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 	mFenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
 }
 
-uint32_t PathTracer::beginFrame()
+uint32_t RtRsm::beginFrame()
 {
 	// Bind the descriptor heaps
 	ID3D12DescriptorHeap* heaps[] = { mpCbvSrvUavHeap };
@@ -226,7 +226,7 @@ uint32_t PathTracer::beginFrame()
 	return mpSwapChain->GetCurrentBackBufferIndex();
 }
 
-void PathTracer::endFrame(uint32_t rtvIndex)
+void RtRsm::endFrame(uint32_t rtvIndex)
 {
 	resourceBarrier(mpCmdList, mFrameObjects[rtvIndex].pSwapChainBuffer, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_PRESENT);
 	mFenceValue = submitCommandList(mpCmdList, mpCmdQueue, mpFence, mFenceValue);
@@ -281,7 +281,7 @@ ID3D12ResourcePtr createBuffer(ID3D12Device5Ptr pDevice, uint64_t size, D3D12_RE
 	return pBuffer;
 }
 
-void PathTracer::createEnvironmentMapBuffer()
+void RtRsm::createEnvironmentMapBuffer()
 {
 	ID3D12ResourcePtr textureUploadHeap;
 
@@ -356,7 +356,7 @@ void PathTracer::createEnvironmentMapBuffer()
 
 }
 
-void PathTracer::buildTransforms(float rotation)
+void RtRsm::buildTransforms(float rotation)
 {
 	mat4 rotationMat = eulerAngleY(rotation*0.5f);
 	// room
@@ -442,7 +442,7 @@ AccelerationStructureBuffers createBottomLevelAS(ID3D12Device5Ptr pDevice, ID3D1
 	return buffers;
 }
 
-void PathTracer::buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, std::map<std::string, Model> models, AccelerationStructureBuffers& buffers)
+void RtRsm::buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommandList4Ptr pCmdList, ID3D12ResourcePtr pBottomLevelAS[], uint64_t& tlasSize, bool update, std::map<std::string, Model> models, AccelerationStructureBuffers& buffers)
 {
 	int numInstances = mNumInstances;//14/*48*/; // keep in sync with mNumInstances
 
@@ -535,7 +535,7 @@ void PathTracer::buildTopLevelAS(ID3D12Device5Ptr pDevice, ID3D12GraphicsCommand
 	pCmdList->ResourceBarrier(1, &uavBarrier);
 }
 
-void PathTracer::createAccelerationStructures()
+void RtRsm::createAccelerationStructures()
 {
 	vec3 white = vec3(0.75f, 0.75f, 0.75f);
 	vec3 red = vec3(0.75f, 0.1f, 0.1f);
@@ -1187,7 +1187,7 @@ struct PipelineConfig
 	D3D12_STATE_SUBOBJECT subobject = {};
 };
 
-void PathTracer::createRtPipelineState()
+void RtRsm::createRtPipelineState()
 {
 	// Need 20 subobjects:
 	//  4 for DXIL libraries    
@@ -1315,7 +1315,7 @@ void PathTracer::createRtPipelineState()
 	mpRtPipelineState->SetName(L"Rt PSO");
 }
 
-void PathTracer::createShaderTable()
+void RtRsm::createShaderTable()
 {
 	/** The shader-table layout is as follows:
 		Entry 0 - Ray-gen program
@@ -1428,7 +1428,7 @@ void PathTracer::createShaderTable()
 	mpShaderTable->Unmap(0, nullptr);
 }
 
-void PathTracer::createPathTracerPipilineState()
+void RtRsm::createPathTracerPipilineState()
 {
 	const int numSubobjects = 15;
 
@@ -1521,7 +1521,7 @@ void PathTracer::createPathTracerPipilineState()
 
 }
 
-void PathTracer::createPathTracerShaderTable()
+void RtRsm::createPathTracerShaderTable()
 {
 	const int numShaderTableEntries = 2 + mNumInstances;// raygen + miss + models
 
@@ -1612,7 +1612,7 @@ void PathTracer::createPathTracerShaderTable()
 	mpPathTracerShaderTable->Unmap(0, nullptr);
 }
 
-void PathTracer::createShaderResources()
+void RtRsm::createShaderResources()
 {
 	// Create the output resource. The dimensions and format should match the swap-chain
 	D3D12_RESOURCE_DESC resDesc = {};
@@ -2035,7 +2035,7 @@ void PathTracer::createShaderResources()
 //////////////////////////////////////////////////////////////////////////
 // My own functions
 //////////////////////////////////////////////////////////////////////////
-void PathTracer::readKeyboardInput(bool *gKeys)
+void RtRsm::readKeyboardInput(bool *gKeys)
 {
 	mCameraSpeed = 0.1f * 60.0f*glm::clamp<float>(mDeltaTime, 0.0f, 30.0f)*0.001f;
 
@@ -2114,7 +2114,7 @@ void PathTracer::readKeyboardInput(bool *gKeys)
 
 }
 
-void PathTracer::createCameraBuffers()
+void RtRsm::createCameraBuffers()
 {
 	// Create camera buffer
 	uint32_t nbVec = 3; // Position and Direction
@@ -2138,7 +2138,7 @@ void PathTracer::createCameraBuffers()
 
 }
 
-void PathTracer::updateCameraBuffers()
+void RtRsm::updateCameraBuffers()
 {
 	// Update camera matrix
 	mCamera.eye = mCamera.cameraPosition;
@@ -2194,7 +2194,7 @@ void PathTracer::updateCameraBuffers()
 	mpCameraMatrixBuffer->Unmap(0, nullptr);
 }
 
-void PathTracer::createShadowMapPipelineState()
+void RtRsm::createShadowMapPipelineState()
 {
 	D3D12_DESCRIPTOR_RANGE range[1];
 	// Light buffer
@@ -2287,7 +2287,7 @@ void PathTracer::createShadowMapPipelineState()
 	d3d_call(mpDevice->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&mpRasterPipelineState)));
 }
 
-void PathTracer::createLightBuffer()
+void RtRsm::createLightBuffer()
 {
 	// Create light buffer
 	mpLightBuffer = createBuffer(mpDevice, mLightBufferSize, D3D12_RESOURCE_FLAG_NONE,
@@ -2309,7 +2309,7 @@ void PathTracer::createLightBuffer()
 	mpLightPositionBuffer->SetName(L"Light Position Buffer");
 }
 
-void PathTracer::updateLightBuffer()
+void RtRsm::updateLightBuffer()
 {
 	/*mLight.eye = mLight.position;
 	mLight.at = mLight.direction; */
@@ -2344,7 +2344,7 @@ void PathTracer::updateLightBuffer()
 
 }
 
-void PathTracer::updateTransformBuffers()
+void RtRsm::updateTransformBuffers()
 {
 	for (auto it = mModels.begin(); it != mModels.end(); ++it)
 	{
@@ -2352,7 +2352,7 @@ void PathTracer::updateTransformBuffers()
 	}
 }
 
-void PathTracer::createShadowMapTextures()
+void RtRsm::createShadowMapTextures()
 {
 	D3D12_RESOURCE_DESC shadowTexDesc;
 	shadowTexDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -2459,7 +2459,7 @@ std::vector<float> calcGaussWeights(float sigma)
 	return weights;
 }
 
-void PathTracer::createSpatialFilterPipeline()
+void RtRsm::createSpatialFilterPipeline()
 {
 	// Create compute root signature
 	D3D12_DESCRIPTOR_RANGE ranges[4];
@@ -2589,7 +2589,7 @@ void PathTracer::createSpatialFilterPipeline()
 	mpFilteredDirectColor->SetName(L"Filtered Direct Color");
 }
 
-void PathTracer::createToneMappingPipeline()
+void RtRsm::createToneMappingPipeline()
 {
 
 	// root signature
@@ -2739,7 +2739,7 @@ void PathTracer::createToneMappingPipeline()
 	mpToneMappingOutput->SetName(L"Tone Mapping RTV");
 }
 
-void PathTracer::createGeometryBufferPipeline()
+void RtRsm::createGeometryBufferPipeline()
 {
 	////////////////////////
 	// G-buffer state
@@ -3063,7 +3063,7 @@ void PathTracer::createGeometryBufferPipeline()
 	mpGeometryBuffer_MotionVectors_depth->SetName(L"Motion vectors Depth");
 }
 
-void PathTracer::createTemporalFilterPipeline()
+void RtRsm::createTemporalFilterPipeline()
 {
 	// root signature
 	D3D12_DESCRIPTOR_RANGE ranges[5];
@@ -3262,7 +3262,7 @@ void PathTracer::createTemporalFilterPipeline()
 
 }
 
-void PathTracer::renderShadowMap()
+void RtRsm::renderShadowMap()
 {
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Rasterize shadow map");
 
@@ -3342,7 +3342,7 @@ void PathTracer::renderShadowMap()
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
-void PathTracer::rayTrace()
+void RtRsm::rayTrace()
 {
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Build TLAS");
 
@@ -3387,7 +3387,7 @@ void PathTracer::rayTrace()
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
-void PathTracer::offlinePathTrace()
+void RtRsm::offlinePathTrace()
 {
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Offline Path trace");
 
@@ -3428,7 +3428,7 @@ void PathTracer::offlinePathTrace()
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
-void PathTracer::renderGeometryBuffer()
+void RtRsm::renderGeometryBuffer()
 {
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render G-buffer");
 
@@ -3501,7 +3501,7 @@ void PathTracer::renderGeometryBuffer()
 
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
-void PathTracer::renderMotionVectors()
+void RtRsm::renderMotionVectors()
 {
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Render Motion Vectors");
 	resourceBarrier(mpCmdList, mpGeometryBuffer_MotionVectors, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -3579,7 +3579,7 @@ void PathTracer::renderMotionVectors()
 
 }
 
-void PathTracer::applyTemporalFilter()
+void RtRsm::applyTemporalFilter()
 {
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Temporal Filtering");
 
@@ -3655,7 +3655,7 @@ void PathTracer::applyTemporalFilter()
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
-void PathTracer::applySpatialFilter(bool indirect)
+void RtRsm::applySpatialFilter(bool indirect)
 {
 	uint8_t inputHeapIndex;
 	uint8_t outputHeapIndex;
@@ -3778,7 +3778,7 @@ void PathTracer::applySpatialFilter(bool indirect)
 	PIXEndEvent(mpCmdList.GetInterfacePtr());
 }
 
-void PathTracer::applyToneMapping()
+void RtRsm::applyToneMapping()
 {
 	PIXBeginEvent(mpCmdList.GetInterfacePtr(), 0, L"Tone Mapping");
 
@@ -3852,7 +3852,7 @@ void PathTracer::applyToneMapping()
 //////////////////////////////////////////////////////////////////////////
 // Callbacks
 //////////////////////////////////////////////////////////////////////////
-void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
+void RtRsm::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 {
 	initDXR(winHandle, winWidth, winHeight);        
 	createAccelerationStructures();                 // Load models and build AS
@@ -3884,7 +3884,7 @@ void PathTracer::onLoad(HWND winHandle, uint32_t winWidth, uint32_t winHeight)
 	mHeapStart = mpCbvSrvUavHeap->GetGPUDescriptorHandleForHeapStart();
 }
 
-void PathTracer::onFrameRender(bool *gKeys)
+void RtRsm::onFrameRender(bool *gKeys)
 {
 //#ifndef OFFLINE
 	readKeyboardInput(gKeys);
@@ -3952,7 +3952,7 @@ void PathTracer::onFrameRender(bool *gKeys)
 	endFrame(rtvIndex);
 }
 
-void PathTracer::onShutdown()
+void RtRsm::onShutdown()
 {
 	// Wait for the command queue to finish execution
 	mFenceValue++;
@@ -3963,5 +3963,5 @@ void PathTracer::onShutdown()
 
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nShowCmd)
 {
-	Framework::run(PathTracer(), "Path-tracer");
+	Framework::run(RtRsm(), "RT-RSM");
 }

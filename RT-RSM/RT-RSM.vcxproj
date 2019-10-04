@@ -12,11 +12,11 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Model.cpp" />
-    <ClCompile Include="Path-tracer.cpp" />
+    <ClCompile Include="RT-RSM.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Model.h" />
-    <ClInclude Include="Path-tracer.h" />
+    <ClInclude Include="RT-RSM.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Data\Common.hlsli">
@@ -154,7 +154,7 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>DXRT</RootNamespace>
     <WindowsTargetPlatformVersion>10.0.17763.0</WindowsTargetPlatformVersion>
-    <ProjectName>Path-tracer</ProjectName>
+    <ProjectName>RT-RSM</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">

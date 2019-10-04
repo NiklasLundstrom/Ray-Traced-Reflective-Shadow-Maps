@@ -9,12 +9,12 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Path-tracer.cpp" />
     <ClCompile Include="Model.cpp" />
+    <ClCompile Include="Path-tracer.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Path-tracer.h" />
     <ClInclude Include="Model.h" />
+    <ClInclude Include="Path-tracer.h" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="Data\Miss.hlsl">

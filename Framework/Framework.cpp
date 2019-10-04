@@ -135,7 +135,7 @@ namespace
 				}
 				fpsSamples++;
 				char title[100];
-				snprintf(title, sizeof(title), "Path-tracer, FPS: %d, Render time: %f, Frame: %d", currFPS, mDeltaTime, frameCount);
+				snprintf(title, sizeof(title), "RT-RSM, FPS: %d, Render time: %f, Frame: %d", currFPS, mDeltaTime, frameCount);
 				SetWindowTextA(winHandle, title);
 
                 tutorial.onFrameRender(gKeys);

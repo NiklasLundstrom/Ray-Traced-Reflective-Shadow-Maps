@@ -45,7 +45,7 @@ Reset accumulated color history with R
 	const bool mOffline = false;
 #endif
 
-class PathTracer : public Tutorial
+class RtRsm : public Tutorial
 {
 public:
 	//struct AccelerationStructureBuffers
