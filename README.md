@@ -7,3 +7,5 @@ To reduce the noise I use a temporal filter (separately for direct and indirect 
 The result is more or less noise free images with high quality lighting in real-time.
 
 See some results in Images folder and in the youtube videos: [Part 1](https://youtu.be/Dbwxm-EEsRI) and [Part 2 (final results)](https://youtu.be/EPt_8N6pm3o)
+
+![test](https://bitbucket.org/NiklasLundstroem/real-time-global-illumination-using-ray-tracing/raw/b75c34910c1a3d532122a1b9051d6f1f19287feb/Images/sunTemple.png)
