@@ -9,4 +9,6 @@ The result is more or less noise free images with high quality lighting in real-
 
 See some results in Images folder and in the youtube videos: [Part 1](https://youtu.be/Dbwxm-EEsRI) and [Part 2 (final results)](https://youtu.be/EPt_8N6pm3o)
 
-![sunTemple](https://bitbucket.org/NiklasLundstroem/real-time-global-illumination-using-ray-tracing/raw/b75c34910c1a3d532122a1b9051d6f1f19287feb/Images/sunTemple.png)
+<p align="center">
+  <img src="Images/sunTemple.png" width="512" title="GUI">
+</p>
